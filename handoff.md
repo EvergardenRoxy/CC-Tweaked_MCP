@@ -5,11 +5,11 @@ format: cct-run/handoff@1
 audience: machine reviewer / next agent (not end users)
 repo: EvergardenRoxy/CC-Tweaked_MCP
 branch: claude/zealous-ramanujan-rrt0qh
-base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D39, V14-V15) + cct_live_* MCP tools
+base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D42, V14-V16) + cct_live_* MCP tools
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15)
+status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15); on demand with recording mode and attach/lease/chat control handover, overhead measured (D40-D42, V16)
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -62,6 +62,9 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D37 | Prototype access: JDK `com.sun.net.httpserver` bound to 127.0.0.1 (port 47823), bearer token in `<game dir>/cct-live/token.txt`, Host header must be loopback (DNS rebinding), anything touching computers runs via `server.submit` (5 s timeout). ASCII-only JSON like the CLI. Not yet wired to `cct-run mcp`. | impl |
 | D38 | cct-live traces http and file access (owner request, after a real case: a download that returned an HTML page and broke `require`). TracingMethods also instruments HTTPAPI request/checkURL/websocket and FSAPI open/delete/move/copy/makeDir (one `api` record per call: api, method, args, ok, result/error) and every method of handle objects (AbstractHandle, HttpResponseHandle incl. its ObjectSource body reader, WebsocketHandle; one `handle` record per call with the data). Handles are numbered per VM (Handles, weak identity keys) and appear in JSON as {handle, type, path/mode or url}; http_success/http_failure/websocket_success name the response after the URL. /rom paths skipped (shell and require read them on every program start). Byte data previews copy at most 200 bytes. | user (do 1) + impl |
 | D39 | MCP tools for live computers (owner request): `cct_live_computers`, `cct_live_screen`, `cct_live_trace` (kind, after, ticks, offset, limit), `cct_live_event`, `cct_live_type` (paste + key 257/key_up), `cct_live_power`, in `cct-run mcp` next to the simulation tools. Discovery: the mod writes `<game dir>/cct-live/endpoint.json` while a world is open; the game dir comes from the tool's `game_dir`, else `mcp --live DIR`, else CCT_LIVE_DIR. java.net.http client, no proxy, 5 s connect / 15 s request. Endpoint errors become isError results with the mod's message and HTTP status; refused connection -> "Is the world still open?". Input/power tools carry destructiveHint and tell the agent to act only on the user's request. | user (do 3) + impl |
+| D40 | On demand (owner request: no observation cost during normal play). The VM factory and method wrappers must still be installed when each VM is created (CC:T offers no later hook point; attaching later would need a reboot), but they are dormant: every event and instrumented call first checks `Recorder.active()` (volatile reads: current session, recording mode, `anyAttached`, then a ConcurrentHashMap lookup by the computer's MetricsObserver) and calls straight through when false. No per-tick polling, no registry iteration, no files unless something is attached. `/computers` and `/screen` read the registry on request (server thread). | user + impl |
+| D41 | Recording mode (owner request): config `recorder.enabled` (default false), `recorder.size` (default 256). When on, every computer's hook records (event, peripheral_*, api, handle, vm_*; no screens, no polling) go to an in-memory Ring per MetricsObserver (weak keys); attaching drains it into the new trace first, marked `history: true` with the original tick/ms (`attach` record: history, history_dropped). Peripheral call ids are per VM so pairs survive the ring. | user + impl |
+| D42 | Control handover (owner request): attach/detach per computer (HTTP POST /attach, /detach; MCP cct_live_attach/detach). event/type/power need an attachment (409 otherwise); /screen and /computers do not. Lease: config `control.lease_seconds` (default 600, 30..86400), renewed by every request naming the computer, checked each tick against wall-clock time; reasons detach, revoked (player `/cctlive detach <id>`, permission level 0 since it only removes AI control), expired, removed (registry no longer has the instance), closed (world closing, silent). Chat: `broadcastSystemMessage` of `Component.translatableWithFallback` (lang zh_cn/en_us; fallback Chinese), config `control.chat`; always logged. One trace file per attachment: computer-<id>-<n>.jsonl; the last one stays readable via /trace. | user + impl |
 | D29 | `duration.tick_rate` is reported only when a run lasts at least 40 ticks (2 s). Short runs include JVM/boot warm-up and measured 13.7-17.3 ticks/s on Windows (V8), which would look like a pacing bug. | impl |
 | D26 | W1: stdout JSON is ASCII-only (non-ASCII as \uXXXX); files stay UTF-8. W2: ticks paced against absolute deadlines (TickPacer); a lag above 1 s skips the missed ticks. W3: setting_changed events caused by cct-run's injected settings carry `harness: true`; a `program_start` record marks the start of the program. | user (do W1-W3) + impl |
 
@@ -112,12 +115,15 @@ THIRD-PARTY-NOTICES.md                         bundled artifacts, licenses, sour
 mod/                                           cct-live Forge mod prototype, standalone build (D34-D37); README.md (Chinese, user-facing)
   settings.gradle.kts, build.gradle.kts        ModDevGradle legacyforge, Forge 1.20.1-47.4.10, CC:T 1.120.2; runs: client, server (run/ ignored)
   src/main/java/cctrun/live/
-    CctLive.java          @Mod entry: installs LiveMachine factory, server start/stop/tick listeners
-    LiveConfig.java       config/cctlive-common.toml (http.enabled, http.port, trace.screens, trace.max_megabytes_per_computer)
-    LiveSession.java      one server session: sessions/<time>/ dir, metrics->computer map, per-tick polling, token
-    LiveMachine.java      ILuaMachine wrapper + Recorder (lazy computer resolution, pending buffer)
+    CctLive.java          @Mod entry: installs LiveMachine factory, server start/stop/tick listeners, /cctlive list|detach, chat announcements
+  src/main/resources/assets/cctlive/lang/   zh_cn.json, en_us.json (chat messages)
+  bench/startup.lua                         overhead benchmark workload (V16)
+    LiveConfig.java       config/cctlive-common.toml (http.*, trace.screens, trace.max_megabytes_per_computer, recorder.enabled/size, control.lease_seconds/chat)
+    LiveSession.java      one server session: attachments by MetricsObserver, recording rings, lease checks and polling of attached computers only, endpoint.json, token
+    LiveMachine.java      ILuaMachine wrapper + Recorder (dormant unless attached or recording mode; D40)
+    Ring.java             recording-mode buffer of recent records per computer (D41)
+    Attachment.java       one attachment: trace, lease, polled state (power, label, moved, redstone_output, screen with fg/bg)
     TracingMethods.java   MethodSupplier wrapper: peripheral_call / peripheral_return
-    Watched.java          per computer: trace + polled state (power, label, moved, redstone_output, screen with fg/bg)
     ComputerTrace.java    JSONL writer, schema cct-live/trace@0, size cap with `truncated`
     Terminals.java        terminal snapshot (reflection on ServerComputer.terminal)
     LiveHttp.java         local HTTP endpoint (D37); writes nothing itself, LiveSession writes cct-live/endpoint.json
@@ -185,6 +191,8 @@ Live tools (D39), all with optional `game_dir`; results are the cct-live endpoin
 |---|---|---|
 | cct_live_computers | GET /computers | - |
 | cct_live_screen | GET /computers/{id}/screen | computer |
+| cct_live_attach | POST /computers/{id}/attach | computer (D42) |
+| cct_live_detach | POST /computers/{id}/detach | computer |
 | cct_live_trace | GET /computers/{id}/trace | computer; kind: string[]; after (seq); ticks; offset; limit (1..5000, default 200) |
 | cct_live_event | POST /computers/{id}/event | computer; name; args: array |
 | cct_live_type | 3x POST /event: paste text, key [257,false], key_up [257] | computer; text (one line); enter (default true) |
@@ -500,6 +508,20 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - Unit tests: LiveToolsTest (fake endpoint): request paths/bodies, typing order, errors for missing configuration, missing endpoint.json, 404/401 from the endpoint, bad arguments, refused connection. 41/41 tests.
   - Not yet on Windows: the api/handle records and the MCP tools (the owner's earlier run predates them).
 
+- V16: on demand, recording mode, attach/lease/chat (D40-D42), Linux:
+  - Dev server (recording mode off, lease 30 s): before any attach no session directory exists; /computers lists attached false; event without attach -> 409 "not attached"; trace without attach -> 409. Attach -> chat/log "AI has taken control of computer 0 (lease 30 s ...)" (dedicated server console shows en_us; Chinese fallback in the log), trace: trace_start, attach, computer_seen, then events/api/handle of the re-run program. RCON `/cctlive list` -> entry with lease left; `/cctlive detach 0` -> "Took control of computer 0 back", a second detach -> "not controlled"; event afterwards -> 409. Re-attach, 36 s idle -> "lease ... expired; released", /computers attached false. Two trace files (computer-0-1, computer-0-2).
+  - Recording mode on: attach at tick 171 -> `attach` history 26, followed by the program's records from tick 8 (vm_start, fs.open startup.lua, http.request, http_success, readAll of the HTML page, fs.makeDir, fs.open w, write ...) all marked history: true.
+  - Overhead (production Forge 47.4.10, Temurin 17, 4-core container; 30 advanced computers running mod/bench/startup.lua: by id % 3 a queueEvent/pullEvent loop, a write+read file loop, a term.write loop; each writes its loop count once a second; 20 s warm-up, 30 s measured; MSPT from `/forge tps`; order nomod, dormant, recorder, attached, attached, recorder, dormant, nomod; averages of 2 runs):
+
+    | condition | MSPT | events/s | file loops/s | screen loops/s |
+    |---|---|---|---|---|
+    | no mod | 1.01 | 8650 | 1250 | 33600 |
+    | dormant | 0.94 | -1% | +8% | 0% |
+    | recording mode | 1.01 | -7% | -8% | -5% |
+    | all 30 attached | 1.22 | -18% | -18% | -10% |
+
+    Run-to-run spread of the no-mod baseline ~5%, so dormant is indistinguishable from no mod. An earlier full series with only 20 of the 30 computers running (10 had been saved as off by a forced stop) gave the same picture (dormant +-2%, recording +-3%, attached -6% events / -17% file loops). Trace growth with all 30 attached: ~80 MB per minute. Synthetic tight loops are the worst case; programs that mostly wait cost less.
+
 ## JVM_COST
 
 Measured on this machine (4 cores), program `print("done")`:
@@ -531,7 +553,7 @@ Order set by D16; incremental.
 7. N7: Colour in screen records (L14), if agents need it.
 8. N8: Startup time: optional AppCDS archive created on first run (one file per install); measure the benefit on Java 17.
 9. N10: Public release after R4 is decided.
-10. N11: cct-live (mod/, D34-D39). Prototype done (V14), http/fs tracing and cct_live_* MCP tools done (V15). Next: owner re-test on Windows with an MCP client; structured program result (harness in ROM via datapack + Lua API -> status/error/traceback like summary.json); monitors, turtle state, file read/write; share Trace/JsonValues with engine in a common module; sim-vs-live trace diff for R1.
+10. N11: cct-live (mod/, D34-D42). Prototype done (V14), http/fs tracing and cct_live_* MCP tools done (V15), on demand + recording mode + attach/lease (V16). Next: owner re-test on Windows with an MCP client; structured program result (harness in ROM via datapack + Lua API -> status/error/traceback like summary.json); monitors, turtle state, file read/write; share Trace/JsonValues with engine in a common module; sim-vs-live trace diff for R1.
 - Deferred: N9 turtles (D19).
 
 ## REFERENCES

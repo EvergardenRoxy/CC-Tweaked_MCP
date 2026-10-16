@@ -17,10 +17,8 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -32,14 +30,17 @@ import java.util.function.Supplier;
  * Local HTTP endpoint, bound to 127.0.0.1 only. Every request needs {@code Authorization: Bearer <token>} (token in
  * {@code cct-live/token.txt}); the Host header must name the loopback address (DNS rebinding guard).
  * <pre>
- * GET  /computers                                    computers on the server now
- * GET  /computers/{id}/screen                        text, colours, cursor
+ * GET  /computers                                    computers on the server now (and which are attached)
+ * GET  /computers/{id}/screen                        text, colours, cursor (no attachment needed)
+ * POST /computers/{id}/attach                        start (or renew) an attachment: observe and control
+ * POST /computers/{id}/detach                        end it
  * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&offset=&limit=
  *                                                    this session's trace records; after = only seq > N,
  *                                                    ticks = N, A-B, A- or -B; offset counts matches
- * POST /computers/{id}/event   {"name": "...", "args": [...]}
- * POST /computers/{id}/power   {"action": "on" | "shutdown" | "reboot"}
+ * POST /computers/{id}/event   {"name": "...", "args": [...]}      needs an attachment
+ * POST /computers/{id}/power   {"action": "on" | "shutdown" | "reboot"}   needs an attachment
  * </pre>
+ * The trace is the current (or last) attachment's. Every request for an attached computer renews its lease.
  * Anything touching computers runs on the server thread.
  */
 final class LiveHttp {
@@ -119,6 +120,10 @@ final class LiveHttp {
                 } else if (action.equals("power") && method.equals("POST")) {
                     var body = body(exchange);
                     send(exchange, 200, onServer(() -> power(id, body)));
+                } else if (action.equals("attach") && method.equals("POST")) {
+                    send(exchange, 200, onServer(() -> attach(id)));
+                } else if (action.equals("detach") && method.equals("POST")) {
+                    send(exchange, 200, onServer(() -> detach(id)));
                 } else {
                     send(exchange, 404, error("unknown endpoint " + method + " " + path));
                 }
@@ -139,25 +144,67 @@ final class LiveHttp {
 
     private JsonObject listComputers() {
         var list = new JsonArray();
-        for (var w : session.computers()) {
-            var data = Watched.describe(w.computer());
-            data.addProperty("trace", session.dir().relativize(w.trace().file()).toString());
+        for (var computer : session.computers()) {
+            var data = Attachment.describe(computer);
+            var attachment = session.attachmentOf(computer);
+            data.addProperty("attached", attachment != null);
+            if (attachment != null) data.addProperty("lease_seconds_left", attachment.secondsLeft());
             list.add(data);
         }
         var out = new JsonObject();
         out.addProperty("session", session.dir().toString());
         out.addProperty("tick", session.tickCount());
+        out.addProperty("recording_mode", session.recording());
+        out.addProperty("lease_seconds", session.leaseSeconds());
         out.add("computers", list);
         return out;
     }
 
+    private JsonObject attach(int id) {
+        var computer = find(id);
+        Attachment attachment;
+        try {
+            attachment = session.attach(computer);
+        } catch (IOException e) {
+            throw new IllegalStateException("cannot write the trace: " + e.getMessage(), e);
+        }
+        var out = new JsonObject();
+        out.addProperty("id", id);
+        out.addProperty("attached", true);
+        out.addProperty("tick", session.tickCount());
+        out.addProperty("lease_seconds", session.leaseSeconds());
+        out.addProperty("recording_mode", session.recording());
+        out.addProperty("trace", attachment.trace().file().toString());
+        return out;
+    }
+
+    private JsonObject detach(int id) {
+        var computer = find(id);
+        var out = new JsonObject();
+        out.addProperty("id", id);
+        out.addProperty("detached", session.detach(computer, "detach"));
+        out.addProperty("tick", session.tickCount());
+        return out;
+    }
+
+    /** For input and power: the computer must be attached; renews the lease. */
+    private ServerComputer controlled(int id) {
+        var computer = find(id);
+        var attachment = session.attachmentOf(computer);
+        if (attachment == null) {
+            throw new BadRequest(409, "computer " + id + " is not attached: POST /computers/" + id + "/attach first (the player sees a chat message)");
+        }
+        return computer;
+    }
+
     private JsonObject screen(int id) {
-        var w = find(id);
-        var s = Terminals.snapshot(w.computer());
+        var computer = find(id);
+        var s = Terminals.snapshot(computer);
         var out = new JsonObject();
         out.addProperty("id", id);
         out.addProperty("tick", session.tickCount());
-        out.addProperty("on", w.computer().isOn());
+        out.addProperty("on", computer.isOn());
+        out.addProperty("attached", session.attachmentOf(computer) != null);
         out.add("size", pair(s.width(), s.height()));
         out.add("cursor", pair(s.cursorX(), s.cursorY()));
         out.addProperty("cursor_blink", s.blink());
@@ -168,7 +215,7 @@ final class LiveHttp {
     }
 
     private JsonObject queueEvent(int id, JsonObject body) {
-        var w = find(id);
+        var computer = controlled(id);
         if (!body.has("name") || !body.get("name").isJsonPrimitive()) throw new BadRequest(400, "body needs \"name\" (string)");
         var name = body.get("name").getAsString();
         Object[] args = new Object[0];
@@ -178,8 +225,8 @@ final class LiveHttp {
             args = new Object[array.size()];
             for (var i = 0; i < array.size(); i++) args[i] = toLua(array.get(i));
         }
-        if (!w.computer().isOn()) throw new BadRequest(409, "computer " + id + " is off (POST /computers/" + id + "/power {\"action\":\"on\"})");
-        w.computer().queueEvent(name, args);
+        if (!computer.isOn()) throw new BadRequest(409, "computer " + id + " is off (POST /computers/" + id + "/power {\"action\":\"on\"})");
+        computer.queueEvent(name, args);
         var out = new JsonObject();
         out.addProperty("queued", name);
         out.addProperty("tick", session.tickCount());
@@ -187,13 +234,13 @@ final class LiveHttp {
     }
 
     private JsonObject power(int id, JsonObject body) {
-        var w = find(id);
+        var computer = controlled(id);
         var action = body.has("action") ? body.get("action").getAsString() : "";
         if (!POWER.contains(action)) throw new BadRequest(400, "\"action\" must be one of " + POWER);
         switch (action) {
-            case "on" -> w.computer().turnOn();
-            case "shutdown" -> w.computer().shutdown();
-            default -> w.computer().reboot();
+            case "on" -> computer.turnOn();
+            case "shutdown" -> computer.shutdown();
+            default -> computer.reboot();
         }
         var out = new JsonObject();
         out.addProperty("action", action);
@@ -202,7 +249,16 @@ final class LiveHttp {
     }
 
     private JsonObject trace(int id, Map<String, String> query) throws IOException {
-        var w = onServer(() -> find(id));
+        // The last attachment's trace stays readable after the computer is unloaded.
+        var attachment = onServer(() -> {
+            var computer = session.find(id);
+            if (computer == null) return null;
+            var a = session.attachmentOf(computer);
+            if (a != null) a.renew();
+            return a;
+        });
+        var file = attachment != null ? attachment.trace().file() : session.traceFile(id);
+        if (file == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet: POST /computers/" + id + "/attach starts recording");
         var kinds = new HashSet<String>();
         if (query.containsKey("kind")) for (var k : query.get("kind").split(",")) if (!k.isBlank()) kinds.add(k.trim());
         var after = intParam(query, "after", 0, 0, Integer.MAX_VALUE);
@@ -223,10 +279,10 @@ final class LiveHttp {
         var offset = intParam(query, "offset", 0, 0, Integer.MAX_VALUE);
         var limit = intParam(query, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT);
 
-        w.trace().flush();
+        if (attachment != null) attachment.trace().flush();
         var records = new JsonArray();
         var matched = 0;
-        try (var lines = Files.lines(w.trace().file(), StandardCharsets.UTF_8)) {
+        try (var lines = Files.lines(file, StandardCharsets.UTF_8)) {
             for (var it = lines.iterator(); it.hasNext(); ) {
                 var line = it.next();
                 if (line.isBlank()) continue;
@@ -241,7 +297,8 @@ final class LiveHttp {
         }
         var out = new JsonObject();
         out.addProperty("id", id);
-        out.addProperty("file", w.trace().file().toString());
+        out.addProperty("file", file.toString());
+        out.addProperty("attached", attachment != null);
         out.addProperty("tick", session.tickCount());
         out.addProperty("matched", matched);
         out.addProperty("offset", offset);
@@ -252,11 +309,13 @@ final class LiveHttp {
 
     // Helpers
 
-    private Watched find(int id) {
-        List<Watched> matches = new ArrayList<>();
-        for (var w : session.computers()) if (w.computer().getID() == id) matches.add(w);
-        if (matches.isEmpty()) throw new BadRequest(404, "no computer with id " + id + " is loaded");
-        return matches.get(0);
+    /** Server thread. Any request for an attached computer renews its lease. */
+    private ServerComputer find(int id) {
+        var computer = session.find(id);
+        if (computer == null) throw new BadRequest(404, "no computer with id " + id + " is loaded");
+        var attachment = session.attachmentOf(computer);
+        if (attachment != null) attachment.renew();
+        return computer;
     }
 
     private <T> T onServer(Supplier<T> task) {

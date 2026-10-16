@@ -61,7 +61,8 @@ public final class Main {
         mcp      Runs a local MCP server on stdin/stdout (tools cct_run, cct_trace, cct_screen, cct_guide).
                  Start it from an MCP client, not by hand. Runs go to --out (default .cct-runs).
                  --live GAME_DIR (or CCT_LIVE_DIR): Minecraft game directory with the cct-live mod, for the
-                 cct_live_* tools (computers, screen, trace, event, type, power) on real in-game computers.
+                 cct_live_* tools (computers, screen, attach, detach, trace, event, type, power) on real
+                 in-game computers.
         version  Prints tool, CC: Tweaked, Minecraft and Java versions as JSON.
         """.formatted(Versions.CC_TWEAKED, Versions.MINECRAFT);
 

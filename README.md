@@ -189,7 +189,7 @@ MCP 工具与命令的对应关系：
 | `cct_trace` | `trace` | `run`（默认 `latest`）、`kind`（数组）、`ticks`、`peripheral`、`source`、`offset`、`limit` |
 | `cct_screen` | `screen` | `run`、`tick`、`source` |
 | `cct_guide` | `guide` | 无 |
-| `cct_live_computers` / `cct_live_screen` / `cct_live_trace` / `cct_live_type` / `cct_live_event` / `cct_live_power` | — | 操作**真实游戏里**的电脑，需要 cct-live mod（原型），见 [`mod/README.md`](mod/README.md)；用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录 |
+| `cct_live_computers` / `cct_live_screen` / `cct_live_attach` / `cct_live_detach` / `cct_live_trace` / `cct_live_type` / `cct_live_event` / `cct_live_power` | — | 按需接管**真实游戏里**的电脑（接管时在聊天栏提示，有租约，玩家可用 `/cctlive detach` 收回），需要 cct-live mod（原型），见 [`mod/README.md`](mod/README.md)；用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录 |
 
 工具返回的 JSON 和命令行输出相同。程序本身出错（`status: "error"`）是正常的测试结果；只有参数错误、文件不存在等情况，工具调用才会标记为出错。
 
@@ -289,7 +289,7 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版）
 4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；trace 超过上限截断、`cct-run clean` 清理旧记录（待做）
 5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
-6. **cct-live（原型）**：一个 Forge 1.20.1 mod，在真实游戏里从 Java 层观察 CC 电脑（事件、外设调用、带颜色的屏幕、红石），并通过本机接口提供给 AI；不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)
+6. **cct-live（原型）**：一个 Forge 1.20.1 mod，让 AI 按需接管真实游戏里的 CC 电脑：接管后从 Java 层记录事件、外设调用、http 和文件读写、带颜色的屏幕、红石，并允许输入和开关机；平时不记录；不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。
 

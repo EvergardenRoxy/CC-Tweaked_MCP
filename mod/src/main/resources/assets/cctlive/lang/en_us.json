@@ -1,0 +1,10 @@
+{
+  "cctlive.attached": "[cct-live] An AI has taken control of computer %s (lease %s s; /cctlive detach %s takes it back)",
+  "cctlive.detached": "[cct-live] The AI released computer %s",
+  "cctlive.expired": "[cct-live] The AI's lease on computer %s expired; released",
+  "cctlive.removed": "[cct-live] Computer %s was removed; the AI's control ended",
+  "cctlive.revoked": "[cct-live] Took control of computer %s back from the AI",
+  "cctlive.list.none": "[cct-live] No computer is controlled by an AI",
+  "cctlive.list.entry": "[cct-live] Computer %s: controlled by an AI, lease ends in %s s",
+  "cctlive.detach.none": "[cct-live] Computer %s is not controlled by an AI"
+}

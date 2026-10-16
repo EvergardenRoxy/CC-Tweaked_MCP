@@ -166,27 +166,34 @@ Suggested wording: "Tested in cct-run (CC: Tweaked 1.120.2 simulation): <what pa
 
 ## 7. Real computers in the game (cct_live_* tools, MCP only, prototype)
 
-If the user plays with the cct-live mod (Forge 1.20.1, CC: Tweaked 1.120.2), the MCP server can also observe and drive the computers in their running game. This is the real thing: real world, real peripherals, real http. Use it for what the simulation cannot cover (section 6), and to debug a problem the user sees in the game.
+If the user plays with the cct-live mod (Forge 1.20.1, CC: Tweaked 1.120.2), the MCP server can also observe and control the computers in their running game. This is the real thing: real world, real peripherals, real http. Use it for what the simulation cannot cover (section 6), and to debug a problem the user sees in the game.
 
-- `cct_live_computers`: computers loaded now (id, label, family, on, position) and the server `tick`.
-- `cct_live_screen {computer}`: what the terminal shows now: `lines`, plus `fg`/`bg` colour rows (blit characters).
-- `cct_live_trace {computer, kind, after, ticks, offset, limit}`: everything recorded this session. Kinds as in section 4 (`event`, `peripheral_call`/`peripheral_return`, `screen` with `fg`/`bg`, `redstone_output`) plus:
+The mod works on demand: nothing is recorded for a computer until you attach it, and only an attached computer accepts input.
+
+- `cct_live_computers`: computers loaded now (id, label, family, on, position, attached), the server `tick`, `recording_mode`, `lease_seconds`.
+- `cct_live_screen {computer}`: what the terminal shows now: `lines`, plus `fg`/`bg` colour rows (blit characters). No attachment needed.
+- `cct_live_attach {computer}`: start recording and controlling it. The player sees a chat message ("AI has taken control of computer N") and can take it back with `/cctlive detach N`. Every request for the computer renews a lease (default 600 s); without requests the attachment ends by itself. Calling attach again only renews.
+- `cct_live_detach {computer}`: release it when you are done.
+- `cct_live_trace {computer, kind, after, ticks, offset, limit}`: the records of the current (or last) attachment. Kinds as in section 4 (`event`, `peripheral_call`/`peripheral_return`, `screen` with `fg`/`bg`, `redstone_output`) plus:
   - `api`: `http.request/checkURL/websocket` and `fs.open/delete/move/copy/makeDir`, with args and result (`http.get` shows up as `http.request`);
   - `handle`: each call on an open file, HTTP response or websocket (`readAll`, `readLine`, `write`, `close` ...), with its `path` or `url` and the data (first 200 characters);
-  - `power`, `label`, `moved`, `vm_start`, `vm_close`, `vm_error`, `computer_seen`, `computer_removed`, `truncated`.
+  - `attach`, `detach` (reason: detach, revoked = taken back by a player, expired, removed, closed), `power`, `label`, `moved`, `vm_start`, `vm_close`, `vm_error`, `computer_seen`, `truncated`.
   - Files under /rom are not recorded.
-- `cct_live_type {computer, text, enter}`: types one line (paste event) and presses Enter: runs a shell command or answers `read()`.
-- `cct_live_event {computer, name, args}`: any event (`char`, `key` with GLFW codes, `terminate`, `monitor_touch`, custom).
-- `cct_live_power {computer, action}`: `on`, `shutdown`, `reboot`.
+- `cct_live_type {computer, text, enter}` (attached only): types one line (paste event) and presses Enter: runs a shell command or answers `read()`.
+- `cct_live_event {computer, name, args}` (attached only): any event (`char`, `key` with GLFW codes, `terminate`, `monitor_touch`, custom).
+- `cct_live_power {computer, action}` (attached only): `on`, `shutdown`, `reboot`.
 
 Workflow:
 
 1. `cct_live_computers` to find the computer; `cct_live_screen` to see its state.
-2. Note `tick` (or the last `seq`), act (`cct_live_type`, `cct_live_event`), then `cct_live_trace` with `ticks: "<tick>-"` or `after: <seq>` to see exactly what followed.
-3. Explain from the records: e.g. an `api` http.request, then a `handle` readAll whose data starts with `<!DOCTYPE html>`, then a `handle` write of it to `/x.lua`, then a load error `unexpected symbol near '<'` means the download returned a web page, not Lua.
+2. `cct_live_attach`. If `recording_mode` is true, the trace starts with the computer's recent records from before the attachment (marked `history: true`). Otherwise nothing before the attachment is known: reproduce the problem (re-run the program with `cct_live_type`, or `cct_live_power reboot` if the user agrees).
+3. Note `tick` (or the last `seq`), act, then `cct_live_trace` with `ticks: "<tick>-"` or `after: <seq>` to see exactly what followed.
+4. Explain from the records: e.g. an `api` http.request, then a `handle` readAll whose data starts with `<!DOCTYPE html>`, then a `handle` write of it to `/x.lua`, then a load error `unexpected symbol near '<'` means the download returned a web page, not Lua.
+5. `cct_live_detach` when done.
 
 Rules:
 
-- The input and power tools change the user's real world. Use them only for what the user asked for or agreed to; never delete or overwrite their files to "test".
+- Attach only when the user asked you to work on their computer. Input and power change the user's real world: use them only for what the user asked for or agreed to; never delete or overwrite their files to "test".
+- If a tool reports `revoked`, the player took control back: stop and ask before attaching again.
 - The trace has no structured program result yet (no `status`/`error` like `cct_run`): read errors from the screen and `vm_error`.
 - If a tool says cct-live is not running, the user must open a world in a game with the mod; `game_dir` is the game directory (the version folder when the launcher isolates versions).

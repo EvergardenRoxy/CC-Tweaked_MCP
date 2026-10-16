@@ -102,8 +102,10 @@ class LiveToolsTest {
             "cct_live_trace {\"computer\": 0, \"kind\": [\"api\", \"handle\"], \"after\": 12, \"ticks\": \"40-\", \"limit\": 5}",
             "cct_live_event {\"computer\": 1, \"name\": \"char\", \"args\": [\"y\"]}",
             "cct_live_type {\"computer\": 1, \"text\": \"ls rom\"}",
-            "cct_live_power {\"computer\": 1, \"action\": \"reboot\"}");
-        for (var i = 1; i <= 6; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
+            "cct_live_power {\"computer\": 1, \"action\": \"reboot\"}",
+            "cct_live_attach {\"computer\": 1}",
+            "cct_live_detach {\"computer\": 1}");
+        for (var i = 1; i <= 8; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
         assertTrue(text(r.get("1")).contains("/computers"));
         // Calls run concurrently, so compare as a set; the three requests of cct_live_type are sent in order.
         var expected = List.of(
@@ -114,7 +116,9 @@ class LiveToolsTest {
             "POST /computers/1/event {\"name\":\"paste\",\"args\":[\"ls rom\"]}",
             "POST /computers/1/event {\"name\":\"key\",\"args\":[257,false]}",
             "POST /computers/1/event {\"name\":\"key_up\",\"args\":[257]}",
-            "POST /computers/1/power {\"action\":\"reboot\"}");
+            "POST /computers/1/power {\"action\":\"reboot\"}",
+            "POST /computers/1/attach {}",
+            "POST /computers/1/detach {}");
         assertEquals(expected.stream().sorted().toList(), requests.stream().sorted().toList());
         var typed = requests.stream().filter(q -> q.contains("paste") || q.contains("\"key")).toList();
         assertEquals(List.of(expected.get(4), expected.get(5), expected.get(6)), typed);

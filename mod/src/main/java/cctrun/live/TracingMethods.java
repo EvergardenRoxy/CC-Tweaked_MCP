@@ -17,7 +17,9 @@ import dan200.computercraft.core.methods.MethodSupplier;
 import java.util.Set;
 
 /**
- * The VM's method lookup with selected Java methods instrumented. Every Java object Lua can call (the global APIs
+ * The VM's method lookup with selected Java methods instrumented. Each wrapper first asks
+ * {@link LiveMachine.Recorder#active()} and, while the computer is neither attached nor in recording mode, calls
+ * straight through. Every Java object Lua can call (the global APIs
  * and every value returned to Lua, such as file and HTTP response handles) gets its methods from here.
  * <ul>
  *     <li>{@code peripheral.call}: {@code peripheral_call} + {@code peripheral_return} (as in cct-run). Every
@@ -82,6 +84,7 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
 
         @Override
         public MethodResult apply(Object target, ILuaContext context, IArguments args) throws LuaException {
+            if (!recorder.active()) return inner.apply(target, context, args);
             var values = args.getAll();
             if (api.equals("fs") && values.length > 0 && Handles.isRomPath(values[0])) {
                 // Still register ROM handles, so their reads are recognised and skipped too.
@@ -131,7 +134,7 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
 
         @Override
         public MethodResult apply(Object target, ILuaContext context, IArguments args) throws LuaException {
-            if (recorder.handles().isRomFile(owner)) return inner.apply(target, context, args);
+            if (!recorder.active() || recorder.handles().isRomFile(owner)) return inner.apply(target, context, args);
             var data = new JsonObject();
             var handle = recorder.handles().describe(owner);
             for (var entry : handle.entrySet()) data.add(entry.getKey(), entry.getValue());
@@ -165,6 +168,7 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
 
         @Override
         public MethodResult apply(Object target, ILuaContext context, IArguments args) throws LuaException {
+            if (!recorder.active()) return inner.apply(target, context, args);
             var id = recorder.nextCallId();
             var peripheral = args.count() > 0 ? String.valueOf(args.get(0)) : null;
             var method = args.count() > 1 ? String.valueOf(args.get(1)) : null;

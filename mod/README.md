@@ -1,14 +1,21 @@
-# cct-live：在游戏里观察 CC: Tweaked 电脑（原型）
+# cct-live：让 AI 按需接管游戏里的 CC: Tweaked 电脑（原型）
 
-cct-live 是一个 Forge mod。装上以后，它在 Minecraft 服务端的 Java 层观察每一台 CC: Tweaked 电脑，把看到的内容写成和 cct-run 相同格式的 trace，并通过一个**只监听本机**的 HTTP 接口提供给 AI 工具。
+cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以**按需接管**真实游戏里的 CC: Tweaked 电脑：
+
+- 接管后，mod 在 Java 层记录这台电脑做的每一件事，格式和 cct-run 的 trace 相同；
+- AI 可以向它输入文字、发送事件、开关机。
+
+整个过程通过一个**只监听本机**的 HTTP 接口完成。
+
+**按需**的意思是：没有被接管的电脑，mod 什么都不记录、不轮询，只在每个事件和每次被拦截的方法调用时多做一次判断。实测开销见下文“性能”。
 
 和社区的远程桌面方案相比：
 
-- 不需要在电脑里运行任何 Lua 脚本，不需要 `wget run`，不需要放开 CC 的 http 规则，也不需要转发服务器。
-- 记录在 Java 层完成，被测程序无法隐藏或改写这些记录。
+- 不需要在电脑里运行任何 Lua 脚本，不需要 `wget run`，不需要放开 CC 的 http 规则，也不需要转发服务器；
+- 记录在 Java 层完成，被测程序无法隐藏或改写这些记录；
 - 能看到 Lua 无法如实提供的内容：交给 VM 的每个事件、外设调用及其返回值、http 请求和下载到的内容、文件的读写、VM 错误、红石输出、带颜色的屏幕、开关机、海龟的位置变化。
 
-> 这是**原型**，用来验证可行性，HTTP 接口的格式还可能改变。AI 客户端可以通过 `cct-run mcp` 的 `cct_live_*` 工具使用它，见下文“通过 MCP 让 AI 使用”。
+> 这是**原型**，HTTP 接口的格式还可能改变。
 
 ## 版本
 
@@ -26,65 +33,67 @@ cct-live 是一个 Forge mod。装上以后，它在 Minecraft 服务端的 Java
 
 `mod/` 是独立的 Gradle 构建，根目录的 `./gradlew build`（cct-run 本体）不会构建它，也不会下载 Minecraft。
 
-## 安装与试用
+## 安装
 
 1. 把 jar 放进游戏的 `mods/` 目录，和 CC: Tweaked 1.120.2 放在一起。单人游戏装在客户端即可；多人服务器装在服务端。
 2. 进入世界。日志里应该出现：
    ```
-   cct-live: recording CC: Tweaked computers to <游戏目录>/cct-live/sessions/<时间>
+   cct-live: on demand; recording mode off; attachments are written to <游戏目录>/cct-live/sessions/<时间>
    cct-live: endpoint at http://127.0.0.1:47823/ (token in cct-live/token.txt)
    ```
-3. 令牌在 `<游戏目录>/cct-live/token.txt`，每个请求都要带上。
+3. 世界打开期间有一个 `cct-live/endpoint.json`（接口地址），退出世界时删除；令牌在 `cct-live/token.txt`。`cct-run mcp` 靠这两个文件找到接口。
 
-PowerShell 示例（在游戏目录里执行；启动器开了版本隔离时，游戏目录是版本文件夹，例如 `.minecraft\versions\<版本名>`）：
+## 接管、解约和租约
 
-```powershell
-$t = (Get-Content cct-live\token.txt).Trim()
-$h = @{ Authorization = "Bearer $t" }
-$u = "http://127.0.0.1:47823"
+| | 怎么发生 | 聊天栏提示 |
+|---|---|---|
+| **接管** | AI 调用 `cct_live_attach`（HTTP：`POST /computers/{id}/attach`） | `[cct-live] AI 已接管 0 号电脑（租约 600 秒，输入 /cctlive detach 0 可收回）` |
+| **AI 主动释放** | AI 调用 `cct_live_detach` | `[cct-live] AI 已释放 0 号电脑` |
+| **玩家收回** | 在游戏里输入 `/cctlive detach <id>` | `[cct-live] 已收回 AI 对 0 号电脑的控制` |
+| **租约到期** | AI 在租约时间内（默认 600 秒）没有再请求这台电脑；每次请求都会续约 | `[cct-live] AI 对 0 号电脑的租约已到期，已自动释放` |
+| **电脑被移除** | 方块被拆掉、区块卸载等 | `[cct-live] 0 号电脑已被移除，接管结束` |
 
-Invoke-RestMethod -Headers $h "$u/computers"                              # 已加载的电脑
-Invoke-RestMethod -Headers $h "$u/computers/0/screen"                     # 0 号电脑的屏幕
-Invoke-RestMethod -Headers $h "$u/computers/0/trace?kind=event,peripheral_call,peripheral_return"
-Invoke-RestMethod -Headers $h -Method Post -ContentType application/json `
-  -Body '{"name":"char","args":["y"]}' "$u/computers/0/event"             # 向电脑发送一个事件
-Invoke-RestMethod -Headers $h -Method Post -ContentType application/json `
-  -Body '{"action":"reboot"}' "$u/computers/0/power"                      # on / shutdown / reboot
-```
+- 只有**被接管**的电脑才能用输入和开关机工具（`event`、`type`、`power`），否则返回 409。
+- 列出电脑、读当前屏幕不需要接管。
+- `/cctlive list` 列出当前被 AI 接管的电脑和剩余租约。`/cctlive` 命令不需要 OP 权限，因为它只能把控制权从 AI 手里收回。
+- 提示文字跟随游戏语言（自带 `zh_cn` 和 `en_us`）。在配置里设 `chat = false` 可以关闭聊天提示，但日志里仍会记录。
 
-curl 示例（bash / macOS / Linux）：
+## 记录模式
 
-```
-curl -H "Authorization: Bearer $(cat cct-live/token.txt)" http://127.0.0.1:47823/computers
-```
+默认关闭。关闭时，接管前发生的事都看不到，AI 要先接管、再让问题重现（比如用 `cct_live_type` 重新运行程序，或者重启电脑）。
 
-在 Windows PowerShell 5.1 里，`curl` 是 `Invoke-WebRequest` 的别名，不支持上面的写法，要写成 `curl.exe`：
+打开后（`[recorder] enabled = true`），每台电脑在**内存里**保留最近 `size` 条记录（默认 256 条）。范围包括事件、外设调用、http 和文件读写，不包括屏幕。AI 接管时，这些记录会先写进 trace，并标上 `"history": true`，所以连“接管之前刚刚发生的事”也能看到。代价是每个事件和每次调用都要转换一次数据，具体见下面的性能数据。
 
-```powershell
-$t = (Get-Content cct-live\token.txt).Trim()
-curl.exe -H "Authorization: Bearer $t" http://127.0.0.1:47823/computers
-```
+## 配置：`config/cctlive-common.toml`
 
-`/computers` 只列出已加载并且开过机的电脑。
+| 项 | 默认值 | 作用 |
+|---|---|---|
+| `http.enabled` / `http.port` | `true` / `47823` | 本机 HTTP 接口 |
+| `trace.screens` | `true` | 接管期间是否每 tick 记录屏幕变化 |
+| `trace.max_megabytes_per_computer` | `64` | 每次接管的 trace 文件大小上限 |
+| `recorder.enabled` / `recorder.size` | `false` / `256` | 记录模式，以及每台电脑保留的条数 |
+| `control.lease_seconds` | `600` | 租约时长（30 到 86400 秒） |
+| `control.chat` | `true` | 是否在聊天栏提示接管和释放 |
 
-进入世界后，mod 还会写一个 `cct-live/endpoint.json`，内容是接口地址，退出世界时删除。`cct-run mcp` 靠它找到接口。
+配置在进入世界时读取，修改后要重新进入世界才会生效。
 
 ## 通过 MCP 让 AI 使用
 
-`cct-run mcp` 提供 6 个 `cct_live_*` 工具，直接调用这个接口：
+`cct-run mcp` 提供 8 个 `cct_live_*` 工具：
 
-| 工具 | 作用 |
-|---|---|
-| `cct_live_computers` | 列出游戏里已加载的电脑 |
-| `cct_live_screen` | 某台电脑当前的屏幕（文字和颜色） |
-| `cct_live_trace` | 查询 trace，可以按类型、`after`（seq）、`ticks` 筛选 |
-| `cct_live_type` | 输入一行文字并按回车，例如在 shell 里运行一个程序 |
-| `cct_live_event` | 发送任意事件（按键、`terminate`、`monitor_touch` 等） |
-| `cct_live_power` | 开机、关机、重启 |
+| 工具 | 作用 | 需要先接管 |
+|---|---|---|
+| `cct_live_computers` | 列出已加载的电脑，以及是否被接管 | 否 |
+| `cct_live_screen` | 某台电脑当前的屏幕（文字和颜色） | 否 |
+| `cct_live_attach` / `cct_live_detach` | 接管 / 释放 | — |
+| `cct_live_trace` | 查询本次（或上一次）接管的 trace，可以按类型、`after`（seq）、`ticks` 筛选 | 读取上一次的记录时不需要 |
+| `cct_live_type` | 输入一行文字并按回车，例如在 shell 里运行一个程序 | 是 |
+| `cct_live_event` | 发送任意事件（按键、`terminate`、`monitor_touch` 等） | 是 |
+| `cct_live_power` | 开机、关机、重启 | 是 |
 
 需要告诉 `cct-run mcp` 游戏目录在哪里（就是有 `mods/` 和 `cct-live/` 的那个目录；启动器开了版本隔离时，是版本文件夹）。有三种方式：
 
-- 启动参数：`cct-run mcp --live <游戏目录>`；
+- 启动参数 `cct-run mcp --live <游戏目录>`；
 - 环境变量 `CCT_LIVE_DIR`（目录名里有空格或特殊字符时推荐用这种）；
 - AI 在每次调用时传 `game_dir`。
 
@@ -102,48 +111,87 @@ Claude Code 的 `.mcp.json` 示例：
 }
 ```
 
-输入类和开关机工具会改变你真实游戏里的状态。工具说明里已经要求 AI 只在你要求或同意时使用它们。
-
 ## HTTP 接口
+
+每个请求都要带 `Authorization: Bearer <cct-live/token.txt 的内容>`。
 
 | 请求 | 作用 |
 |---|---|
-| `GET /computers` | 当前加载的电脑：id、标签、类型（normal/advanced/command）、是否开机、维度、坐标、对应的 trace 文件 |
-| `GET /computers/{id}/screen` | 每一行的文字、前景色和背景色（与 `blit` 相同的 0-9a-f 字符）、光标位置、尺寸 |
-| `GET /computers/{id}/trace?kind=a,b&after=N&ticks=A-B&offset=N&limit=N` | 本次会话的 trace 记录：`kind` 按类型筛选，`after` 只要 seq 大于 N 的记录，`ticks` 按 tick 范围（`N`、`A-B`、`A-`、`-B`）筛选（limit 默认 200，最大 5000） |
-| `POST /computers/{id}/event` `{"name": "...", "args": [...]}` | 向电脑的事件队列加入一个事件，例如 `char`、`key`、`paste`、`terminate`、`monitor_touch` |
-| `POST /computers/{id}/power` `{"action": "on"\|"shutdown"\|"reboot"}` | 开机、关机、重启 |
+| `GET /computers` | 已加载的电脑：id、标签、类型、是否开机、维度、坐标、是否被接管、剩余租约；以及 `recording_mode`、`lease_seconds` |
+| `GET /computers/{id}/screen` | 当前屏幕：每一行的文字、前景色和背景色（与 `blit` 相同的 0-9a-f 字符）、光标位置、尺寸 |
+| `POST /computers/{id}/attach` | 接管；如果已经接管，则只续约 |
+| `POST /computers/{id}/detach` | 释放 |
+| `GET /computers/{id}/trace?kind=a,b&after=N&ticks=A-B&offset=N&limit=N` | 当前（或上一次）接管的 trace：`kind` 按类型筛选，`after` 只要 seq 大于 N 的记录，`ticks` 按 tick 范围（`N`、`A-B`、`A-`、`-B`）筛选（limit 默认 200，最大 5000） |
+| `POST /computers/{id}/event` `{"name": "...", "args": [...]}` | 向电脑的事件队列加入一个事件（需要已接管） |
+| `POST /computers/{id}/power` `{"action": "on"\|"shutdown"\|"reboot"}` | 开机、关机、重启（需要已接管） |
+
+只要请求涉及一台已被接管的电脑，就会为它续约。
+
+PowerShell 示例（在游戏目录里执行；PowerShell 5.1 的 `curl` 是 `Invoke-WebRequest` 的别名，要用 curl 时请写 `curl.exe`）：
+
+```powershell
+$t = (Get-Content cct-live\token.txt).Trim()
+$h = @{ Authorization = "Bearer $t" }
+$u = "http://127.0.0.1:47823"
+Invoke-RestMethod -Headers $h "$u/computers"
+Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/attach"
+Invoke-RestMethod -Headers $h "$u/computers/0/trace?kind=event,api,handle"
+Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
+```
 
 安全措施：
 
 - 只监听 `127.0.0.1`，局域网无法访问；
 - 每个请求都要带令牌；
-- 只接受 Host 头为 `127.0.0.1` 或 `localhost` 的请求，防止网页通过 DNS 重绑定访问。
+- 只接受 Host 头为 `127.0.0.1`、`localhost` 或 `[::1]` 的请求，防止网页通过 DNS 重绑定访问；
+- 控制必须先接管，接管时会在聊天栏公开提示，玩家可以随时收回。
 
 ## trace 记录了什么
 
-每台电脑在每次会话里有一个文件：`cct-live/sessions/<时间>/computer-<id>.jsonl`。格式与 cct-run 的 `trace.jsonl` 相同（共有字段 `seq`、`tick`、`ms`、`kind`），schema 为 `cct-live/trace@0`。`tick` 是会话开始以来的服务端 tick 数。
+每次接管写一个文件：`cct-live/sessions/<时间>/computer-<id>-<第几次接管>.jsonl`。格式与 cct-run 的 `trace.jsonl` 相同（共有字段 `seq`、`tick`、`ms`、`kind`），schema 为 `cct-live/trace@0`。`tick` 是世界打开以来的服务端 tick 数。
 
-| kind | 内容 | 来源 |
-|---|---|---|
-| `event` | 交给 Lua VM 的每个事件（包括 timer、task_complete、按键等） | 替换 VM 工厂 `ServerContext.luaMachine` |
-| `peripheral_call` / `peripheral_return` | 所有外设调用（`peripheral.wrap`/`find` 最终也走 `peripheral.call`）；主线程方法在之后的 tick 返回；出错时带错误信息 | 包装 VM 的方法查找 |
-| `api` | `http.request` / `checkURL` / `websocket`（`http.get`、`http.post` 最终都调用 `http.request`），以及 `fs.open` / `delete` / `move` / `copy` / `makeDir`，含参数和结果 | 同上 |
-| `handle` | 对已打开的文件、HTTP 响应、websocket 的每次调用（`readAll`、`readLine`、`write`、`close` 等），带 `path` 或 `url`，以及读写的数据（前 200 个字符）。`/rom` 下的文件不记录 | 同上 |
-| `vm_start` / `vm_close` / `vm_error` | VM 的创建和关闭（开机、重启）；VM 级错误，例如 Too long without yielding | 同上 |
-| `screen` | 每个 tick 中变化的行，含 `fg` / `bg` 颜色、光标和尺寸 | 每个服务端 tick 读取电脑终端 |
-| `redstone_output` | 各个面的红石输出变化（含 bundled） | 每 tick 读取 |
-| `power`、`label`、`moved` | 开关机、标签变化、位置或维度变化（海龟移动） | 每 tick 读取 |
-| `computer_seen` / `computer_removed` | 电脑被加载或卸载 | 每 tick 读取 |
-| `truncated` | 文件达到大小上限（默认 64 MB）后停止写入 | — |
+| kind | 内容 |
+|---|---|
+| `attach` / `detach` | 接管开始（租约、是否打开记录模式、带入了多少条历史记录）/ 结束（原因：`detach`、`revoked`、`expired`、`removed`、`closed`） |
+| `event` | 交给 Lua VM 的每个事件（包括 timer、task_complete、按键、http_success 等） |
+| `peripheral_call` / `peripheral_return` | 所有外设调用（`peripheral.wrap`/`find` 最终也走 `peripheral.call`）；主线程方法在之后的 tick 返回；出错时带错误信息 |
+| `api` | `http.request` / `checkURL` / `websocket`（`http.get`、`http.post` 最终都调用 `http.request`），以及 `fs.open` / `delete` / `move` / `copy` / `makeDir`，含参数和结果 |
+| `handle` | 对已打开的文件、HTTP 响应、websocket 的每次调用（`readAll`、`readLine`、`write`、`close` 等），带 `path` 或 `url`，以及读写的数据（前 200 个字符）。`/rom` 下的文件不记录 |
+| `vm_start` / `vm_close` / `vm_error` | VM 的创建和关闭（开机、重启）；VM 级错误，例如 Too long without yielding |
+| `screen` | 每个 tick 中变化的行，含 `fg` / `bg` 颜色、光标和尺寸 |
+| `redstone_output`、`power`、`label`、`moved` | 红石输出变化、开关机、标签变化、位置或维度变化（海龟移动） |
+| `computer_seen` | 接管时这台电脑的信息 |
+| `truncated` | 文件达到大小上限后停止写入 |
 
-配置文件是 `config/cctlive-common.toml`，可以设置端口、关闭 HTTP 接口、关闭屏幕记录和修改大小上限。
+带 `"history": true` 的记录来自记录模式，是接管之前发生的事。
+
+## 性能
+
+在 Linux 的正式版 Forge 47.4.10 服务器（Java 17，4 核容器）上，放了 30 台高级电脑。每台运行 `mod/bench/startup.lua` 里三种不停循环的负载之一（各 10 台）：
+
+- 频繁收发事件；
+- 频繁读写文件；
+- 频繁写屏幕。
+
+每种配置跑两轮，每轮预热 20 秒后测 30 秒，下表是平均值。服务器 tick 耗时来自 `/forge tps`。
+
+| 配置 | 服务器每 tick 耗时 | 事件循环/秒 | 文件循环/秒 | 写屏循环/秒 |
+|---|---|---|---|---|
+| 不装 mod | 1.01 ms | 8650 | 1250 | 33600 |
+| 装了 mod，没有接管（平时的状态） | 0.94 ms | −1% | +8% | 0% |
+| 打开记录模式 | 1.01 ms | −7% | −8% | −5% |
+| 30 台全部接管 | 1.22 ms | −18% | −18% | −10% |
+
+- 两轮“不装 mod”之间就相差约 5%，所以“没有接管”和“不装 mod”的差别**在测量误差之内**，测不出额外开销。
+- 记录模式大约慢 5% 到 8%，接管大约慢 10% 到 18%。这是电脑一刻不停地跑循环的极端情况；普通程序大部分时间都在等待事件，实际影响会小得多。
+- 服务器每 tick 耗时在所有配置下都只有 1 ms 左右（一个 tick 的预算是 50 ms）。
+- 30 台全部接管时，trace 每分钟增长约 80 MB；每次接管的文件有大小上限（默认 64 MB）。
 
 ## 原型阶段的已知限制
 
-- **还没有结构化的“程序结果”**。程序出错时，cct-live 能看到屏幕上的错误信息，但拿不到 cct-run 那样的 `status`、`error` 和 `traceback`。下一步计划把 cct-run 的 harness 放进 ROM，通过一个 Lua API 把结果交给 Java。
-- 没有 `output` 记录：滚出屏幕的行看不到，因为终端的滚动发生在 CC 内部，没有对外的接入点。
+- **还没有结构化的“程序结果”**。程序出错时，cct-live 能看到屏幕上的错误信息，但拿不到 cct-run 那样的 `status`、`error` 和 `traceback`。
+- 只能从接管那一刻开始记录，除非打开记录模式。文件或 HTTP 句柄如果是在接管之前打开的，trace 里不会显示它的路径或 URL。
+- 没有 `output` 记录：滚出屏幕的行看不到。
 - 显示器、海龟的背包和燃料都还没有接口；电脑上的文件读写只会被记录，还不能通过接口直接读写文件。
-- 只读取电脑自己的终端。海龟（包括 `moved` 记录）、口袋电脑和命令电脑都还没有测试过。
-- 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器）。`api` / `handle` 记录和 MCP 工具目前只在 Linux 上测试过。
-- 每次读写文件都会记一条 `handle` 记录，逐行读取大文件的程序会产生很多记录（每台电脑的 trace 文件有大小上限）。
+- 海龟、口袋电脑和命令电脑都还没有测试过。
+- 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，只测过接管功能加入之前的版本）。

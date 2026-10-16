@@ -7,22 +7,23 @@ import com.google.gson.JsonObject;
 import dan200.computercraft.core.computer.ComputerSide;
 import dan200.computercraft.shared.computer.core.ServerComputer;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * One computer the session has seen: its trace and the state polled every server tick. Polling runs on the
- * server thread only.
+ * One AI attachment to one computer: the trace it writes and the state polled every server tick while it lasts.
+ * Created and polled on the server thread; the lease is renewed by every request for this computer.
  * <p>
- * Records: {@code computer_seen} (once), {@code power} (on/off changes), {@code moved} (turtles; position or
- * dimension changes), {@code label}, {@code redstone_output} (as in cct-run), {@code screen} (as in cct-run, plus
- * {@code fg}/{@code bg} colour rows), {@code computer_removed}.
+ * Records written here: {@code attach}, {@code computer_seen}, {@code power} (on/off changes), {@code moved}
+ * (turtles; position or dimension changes), {@code label}, {@code redstone_output} (as in cct-run), {@code screen}
+ * (as in cct-run, plus {@code fg}/{@code bg} colour rows), {@code detach}.
  */
-final class Watched {
+final class Attachment {
     private static final ComputerSide[] SIDES = ComputerSide.values();
 
     private final ServerComputer computer;
     private final ComputerTrace trace;
+    private final long leaseMillis;
+    private volatile long expiresAt;
 
     private boolean on;
     private String position;
@@ -31,17 +32,15 @@ final class Watched {
     private final int[] bundled = new int[SIDES.length];
     private Terminals.Snapshot screen;
 
-    Watched(ServerComputer computer, ComputerTrace trace) {
+    Attachment(ServerComputer computer, ComputerTrace trace, long leaseMillis) {
         this.computer = computer;
         this.trace = trace;
-        Arrays.fill(redstone, 0);
-        Arrays.fill(bundled, 0);
-
-        var data = describe(computer);
-        trace.record("computer_seen", data);
+        this.leaseMillis = leaseMillis;
+        renew();
         on = computer.isOn();
         position = positionOf(computer);
         label = computer.getLabel();
+        // Outputs already set before the attachment are reported once, as changes from 0.
     }
 
     ServerComputer computer() {
@@ -50,6 +49,18 @@ final class Watched {
 
     ComputerTrace trace() {
         return trace;
+    }
+
+    void renew() {
+        expiresAt = System.currentTimeMillis() + leaseMillis;
+    }
+
+    boolean expired(long now) {
+        return now >= expiresAt;
+    }
+
+    long secondsLeft() {
+        return Math.max(0, (expiresAt - System.currentTimeMillis() + 999) / 1000);
     }
 
     static JsonObject describe(ServerComputer computer) {
@@ -151,8 +162,10 @@ final class Watched {
         trace.record("screen", data);
     }
 
-    void removed() {
-        trace.record("computer_removed", new JsonObject());
+    void end(String reason) {
+        var data = new JsonObject();
+        data.addProperty("reason", reason);
+        trace.record("detach", data);
         trace.close();
     }
 }

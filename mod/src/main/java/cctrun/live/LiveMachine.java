@@ -8,31 +8,31 @@ import dan200.computercraft.core.lua.MachineEnvironment;
 import dan200.computercraft.core.lua.MachineResult;
 import dan200.computercraft.core.metrics.MetricsObserver;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Wraps a computer's real Lua VM (as cctrun.engine.RecordingMachine does in cct-run) and records every event
- * delivered to it, VM errors, and VM start and close. Peripheral calls are recorded by {@link TracingMethods},
- * which this factory installs into the VM's method lookup.
+ * Wraps a computer's real Lua VM (as cctrun.engine.RecordingMachine does in cct-run). Installed into every VM when
+ * it is created, because CC: Tweaked offers no later hook point, but dormant until needed: while no AI has
+ * attached the computer and recording mode is off, each event and each instrumented call costs one check
+ * ({@link Recorder#active()}) and nothing is converted or written.
  * <p>
- * The VM does not know which computer it belongs to. {@link MachineEnvironment#metrics()} is the computer's own
- * {@code ServerComputer.getMetrics()}, so {@link Recorder} matches it against the computers {@link LiveSession}
- * has seen; records made before the match (normally none) are held back and written once it succeeds.
+ * When active it records every event delivered to the VM, VM errors, and VM start and close; {@link TracingMethods}
+ * (installed into the VM's method lookup) records peripheral, http and file access.
+ * <p>
+ * The VM does not know its computer. {@link MachineEnvironment#metrics()} is the computer's own
+ * {@code ServerComputer.getMetrics()} (stable across reboots), which is how attachments and recording rings are
+ * looked up.
  */
 final class LiveMachine implements ILuaMachine {
     static ILuaMachine.Factory factory(ILuaMachine.Factory inner) {
         return (environment, bios) -> {
-            var session = LiveSession.current();
-            if (session == null) return inner.create(environment, bios);
-
-            var recorder = new Recorder(session, environment.metrics());
+            var recorder = new Recorder(environment.metrics());
             var traced = new MachineEnvironment(
                 environment.context(), environment.metrics(), environment.timeout(), environment.apis(),
                 new TracingMethods(environment.luaMethods(), recorder), environment.hostString()
             );
             var machine = new LiveMachine(inner.create(traced, bios), recorder);
-            recorder.record("vm_start", new JsonObject());
+            if (recorder.active()) recorder.record("vm_start", new JsonObject());
             return machine;
         };
     }
@@ -49,7 +49,8 @@ final class LiveMachine implements ILuaMachine {
     public MachineResult handleEvent(String eventName, Object[] arguments) {
         // Recorded before the VM runs, so whatever the event causes (peripheral calls, a main-thread result
         // finishing) follows it in the trace. The first resume (eventName == null) boots the BIOS; not an event.
-        if (eventName != null) {
+        var active = recorder.active();
+        if (active && eventName != null) {
             var data = new JsonObject();
             data.addProperty("name", eventName);
             noteHttpHandle(eventName, arguments);
@@ -57,7 +58,7 @@ final class LiveMachine implements ILuaMachine {
             recorder.record("event", data);
         }
         var result = inner.handleEvent(eventName, arguments);
-        if (result.isError()) {
+        if (result.isError() && (active || recorder.active())) {
             var data = new JsonObject();
             data.addProperty("message", result.getMessage());
             data.addProperty("timeout", result == MachineResult.TIMEOUT);
@@ -82,25 +83,16 @@ final class LiveMachine implements ILuaMachine {
     @Override
     public void close() {
         inner.close();
-        recorder.record("vm_close", new JsonObject());
+        if (recorder.active()) recorder.record("vm_close", new JsonObject());
     }
 
-    /** Finds this VM's computer trace, holding records back until the computer is known. */
+    /** Where this VM's records go: the computer's attachment trace, else its recording ring, else nowhere. */
     static final class Recorder {
-        private static final int MAX_PENDING = 1000;
-
-        private record Pending(long tick, double ms, String kind, JsonObject data) {
-        }
-
-        private final LiveSession session;
         private final MetricsObserver metrics;
-        private volatile Watched watched;
-        private final List<Pending> pending = new ArrayList<>();
         private final Handles handles = new Handles();
-        private int dropped;
+        private final AtomicLong callIds = new AtomicLong();
 
-        Recorder(LiveSession session, MetricsObserver metrics) {
-            this.session = session;
+        Recorder(MetricsObserver metrics) {
             this.metrics = metrics;
         }
 
@@ -108,39 +100,23 @@ final class LiveMachine implements ILuaMachine {
             return handles;
         }
 
+        /** Cheap: two volatile reads while nothing is attached and recording mode is off. */
+        boolean active() {
+            var session = LiveSession.current();
+            return session != null && (session.recording() || session.attachedTo(metrics) != null);
+        }
+
+        /** Pairs a peripheral_call with its peripheral_return; per VM, so it also works in the recording ring. */
         long nextCallId() {
-            var w = resolve();
-            return w == null ? -1 : w.trace().nextCallId();
+            return callIds.incrementAndGet();
         }
 
         void record(String kind, JsonObject data) {
-            var w = resolve();
-            if (w != null) {
-                w.trace().record(kind, data);
-                return;
-            }
-            synchronized (pending) {
-                if (pending.size() < MAX_PENDING) pending.add(new Pending(session.tickCount(), session.millis(), kind, data));
-                else dropped++;
-            }
-        }
-
-        private Watched resolve() {
-            var w = watched;
-            if (w != null) return w;
-            w = session.watchedFor(metrics);
-            if (w == null) return null;
-            synchronized (pending) {
-                for (var p : pending) w.trace().recordAt(p.tick, p.ms, p.kind, p.data);
-                if (dropped > 0) {
-                    var data = new JsonObject();
-                    data.addProperty("dropped", dropped);
-                    w.trace().record("records_dropped", data);
-                }
-                pending.clear();
-                watched = w;
-            }
-            return w;
+            var session = LiveSession.current();
+            if (session == null) return;
+            var attachment = session.attachedTo(metrics);
+            if (attachment != null) attachment.trace().record(kind, data);
+            else if (session.recording()) session.ring(metrics).add(session.tickCount(), session.millis(), kind, data);
         }
     }
 }

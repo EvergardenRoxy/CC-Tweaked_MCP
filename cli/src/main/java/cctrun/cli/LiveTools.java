@@ -32,9 +32,10 @@ import java.util.Set;
  * {@code game_dir}, else {@code cct-run mcp --live DIR}, else the CCT_LIVE_DIR environment variable.
  */
 final class LiveTools {
-    static final String COMPUTERS = "cct_live_computers", SCREEN = "cct_live_screen", TRACE = "cct_live_trace",
-        EVENT = "cct_live_event", TYPE = "cct_live_type", POWER = "cct_live_power";
-    static final Set<String> NAMES = Set.of(COMPUTERS, SCREEN, TRACE, EVENT, TYPE, POWER);
+    static final String COMPUTERS = "cct_live_computers", SCREEN = "cct_live_screen", ATTACH = "cct_live_attach",
+        DETACH = "cct_live_detach", TRACE = "cct_live_trace", EVENT = "cct_live_event", TYPE = "cct_live_type",
+        POWER = "cct_live_power";
+    static final Set<String> NAMES = Set.of(COMPUTERS, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, POWER);
     /** GLFW key codes, as CC: Tweaked 1.120.2 on Minecraft 1.20.1 reports them in key events. */
     static final int KEY_ENTER = 257;
 
@@ -48,7 +49,7 @@ final class LiveTools {
           {
             "name": "cct_live_computers",
             "title": "List computers in the running game",
-            "description": "Lists the CC: Tweaked computers loaded in a running Minecraft game that has the cct-live mod: id, label, family (normal, advanced, command), on/off, dimension, position, and the current server tick. Unlike cct_run this is the real game: real world, real peripherals, real players. Use these tools to observe and debug programs on the user's actual computers.",
+            "description": "Lists the CC: Tweaked computers loaded in a running Minecraft game that has the cct-live mod: id, label, family (normal, advanced, command), on/off, dimension, position, whether an AI is attached (and lease seconds left), plus the server tick, recording_mode and lease_seconds. Unlike cct_run this is the real game: real world, real peripherals, real players. Nothing is recorded for a computer until you attach it (cct_live_attach); listing and cct_live_screen work without attaching.",
             "inputSchema": { "type": "object", "properties": { %1$s }, "additionalProperties": false },
             "annotations": { "readOnlyHint": true, "openWorldHint": true }
           },
@@ -60,9 +61,23 @@ final class LiveTools {
             "annotations": { "readOnlyHint": true, "openWorldHint": true }
           },
           {
+            "name": "cct_live_attach",
+            "title": "Attach to a computer in the game",
+            "description": "Starts observing and controlling a real computer: from now on everything it does is recorded (see cct_live_trace) and the input and power tools work on it. The player sees a chat message that an AI took control of the computer, and can take it back with /cctlive detach <id>. The attachment lasts while you keep using it: every request for this computer renews a lease (lease_seconds, 600 by default); with no request for that long it ends by itself. Calling it again only renews. If the game runs with recording mode on, the trace starts with the computer's recent records from before the attachment (marked history: true); otherwise nothing before the attachment is known, so attach first and then reproduce the problem (re-run the program with cct_live_type, or reboot). Attach only when the user asked you to work on their computer.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s }, "required": ["computer"], "additionalProperties": false },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": true }
+          },
+          {
+            "name": "cct_live_detach",
+            "title": "Release a computer in the game",
+            "description": "Ends your attachment to a real computer: recording stops, input and power tools stop working on it, and the player sees that the AI released it. Release computers when you are done. Its trace stays readable with cct_live_trace.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s }, "required": ["computer"], "additionalProperties": false },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": true }
+          },
+          {
             "name": "cct_live_trace",
             "title": "Trace of a computer in the game",
-            "description": "Returns trace records the cct-live mod recorded for a real computer during this game session, oldest first, as JSON {tick, matched, records, next_offset?}. Every record has seq, tick (server ticks since the world opened), ms and kind. Kinds: event (every event delivered to the Lua VM: keys, timers, http_success, task_complete, redstone ...), peripheral_call / peripheral_return, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir with args and result), handle (each read/write/close on an open file, HTTP response or websocket, with the data, first 200 characters), screen (changed rows with fg/bg colours), redstone_output, power, label, moved, vm_start, vm_close, vm_error, computer_seen, computer_removed, truncated. Files under /rom are not recorded. To see what an action caused, note 'tick' or the last seq first, act, then query with after=<seq> or ticks=<tick>-.",
+            "description": "Returns the trace of your current (or last) attachment to a real computer, oldest first, as JSON {tick, attached, matched, records, next_offset?}. Records exist only from cct_live_attach on (plus recording-mode history, marked history: true). Every record has seq, tick (server ticks since the world opened), ms and kind. Kinds: attach / detach (reason: detach, revoked by a player, expired, removed, closed), event (every event delivered to the Lua VM: keys, timers, http_success, task_complete, redstone ...), peripheral_call / peripheral_return, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir with args and result), handle (each read/write/close on an open file, HTTP response or websocket, with the data, first 200 characters), screen (changed rows with fg/bg colours), redstone_output, power, label, moved, vm_start, vm_close, vm_error, computer_seen, computer_removed, truncated. Files under /rom are not recorded. To see what an action caused, note 'tick' or the last seq first, act, then query with after=<seq> or ticks=<tick>-.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -81,7 +96,7 @@ final class LiveTools {
           {
             "name": "cct_live_event",
             "title": "Send an event to a computer in the game",
-            "description": "Queues an event on a real computer, exactly as if it had happened in the game, e.g. {name: 'char', args: ['y']}, {name: 'key', args: [257, false]} then {name: 'key_up', args: [257]} (key codes are GLFW: enter 257, backspace 259, tab 258, right 262, left 263, down 264, up 265, left ctrl 341), {name: 'terminate'} (Ctrl+T), {name: 'monitor_touch', args: ['monitor_0', 3, 2]}, or a custom event a program waits for. This acts on the user's real world; send only what the user asked for or agreed to.",
+            "description": "Queues an event on a real computer you have attached (cct_live_attach), exactly as if it had happened in the game, e.g. {name: 'char', args: ['y']}, {name: 'key', args: [257, false]} then {name: 'key_up', args: [257]} (key codes are GLFW: enter 257, backspace 259, tab 258, right 262, left 263, down 264, up 265, left ctrl 341), {name: 'terminate'} (Ctrl+T), {name: 'monitor_touch', args: ['monitor_0', 3, 2]}, or a custom event a program waits for. This acts on the user's real world; send only what the user asked for or agreed to.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -97,7 +112,7 @@ final class LiveTools {
           {
             "name": "cct_live_type",
             "title": "Type a line into a computer in the game",
-            "description": "Types text into a real computer as a paste event, then presses Enter (unless enter is false). In the shell this runs a command, e.g. 'edit startup.lua' or 'myprogram arg'; in a program it answers read(). Text must be one line. This acts on the user's real world; run only what the user asked for or agreed to.",
+            "description": "Types text into a real computer you have attached (cct_live_attach) as a paste event, then presses Enter (unless enter is false). In the shell this runs a command, e.g. 'edit startup.lua' or 'myprogram arg'; in a program it answers read(). Text must be one line. This acts on the user's real world; run only what the user asked for or agreed to.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -113,7 +128,7 @@ final class LiveTools {
           {
             "name": "cct_live_power",
             "title": "Turn a computer in the game on, off or reboot it",
-            "description": "Turns a real computer on, shuts it down or reboots it (startup.lua runs again on boot). This acts on the user's real world; do it only when the user asked for or agreed to it.",
+            "description": "Turns a real computer you have attached (cct_live_attach) on, shuts it down or reboots it (startup.lua runs again on boot). This acts on the user's real world; do it only when the user asked for or agreed to it.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -155,6 +170,10 @@ final class LiveTools {
             case SCREEN -> {
                 allowOnly(a, "game_dir", "computer");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/screen"));
+            }
+            case ATTACH, DETACH -> {
+                allowOnly(a, "game_dir", "computer");
+                yield result(post(endpoint(a), "computers/" + computer(a) + "/" + (name.equals(ATTACH) ? "attach" : "detach"), new JsonObject()));
             }
             case TRACE -> {
                 allowOnly(a, "game_dir", "computer", "kind", "after", "ticks", "offset", "limit");

@@ -194,7 +194,8 @@ final class McpServer {
             fields, the trace, fixtures (simulated peripherals, redstone, timed events) and what a passing run does and \
             does not prove. Runs are stored in %s. Relative paths resolve against %s; prefer absolute paths. \
             The cct_live_* tools work on real computers in a running Minecraft game with the cct-live mod (screen, \
-            trace of events, peripheral calls, http and file access, input, power); %s"""
+            trace of events, peripheral calls, http and file access, input, power); attach a computer (cct_live_attach) \
+            before recording or controlling it, and detach it when done; %s"""
             .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir,
                 liveDir == null ? "no game directory is configured, so pass game_dir to them." : "the game directory is " + liveDir + "."));
         return result;
@@ -209,7 +210,7 @@ final class McpServer {
                 case McpTools.TRACE -> inProcess(McpTools.traceArgs(arguments, outDir), McpTools.traceLimit(arguments));
                 case McpTools.SCREEN -> inProcess(McpTools.screenArgs(arguments, outDir), -1);
                 case McpTools.GUIDE -> inProcess(List.of("guide"), -1);
-                case LiveTools.COMPUTERS, LiveTools.SCREEN, LiveTools.TRACE, LiveTools.EVENT, LiveTools.TYPE, LiveTools.POWER -> live.call(name, arguments);
+                case LiveTools.COMPUTERS, LiveTools.SCREEN, LiveTools.ATTACH, LiveTools.DETACH, LiveTools.TRACE, LiveTools.EVENT, LiveTools.TYPE, LiveTools.POWER -> live.call(name, arguments);
                 default -> {
                     var unknown = new JsonObject();
                     unknown.addProperty("jsonrpcError", "Unknown tool: " + name);
