@@ -6,8 +6,12 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - 按真实时间运行，每秒 20 刻。
 - 每次运行都会输出 JSON 摘要（结果、错误和行号、最终屏幕），并把全过程记录到 trace 文件里。
 
-> **当前状态：命令行工具（CLI）可用，MCP 服务器还没做。**
-> 现在的用法是让 AI 通过终端调用 `cct-run` 命令；以 MCP 形式接入是下一阶段的工作，会作为这个命令行工具的一层薄包装（见文末“路线图”）。所有支持终端命令的 AI 客户端现在就能用。
+有两种接入方式，功能相同：
+
+- **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），提供 `cct_run`、`cct_trace`、`cct_screen`、`cct_guide` 四个工具。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop 等）配置一次即可使用。
+- **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。
+
+> MCP 服务器目前是**测试版**：Linux 上用官方 MCP SDK 客户端验证通过，Windows 上冒烟测试和一次 AI 客户端实测通过；Claude Code、Codex 等各客户端分别的接入结果还在收集。
 
 ---
 
@@ -18,11 +22,13 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 | 运行程序 | 在无界面的 CC 电脑上运行 `.lua` 程序，可以传命令行参数，可以设置超时 |
 | 报告结果 | `ok` / `error` / `timeout` / `shutdown` / `reboot`，并给出对应的退出码 |
 | 定位错误 | 语法错误和运行时错误都给出文件名、行号、错误信息和调用栈，与游戏里显示的一致；“Too long without yielding”也能复现（约 7 秒） |
+| 内存上限 | 每次运行最多使用约 1 GB 内存；超出时以 `out_of_memory` 结束（退出码 4）并指出出错行，不会拖垮电脑；摘要里给出内存峰值 |
 | 屏幕内容 | 程序结束时电脑屏幕和每台显示器上的文字；滚出屏幕的行也有记录 |
 | 全程记录（trace） | 每个事件、每次外设调用及其返回值、红石输出、屏幕变化都带时间（第几刻）记录下来，可以按类型、时间段、外设筛选查询 |
 | 回放屏幕 | 查询任意一刻电脑或显示器上显示的内容 |
 | 模拟外设和世界 | 用 fixture 文件布置箱子等容器、能量存储、流体存储、显示器、有线调制解调器网络、红石输入和预置文件 |
 | 按时间注入事件 | 在指定的刻改变红石输入、修改箱子内容、改能量、发送任意事件（如按键、触摸显示器），或者按下 Ctrl+T 终止程序 |
+| MCP 服务器 | `cct-run mcp`：本地 stdio MCP 服务器，四个工具和命令一一对应；可以直接传 Lua 代码和 fixture 对象，不必先写文件；每次运行都在独立的 Java 进程里，可以同时运行多个，也可以取消 |
 | AI 使用说明 | `cct-run guide` 打印一份写给 AI 的英文说明：使用流程、各字段含义、排查方法、常见陷阱，以及“测试通过”意味着什么 |
 
 ### 一个例子
@@ -94,7 +100,63 @@ bin/cct-run version
 
 能输出带有 `"cc_tweaked": "1.120.2"` 的 JSON 就说明装好了。
 
-### 4. 告诉 AI 怎么用
+### 4. 接入 AI 客户端（MCP，推荐）
+
+下面以解压到 `C:\cct-run`（Windows）或 `/opt/cct-run`（macOS / Linux）为例，请换成你自己的路径。Windows 上通过 `cmd /c` 启动 `.bat`，这是多数客户端启动批处理文件的可靠写法。
+
+**Claude Code**：在 **cmd** 里运行（PowerShell 可能吞掉 `--`）：
+
+```bat
+claude mcp add --scope user cct-run -- cmd /c C:\cct-run\bin\cct-run.bat mcp
+```
+
+macOS / Linux：
+
+```bash
+claude mcp add --scope user cct-run -- /opt/cct-run/bin/cct-run mcp
+```
+
+也可以在项目根目录放一个 `.mcp.json`（只对这个项目生效，第一次使用时 Claude Code 会请你确认）：
+
+```json
+{
+  "mcpServers": {
+    "cct-run": { "command": "cmd", "args": ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp"] }
+  }
+}
+```
+
+**Codex**：编辑 `~/.codex/config.toml`（Windows 上是 `%USERPROFILE%\.codex\config.toml`）：
+
+```toml
+[mcp_servers.cct-run]
+command = "cmd"
+args = ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp"]
+tool_timeout_sec = 300          # 运行可能持续到 --timeout 秒，默认的 60 秒可能不够
+# Codex 不会把所有环境变量传给 MCP 服务器；如果 java 不在 PATH 上，请写明：
+# env = { JAVA_HOME = "C:\\Program Files\\Zulu\\zulu-21" }
+```
+
+**其他支持 MCP 的客户端**（Claude Desktop、Cherry Studio 等使用 `mcpServers` JSON 的客户端；DeepSeek Harness、Autoclaw 如果支持 MCP，填写同样的命令和参数即可，配置位置见各自的文档）：
+
+```json
+{
+  "mcpServers": {
+    "cct-run": {
+      "command": "cmd",
+      "args": ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp", "--out", "C:\\cct-run\\runs"]
+    }
+  }
+}
+```
+
+说明：
+
+- 运行记录默认保存在客户端启动服务器时所在目录的 `.cct-runs` 下（Claude Code 是项目目录，建议把 `.cct-runs/` 加进 `.gitignore`）；这个目录不可写时改存到 `~/.cct-run/runs`。像上面那样加 `--out 目录` 可以固定位置。
+- 服务器启动后，第一次调用前 AI 会看到提示：先调用 `cct_guide` 阅读说明。
+- 配置好后可以直接对 AI 说：“写一个……的 CC 程序，并用 cct_run 测试。”
+
+### 4（另一种）. 用命令行方式接入
 
 在 AI 客户端的项目说明文件里（Claude Code 用 `CLAUDE.md`，Codex 用 `AGENTS.md`，其他客户端用各自的说明或提示词）加上一段，例如：
 
@@ -116,7 +178,19 @@ cct-run run <程序.lua> [--fixture 文件] [--timeout 秒] [--out 目录] [--te
 cct-run trace  <运行目录|latest> [--kind 类型1,类型2] [--ticks A-B] [--peripheral 名称] [--source 名称] [--offset N] [--limit N]
 cct-run screen <运行目录|latest> [--tick N] [--source term|显示器名]
 cct-run guide | version | help
+cct-run mcp [--out 目录]          # MCP 服务器，由客户端启动
 ```
+
+MCP 工具与命令的对应关系：
+
+| 工具 | 对应命令 | 参数 |
+|---|---|---|
+| `cct_run` | `run` | `file`（路径）或 `code`（Lua 源码，可配 `name`）、`args`、`fixture`（JSON 对象）或 `fixture_file`、`timeout`、`term`、`computer`（`advanced`/`basic`） |
+| `cct_trace` | `trace` | `run`（默认 `latest`）、`kind`（数组）、`ticks`、`peripheral`、`source`、`offset`、`limit` |
+| `cct_screen` | `screen` | `run`、`tick`、`source` |
+| `cct_guide` | `guide` | 无 |
+
+工具返回的 JSON 和命令行输出相同。程序本身出错（`status: "error"`）是正常的测试结果；只有参数错误、文件不存在等情况，工具调用才会标记为出错。
 
 - `--timeout` 是游戏时间（秒），默认 15，最大 3600。死循环程序以 `timeout` 结束是正常的。
 - 每次运行的结果保存在 `.cct-runs\<运行编号>\` 下：`summary.json`（摘要）、`trace.jsonl`（全程记录）、程序和 fixture 的副本。`latest` 指最新的一次运行。
@@ -128,10 +202,13 @@ cct-run guide | version | help
 | 1 | Lua 错误（语法错误、运行时错误、Too long without yielding、被 Ctrl+T 终止） |
 | 2 | 超时，程序仍在运行 |
 | 3 | 程序关机或重启了电脑 |
+| 4 | 内存耗尽（超过约 1 GB 的上限） |
 | 64 | 命令用法错误 |
 | 65 | 输入有问题（文件不存在、fixture 格式错误等，错误信息会指出 JSON 中的具体位置） |
 | 69 | 找不到 Java 17+ |
 | 70 | 内部错误 |
+
+需要更大的内存上限时，设置环境变量 `CCT_RUN_OPTS=-Xmx2g`（或 `JAVA_OPTS`）后再启动 cct-run；MCP 方式下在客户端配置的环境变量里设置。
 
 ### fixture 示例
 
@@ -167,7 +244,7 @@ cct-run guide | version | help
 - HTTP / WebSocket、扬声器、打印机、磁盘驱动器、无线 / 末影调制解调器、接收调制解调器消息；
 - 容器的格子限制：任何格子都能放任何物品，上限 64（真实的熔炉、模组方块有规则）；物品详情只有部分字段；
 - 能量和流体只在 fixture 时间线里改变；游戏内时间固定为 0（`os.time()`、`os.day()`）；
-- 磁盘容量只报告、不限制；
+- 磁盘容量只报告、不限制；内存上限约 1 GB（游戏里没有单台电脑的内存上限，电脑和服务器共用内存）；
 - 只记录屏幕上的文字，不记录颜色；
 - CC 无法显示中文，屏幕上看到的是 CC 自己的字符集。
 
@@ -177,12 +254,14 @@ cct-run guide | version | help
 
 ## 测试情况
 
-- Windows 11 + Windows PowerShell 5.1 + cmd：19/19 冒烟测试通过（Zulu 8 / 21 / 25，代码页 936，路径含空格和中文）。
-- Linux：单元测试 35/35；冒烟测试全部通过（含从 Java 8 自动切换）；Java 17 / 21 / 25 均可运行。
-- macOS：尚未测试。
-- AI 客户端：在 Autoclaw 和 DeepSeek Harness（Windows）上实测可用；Claude Code、Codex 待用户反馈。
+| 平台 / 项目 | 结果 |
+|---|---|
+| Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
+| Linux | 单元测试 39/39；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| macOS | 尚未测试 |
+| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次实测四步全部正确。各客户端分别的 MCP 接入结果待反馈 |
 
-在自己的机器上测试的方法见 `docs/testing.md`。
+每轮测试发现的问题和处理见 [`docs/test-results.md`](docs/test-results.md)；在自己的机器上测试的方法见 `docs/testing.md`。
 
 ---
 
@@ -206,8 +285,8 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 
 1. ~~命令行工具、全程记录、外设模拟~~（已完成）
 2. ~~旧 Java 自动切换、给 AI 的使用说明~~（已完成）
-3. 资源限制：1 GB 内存上限、内存耗尽单独作为一种结果、trace 超过上限截断、`cct-run clean` 清理旧记录
-4. **MCP 服务器**：本地 stdio 方式，`run` / `trace` / `screen` 等工具和命令一一对应，每次调用启动一次 cct-run（不做远程 MCP）
+3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版）
+4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；trace 超过上限截断、`cct-run clean` 清理旧记录（待做）
 5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。

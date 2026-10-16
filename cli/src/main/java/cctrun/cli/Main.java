@@ -29,10 +29,11 @@ import java.util.stream.Collectors;
 /**
  * Command-line entry point. All machine-readable output goes to stdout as ASCII-only JSON (non-ASCII characters are
  * escaped as \\uXXXX); diagnostics go to stderr.
- * Exit codes: run 0/1/2/3 (see RunResult), 64 usage error, 65 bad input, 70 internal error.
+ * Exit codes: run 0/1/2/3/4 (see RunResult), 64 usage error, 65 bad input, 70 internal error.
+ * {@code mcp} serves the same commands as MCP tools (McpServer).
  */
 public final class Main {
-    static final int EX_USAGE = 64, EX_DATAERR = 65, EX_SOFTWARE = 70;
+    static final int EX_OUT_OF_MEMORY = 4, EX_USAGE = 64, EX_DATAERR = 65, EX_SOFTWARE = 70;
     private static final Gson PRETTY = new GsonBuilder().disableHtmlEscaping().serializeNulls().setPrettyPrinting().create();
     private static final Gson COMPACT = new GsonBuilder().disableHtmlEscaping().serializeNulls().create();
     private static final Path DEFAULT_OUT = Path.of(".cct-runs");
@@ -45,16 +46,20 @@ public final class Main {
                                          [--offset N] [--limit N] [--out DIR]
           cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR] [--out DIR]
           cct-run guide
+          cct-run mcp [--out DIR]
           cct-run version
 
         run      Runs the program on a headless CC: Tweaked %s computer (Minecraft %s) in real time and
-                 prints the summary as JSON. Exit code: 0 ok, 1 Lua error, 2 timeout, 3 shutdown/reboot.
+                 prints the summary as JSON. Exit code: 0 ok, 1 Lua error, 2 timeout, 3 shutdown/reboot,
+                 4 out of memory (the heap limit, 1 GB by default, was reached).
                  The run directory (summary.json, trace.jsonl, inputs) goes under --out (default .cct-runs).
         trace    Prints trace records (JSON Lines) of a run, filtered. Default --limit 200.
                  Kinds: event screen output peripheral_call peripheral_return redstone_output
                         modem_transmit fixture_action program_end vm_error run_start run_end
         screen   Prints the screen of the computer ("term", default) or of a monitor at a tick.
         guide    Prints the agent guide: workflow, reading results, fixtures, what a pass means. Read it first.
+        mcp      Runs a local MCP server on stdin/stdout (tools cct_run, cct_trace, cct_screen, cct_guide).
+                 Start it from an MCP client, not by hand. Runs go to --out (default .cct-runs).
         version  Prints tool, CC: Tweaked, Minecraft and Java versions as JSON.
         """.formatted(Versions.CC_TWEAKED, Versions.MINECRAFT);
 
@@ -80,6 +85,9 @@ public final class Main {
                 + System.getProperty("sun.jnu.encoding") + "): " + e.getInput()
                 + "\n  Use an ASCII path, or a UTF-8 locale (e.g. LC_ALL=C.UTF-8 on Linux/macOS).");
             code = EX_DATAERR;
+        } catch (OutOfMemoryError e) {
+            // Outside Lua (Cobalt reports those as Lua errors): the run could not finish its summary.
+            code = outOfMemory(stdout, e);
         } catch (Exception e) {
             System.err.println("cct-run: internal error: " + e);
             e.printStackTrace();
@@ -99,6 +107,7 @@ public final class Main {
             case "screen" -> screen(new Args(rest, Set.of("--tick", "--source", "--out"), Set.of()), out);
             case "version", "--version" -> version(out);
             case "guide" -> guide(out);
+            case "mcp" -> McpServer.main(new Args(rest, Set.of("--out"), Set.of()), out);
             case "help", "--help", "-h" -> {
                 out.print(USAGE);
                 yield 0;
@@ -224,6 +233,23 @@ public final class Main {
         return 0;
     }
 
+    private static int outOfMemory(PrintStream out, OutOfMemoryError e) {
+        var limitMb = Runtime.getRuntime().maxMemory() / (1024 * 1024);
+        var message = "cct-run ran out of memory (heap limit " + limitMb + " MB): " + e.getMessage();
+        System.err.println("cct-run: " + message);
+        var json = new JsonObject();
+        json.addProperty("schema", Versions.SUMMARY_SCHEMA);
+        json.addProperty("status", "out_of_memory");
+        json.addProperty("exit_code", EX_OUT_OF_MEMORY);
+        var error = new JsonObject();
+        error.addProperty("phase", "runtime");
+        error.addProperty("message", message);
+        json.add("error", error);
+        json.addProperty("note", "cct-run itself ran out of memory, so summary.json was not written and the trace may be incomplete");
+        out.println(ascii(PRETTY.toJson(json)));
+        return EX_OUT_OF_MEMORY;
+    }
+
     private static int version(PrintStream out) {
         var json = new JsonObject();
         json.addProperty("tool", Versions.TOOL);
@@ -231,6 +257,7 @@ public final class Main {
         json.addProperty("minecraft", Versions.MINECRAFT);
         json.addProperty("java", System.getProperty("java.version"));
         json.addProperty("java_home", System.getProperty("java.home"));
+        json.addProperty("heap_limit_mb", Runtime.getRuntime().maxMemory() / (1024 * 1024));
         out.println(ascii(PRETTY.toJson(json)));
         return 0;
     }

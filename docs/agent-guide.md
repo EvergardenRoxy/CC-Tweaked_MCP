@@ -1,6 +1,6 @@
 # cct-run agent guide
 
-For AI agents. `cct-run guide` prints this text.
+For AI agents. `cct-run guide` and the MCP tool `cct_guide` return this text.
 
 cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s. It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
 
@@ -31,6 +31,19 @@ cct-run guide | version | help
 - `latest` means the newest run under `--out` (default `.cct-runs` in the current directory).
 - `--term 26x20` gives a pocket computer size; `--basic` gives a non-colour computer.
 
+Through MCP (`cct-run mcp`), the same commands are tools. Results are the same JSON as the CLI's stdout.
+
+| tool | command | arguments |
+|---|---|---|
+| `cct_run` | `run` | `file` (path) or `code` (Lua source; `name` sets its file name, default `program.lua`), `args` (array), `fixture` (JSON object) or `fixture_file`, `timeout`, `term`, `computer` (`advanced`/`basic`) |
+| `cct_trace` | `trace` | `run` (run_dir or `latest`, the default), `kind` (array), `ticks`, `peripheral`, `source`, `offset`, `limit` |
+| `cct_screen` | `screen` | `run`, `tick`, `source` |
+| `cct_guide` | `guide` | none |
+
+- A Lua error, a timeout or a shutdown is a normal result (`isError: false`); read `status`. `isError: true` means the call itself was wrong: bad arguments, missing file, invalid fixture (with its JSON path).
+- Use absolute paths for `file`, `fixture_file` and `run`. Every result of `cct_run` contains `run_dir`; pass it as `run` when several runs are in progress, since `latest` is simply the newest one.
+- In the command examples below, read `trace latest --kind event` as `cct_trace {"kind": ["event"]}`, and so on.
+
 Platform notes:
 - stdout is pure ASCII JSON: non-ASCII characters are escaped as `\uXXXX`. Parse it as JSON; never compare raw bytes.
 - Windows PowerShell 5.1 wraps native stderr in `NativeCommandError` records when redirected. That is PowerShell noise, not a cct-run error; the message is inside it.
@@ -40,7 +53,7 @@ Platform notes:
 
 | field | meaning |
 |---|---|
-| `status`, `exit_code` | `ok` 0, `error` 1 (syntax or runtime error, including "Too long without yielding" and "Terminated"), `timeout` 2, `shutdown`/`reboot` 3. Other exit codes: 64 usage, 65 bad input (missing file, invalid fixture with JSON path), 69 no Java 17+, 70 internal. |
+| `status`, `exit_code` | `ok` 0, `error` 1 (syntax or runtime error, including "Too long without yielding" and "Terminated"), `timeout` 2, `shutdown`/`reboot` 3, `out_of_memory` 4 (the program used up the heap limit, about 1 GB; `error.message` names the line). Other exit codes: 64 usage, 65 bad input (missing file, invalid fixture with JSON path), 69 no Java 17+, 70 internal. |
 | `error.phase` | `syntax` (did not compile) or `runtime` |
 | `error.message` | `/<file>.lua:<line>: <message>`; the line number is in the user's file |
 | `error.traceback` | stack frames, innermost first. Frames in `exception.lua` / `bios.lua` belong to CraftOS; the first `/<file>.lua` frame is where to look |
@@ -49,6 +62,7 @@ Platform notes:
 | `notes` | the first noteworthy records: peripheral errors, the failed program end, VM errors, tick lag |
 | `trace_counts` | number of trace records per kind |
 | `duration` | `ticks`, `seconds` (ticks/20), `wall_ms`; `tick_rate` (about 20; only for runs of at least 2 s) |
+| `memory` | `heap_limit_mb` (about 1000) and `heap_peak_mb`: the most heap used, cct-run itself included (about 40 MB for a small program). A peak near the limit means the program keeps too much data, even if it did not fail |
 | `timeout_state` | where Lua was running at the timeout. Absent when the program was waiting for an event, which is the usual case |
 
 Screen text is CC: Tweaked's own character set. Characters `\u0080`-`\u00ff` are CC graphics glyphs, not Latin-1 letters. For example, the error display draws its gutter with `\u0095` and a marker with `\u0083`. Strings printed from Lua are bytes, so UTF-8 text shows as two or three such characters per letter. CC cannot display Chinese.
@@ -144,6 +158,7 @@ A pass means the program works against this model, which is not guaranteed to ma
 - **Energy and fluid amounts:** change only through the timeline.
 - **Time:** in-game time is frozen at 0 (`os.time()`, `os.day()`); real time (`os.clock()`, `os.epoch`) runs normally.
 - **Disk:** the 1 MB limit is reported but not enforced.
+- **Memory:** cct-run stops a program at about 1 GB of heap (`out_of_memory`). The game has no per-computer limit: the computer shares the server's memory, so a program that runs out here would lag or crash a server, and one that stays under it can still be too heavy for a small server.
 - **Multishell:** off by default (`multishell` is nil); set `computer.multishell: true` if the program needs it.
 - **Startup:** cct-run runs the program from `/startup.lua`, so `shell.getRunningProgram()` returns "startup.lua". A program named `startup.lua` is stored as `/main.lua`.
 

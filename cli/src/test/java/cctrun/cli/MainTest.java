@@ -29,6 +29,35 @@ class MainTest {
     }
 
     @Test
+    void heapExhaustionIsItsOwnStatus() throws Exception {
+        // A child JVM with a small heap, like the 1 GB the start scripts set, so the test is quick.
+        var program = dir.resolve("hog.lua");
+        Files.writeString(program, """
+            local kept, n = {}, 0
+            while true do
+              n = n + 1
+              kept[n] = string.rep("x", 4 * 1024 * 1024) .. n
+              if n % 4 == 0 then os.queueEvent("t") os.pullEvent("t") end
+            end
+            """);
+        var java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        var process = new ProcessBuilder(java, "-Xmx128m", "-XX:+UseSerialGC", "-cp", System.getProperty("java.class.path"),
+            Main.class.getName(), "run", program.toString(), "--out", dir.resolve("runs").toString(), "--timeout", "60")
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start();
+        var stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.US_ASCII);
+        assertEquals(Main.EX_OUT_OF_MEMORY, process.waitFor(), stdout);
+        var summary = JsonParser.parseString(stdout).getAsJsonObject();
+        assertEquals("out_of_memory", summary.get("status").getAsString());
+        assertEquals(4, summary.get("exit_code").getAsInt());
+        assertTrue(summary.getAsJsonObject("error").get("message").getAsString().contains("OutOfMemoryError"));
+        var memory = summary.getAsJsonObject("memory");
+        assertTrue(memory.get("heap_limit_mb").getAsLong() <= 128, memory.toString());
+        assertTrue(memory.get("heap_peak_mb").getAsLong() >= 64, memory.toString());
+        assertTrue(summary.get("duration").getAsJsonObject().get("ticks").getAsInt() < 60 * 20, "stopped by memory, not the timeout");
+    }
+
+    @Test
     void asciiEscapesEveryNonAsciiCharacter() {
         assertEquals("{\"a\":\"plain\"}", Main.ascii("{\"a\":\"plain\"}"));
         assertEquals("{\"a\":\"caf\\u00c3\\u00a9 \\u6d4b \\ud83d\\ude00\"}", Main.ascii("{\"a\":\"cafÃ© 测 😀\"}"));

@@ -5,11 +5,11 @@ format: cct-run/handoff@1
 audience: machine reviewer / next agent (not end users)
 repo: EvergardenRoxy/CC-Tweaked_MCP
 branch: claude/cct-run-cli
-base: empty repository (this branch holds the first commits)
+base: main (default branch; PR #1 merged d7b9c4e); this branch = main + MCP server, heap limit, V13, test record
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; 35/35 tests (engine 28, cli 7); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; MCP wrapper not started
+status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 39/39 tests (engine 28, cli 11); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -41,7 +41,7 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D14 | Licensing: comply with the licenses of bundled code. Own code MPL-2.0 (`LICENSE`, SPDX headers). `harness.lua` is CCPL because it adapts code from CC:T `rom/programs/shell.lua` (SPDX LicenseRef-CCPL, (c) 2017 Daniel Ratcliffe). Third-party licenses in `LICENSES/`, inventory in `THIRD-PARTY-NOTICES.md`. Open question on CCPL section 7: see R4. | user (comply) + impl (per-file split) |
 | D15 | Distribution: release zip (`./gradlew :cli:distZip`) with launcher, libs, licenses, notices, examples, test scripts, test guide. No public release until R4 is resolved; the current zip is a maintainer test build. | user |
 | D16 | Development order (incremental, not one round): N1 agent usage notes -> N3 Java discovery + N2 Windows/macOS -> N4 resource limits -> N5 MCP wrapper. | user |
-| D17 | Resource defaults for N4: JVM heap cap 1 GB; default timeout 15 s (unchanged); trace over its size cap is truncated (not sampled). Not implemented yet. | user |
+| D17 | Resource defaults for N4: JVM heap cap 1 GB; default timeout 15 s (unchanged); trace over its size cap is truncated (not sampled). Heap cap done (D33); trace cap not yet. | user |
 | D18 | D11, D12, D13 confirmed. | user |
 | D19 | Turtles (N9) out of scope for now. | user |
 | D20 | New peripherals (N6) are added as the skill's templates need them; every simulated behaviour that can differ from the game is recorded in DIVERGENCES. | user |
@@ -52,6 +52,10 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D25 | Agent clients tested so far: Autoclaw and dsh (Windows). Claude Code and Codex wait for user feedback. PowerShell 7 is not installed on the maintainer's machine, so it is not tested. | user |
 | D27 | N3: the start scripts launch `cctrun.cli.Launcher`, compiled for Java 8 (source set `launcher`). On Java >= 17 it calls Main in the same JVM. On older Java it searches per D23 (JAVA_HOME, PATH, then common system JDK folders; version read from each home's `release` file), re-executes itself with the newest Java >= 17 (same JVM flags and classpath, env CCT_RUN_REEXEC=1 prevents loops) and says so on stderr. None found: exit 69 with JAVA_HOME instructions for PowerShell, cmd and sh. The Gradle start scripts still choose the first `java` (JAVA_HOME, else PATH); a Java older than 8 cannot load the launcher at all. | user (do N3) + impl |
 | D28 | N1: agent guide `docs/agent-guide.md` (English, ASCII, for agents; placement in the skill repo stays parked under D21). Bundled in the jar and printed by `cct-run guide`; also shipped as a file in the zip. Covers workflow, commands, summary fields, trace queries and pitfalls, fixtures, and what a pass means (DIVERGENCES in plain terms). | user (do N1) + impl |
+| D30 | MCP server built now on owner request ("build it as MCP and deliver for testing"), ahead of N4 (overrides the D16 order for N5). Form: `cct-run mcp [--out DIR]` inside the same distribution, so users need only Java; local stdio only (D3). Hand-written JSON-RPC 2.0 (newline-delimited, Gson); no MCP SDK dependency. | user (build MCP) + impl (form) |
+| D31 | MCP tool calls: `cct_run` starts one child JVM per call (`java <this JVM's flags> -cp <classpath> cctrun.cli.Main run ...`, same Java as the server), keeping D1. Read-only tools (`cct_trace`, `cct_screen`, `cct_guide`) call Main.dispatch in the server process (they only read run directories; avoids ~0.5 s JVM start per query). Calls run concurrently; `notifications/cancelled` kills the child. | impl |
+| D32 | MCP result conventions: text content = the CLI's stdout JSON (ASCII, unchanged). Lua error, timeout, shutdown, reboot, out_of_memory -> `isError: false` (a test result). Bad arguments, missing files, invalid fixtures, exit 64/65/69/70 -> `isError: true` with the CLI's message (temp paths of inline code/fixtures replaced by the given name / "(inline fixture)"). Unknown tool -> JSON-RPC error -32602. | impl |
+| D33 | Heap limit (N4 part 1, owner request): `-Xmx1g` in applicationDefaultJvmArgs, so the start scripts, the Java 8 re-exec (input args) and MCP child runs (input args) all get it; JAVA_OPTS / CCT_RUN_OPTS come later and can override. Cobalt converts a Java OutOfMemoryError inside Lua into a Lua error "vm error: java.lang.OutOfMemoryError: ..."; when that error ends the program, status = out_of_memory, exit 4 (string match on the message, Runner.OOM_MARKER). An OOM outside Lua is caught in Main: minimal JSON summary (status out_of_memory, exit 4, note that summary.json is missing). Summary gains `memory {heap_limit_mb, heap_peak_mb}`; `version` gains heap_limit_mb. MCP treats exit 4 as a result (isError false). | user (do 1 GB) + impl |
 | D29 | `duration.tick_rate` is reported only when a run lasts at least 40 ticks (2 s). Short runs include JVM/boot warm-up and measured 13.7-17.3 ticks/s on Windows (V8), which would look like a pacing bug. | impl |
 | D26 | W1: stdout JSON is ASCII-only (non-ASCII as \uXXXX); files stay UTF-8. W2: ticks paced against absolute deadlines (TickPacer); a lag above 1 s skips the missed ticks. W3: setting_changed events caused by cct-run's injected settings carry `harness: true`; a `program_start` record marks the start of the program. | user (do W1-W3) + impl |
 
@@ -84,10 +88,13 @@ engine/src/main/java/cctrun/engine/peripheral/
 engine/src/main/resources/cctrun/harness.lua   installed as /startup.lua; mirrors shell.lua executeProgram
 engine/src/test/java/cctrun/engine/            RunnerTest, PeripheralTest, FixtureTest, TraceQueryTest, TickPacerTest, RunHelper
 cli/src/main/java/cctrun/cli/Main.java         argument parsing, commands, exit codes (Java 17)
+cli/src/main/java/cctrun/cli/McpServer.java    `cct-run mcp`: stdio JSON-RPC loop, initialize/tools/ping/cancel, child-JVM runs, in-process queries (D30-D32)
+cli/src/main/java/cctrun/cli/McpTools.java     MCP tool definitions (JSON schemas) and tool-arguments -> CLI argv mapping
 cli/src/launcher/java/cctrun/cli/Launcher.java start-script entry point, Java 8 bytecode: version check, re-exec on Java >= 17, exit 69 (D27)
 cli/src/launcher/java/cctrun/cli/JavaFinder.java  Java home discovery: JAVA_HOME, PATH, per-OS default roots; reads `release` files
-cli/src/test/java/cctrun/cli/                  MainTest, JavaFinderTest
+cli/src/test/java/cctrun/cli/                  MainTest, JavaFinderTest, McpServerTest
 docs/agent-guide.md                            agent guide (D28); copied into the cli jar as /cctrun/agent-guide.md
+docs/test-results.md                           human-readable test history (Chinese), summary of VERIFICATION; shipped in the zip
 examples/                                      sample programs and fixtures used for end-to-end checks
 scripts/smoke-test.ps1                         maintainer smoke test, Windows PowerShell 5.1 / PowerShell 7 (ASCII only)
 scripts/smoke-test.sh                          same cases for macOS/Linux (bash 3.2, grep)
@@ -122,6 +129,7 @@ cct-run trace  <run-dir|latest> [--kind K1,K2] [--ticks N|A-B|A-|-B] [--peripher
                                 [--offset N=0] [--limit N=200] [--out DIR]
 cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR_NAME] [--out DIR]
 cct-run guide                     # prints docs/agent-guide.md (ASCII)
+cct-run mcp [--out DIR]           # MCP server on stdio (INTERFACE_MCP)
 cct-run version
 cct-run help
 ```
@@ -132,6 +140,24 @@ cct-run help
 - `latest` = lexicographically greatest directory under `--out` that contains `trace.jsonl` (run ids start with a UTC timestamp).
 - Precedence for computer settings: CLI flag > fixture `computer.*` > default (advanced, 51x19).
 
+## INTERFACE_MCP
+
+Provisional (D8). `cct-run mcp [--out DIR]`, started by the MCP client.
+
+- Transport: stdio, one JSON-RPC 2.0 message per line; stdout carries only protocol messages (ASCII; non-ASCII escaped); logs on stderr (one "ready" line with the run directory and working directory). End of stdin: wait for calls in progress, exit 0.
+- Methods: `initialize` (echoes protocolVersion if in [2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05], else 2025-11-25; capabilities `{tools: {listChanged: false}}`; `instructions` tells the agent to read cct_guide first and names the run/working directories), `ping`, `tools/list`, `tools/call`, `notifications/cancelled`. Other requests -> -32601; unparsable line -> -32700; non-object -> -32600. No batches, resources, prompts, progress notifications, structuredContent or outputSchema.
+- Run directory: `--out` (relative to the working directory), else `<working dir>/.cct-runs` if writable, else `~/.cct-run/runs`. Relative tool paths resolve against the server's working directory (the client's choice; Claude Code uses the project directory).
+
+| tool | CLI | arguments (JSON) |
+|---|---|---|
+| cct_run | run | file \| code (+ name, default program.lua, [A-Za-z0-9_.-]{1,64}); args: string[]; fixture: object (string accepted) \| fixture_file; timeout 1..3600 (default 15); term "WxH"; computer advanced\|basic. Unknown keys rejected. Child wall-time limit = timeout + 120 s. |
+| cct_trace | trace | run (default latest); kind: string[] (string accepted); ticks: string; peripheral; source; offset; limit (default 200). Empty result -> "(no matching trace records)"; result at limit -> hint line to raise offset. |
+| cct_screen | screen | run (default latest); tick; source |
+| cct_guide | guide | none |
+
+- Annotations: cct_run readOnlyHint false, others readOnlyHint true; all openWorldHint false.
+- Client configuration examples (Claude Code, Codex, generic mcpServers JSON) are in README.md; Windows uses `cmd /c <dir>\bin\cct-run.bat mcp`.
+
 ## EXIT_CODES
 
 | code | meaning |
@@ -140,9 +166,11 @@ cct-run help
 | 1 | run: Lua error (syntax or runtime, includes "Too long without yielding" and "Terminated") |
 | 2 | run: timeout (program still running after `--timeout` seconds of real time) |
 | 3 | run: program shut down or rebooted the computer |
+| 4 | run: out of memory (heap limit reached, D33) |
 | 64 | usage error (unknown command/option, bad option value) |
 | 65 | bad input (program/fixture not found or unreadable, invalid fixture, not a run directory, no such screen source, non-ASCII path under a non-UTF-8 locale) |
 | 69 | no Java 17+ found (launcher, D27); guidance on stderr |
+| (mcp) | `cct-run mcp` exits 0 at end of input; tool-level failures are tool results (D32), not exit codes |
 | 70 | internal error (stack trace on stderr) |
 
 ## RUN_DIRECTORY
@@ -162,10 +190,11 @@ cct-run help
 | key | type | notes |
 |---|---|---|
 | schema, run_id, created_at | string | created_at ISO-8601 UTC |
-| status | string | ok, error, timeout, shutdown, reboot |
-| exit_code | int | 0/1/2/3 |
+| status | string | ok, error, timeout, shutdown, reboot, out_of_memory |
+| exit_code | int | 0/1/2/3/4 |
 | error | object or null | {phase: syntax or runtime, message, traceback (string or null)}; only when status=error |
 | timeout_state | string | only on timeout and only if the VM was executing Lua at that moment (CobaltLuaMachine.printExecutionState); absent while waiting for events |
+| memory | object | {heap_limit_mb: Runtime.maxMemory (989 for -Xmx1g with SerialGC), heap_peak_mb: sum of heap pools' peak usage, an upper bound, cct-run included (~40 for a small program)} |
 | duration | object | {ticks, seconds (ticks/20), wall_ms, tick_rate (measured ticks/s over the loop, about 20; only when ticks >= 40, D29), lag_resets (only if > 0)} |
 | screen | object | {size: [w,h], lines: [...]} final screen; trailing spaces and trailing blank lines removed. For status ok/error: captured when the harness reports; for shutdown/reboot: last non-blank screen before CC:T reset the terminal |
 | monitors | object | {name: [lines]} final monitor screens; absent if no monitors |
@@ -288,6 +317,7 @@ Matches CC: Tweaked 1.120.2 because the real code runs, or because behaviour was
 - L21: Resolved by W1 (ASCII-only stdout); confirmed on Windows code page 936 (V8). Before the fix, code page 936 mis-decoded "caf" + U+00C3 U+00A9 as "caf" + U+8119 U+6F0F (V6).
 - L22: Resolved by W2 (absolute-deadline pacing): before the fix, Windows ran about 15.5-16 ticks/s (V6), so game time ran ~20% slow against wall time. Cause: Thread.sleep(50 - elapsed) rounded up to the 15.6 ms Windows timer granularity, giving 62.5 ms ticks. TickPacerTest reproduces that granularity and shows 200 ticks in 10.0 s; confirmed on Windows: 19.3-19.8 ticks/s on runs of 40-143 ticks (V8). A single tick can still start up to one timer quantum late; short runs are dominated by warm-up (D29).
 - L23: Every trace still contains the setting_changed events caused by cct-run's own default settings (motd.enable, and bios.use_multishell unless multishell is on). They are now flagged `harness: true` with a note (W3). Agents must read setting_changed args as (name, new value, old value); one agent read them backwards (V6).
+- L25: MCP (test version): no progress notifications during long runs (clients with short tool timeouts, e.g. Codex's default 60 s, need a higher limit for long --timeout values; README shows `tool_timeout_sec`); no resources/prompts; text content only (no structuredContent). If a client kills the server without closing stdin, a running child JVM can outlive it until its own timeout (Windows: `cmd /c` wrapper in between). `latest` is shared by concurrent runs; agents are told to pass run_dir. Codex passes only selected environment variables to MCP servers, so JAVA_HOME may need to be set in its config.
 - L24: Screen text uses CC's own character set: chars 0x80-0xFF are CC graphics glyphs (e.g. the error gutter U+0095, marker U+0083), not Latin-1; Lua strings are bytes, so UTF-8 text appears as 2-3 glyphs per letter. Documented in the agent guide; no translation is done.
 
 ## DIVERGENCES
@@ -309,6 +339,7 @@ Ledger of simulated behaviour that can differ from the real game (D20). Rule: ev
 | DV11 | http | disabled | server config decides | L4 |
 | DV12 | shell | multishell off by default; startup.lua is the harness | multishell on for advanced computers; user's own startup | D11, L7 |
 | DV13 | world | no blocks, no turtles, no chunk unloading, no server lag | all present | L1, D19 |
+| DV15 | memory | heap limit about 1 GB for cct-run as a whole; exceeding it ends the program with out_of_memory | no per-computer limit; computers share the server JVM's heap, so a hungry program lags or crashes the server | D33; a program using a few hundred MB passes here but is still a problem on a small server |
 | DV14 | tick rate | about 20 ticks/s on average (W2); individual ticks jitter by up to one OS timer quantum; ticks skipped after a lag of more than 1 s | 20 ticks/s; slower under server lag | before W2, ~16 ticks/s on Windows (V6); `duration.tick_rate` reports the measured rate |
 
 ## RISKS
@@ -331,22 +362,22 @@ Ledger of simulated behaviour that can differ from the real game (D20). Rule: ev
     - O3: stop bundling CC:T and download the core jar from maven.squiddev.cc on first run; this reverses D15.
   - Status: closed by D24.
 - R5: Unbounded trace size: a long run (timeout up to 3600 s) that redraws every tick writes one screen record per tick. Needs caps or sampling.
-- R6: Untrusted code and memory: no Lua memory limit; a program allocating rapidly can exhaust the JVM heap (default max heap = 1/4 of RAM) before "Too long without yielding". Consider `-Xmx` in the start scripts and handling OutOfMemoryError as a distinct status.
-- R7: Confirmed: the repository's default branch is `claude/cct-run-cli` (first push to an empty repository). Owner action: create `main` and set it as default (A1).
+- R6: Mostly resolved by D33 (1 GB heap cap, out_of_memory status). Remaining: detection is a message match (a program that pcall-catches the OOM and continues is not flagged, though heap_peak_mb shows it); several MCP runs in parallel can each use up to 1 GB.
+- R7: CLOSED. The owner created `main` (now the default branch) and merged PR #1 (work up to d7b9c4e). Later work continues on `claude/cct-run-cli`, which has `main` merged in (3bf8c50) so a follow-up PR carries only the new commits.
 
 ## TEST_KIT
 
 For the maintainer (D22). Guide: `docs/testing.md`.
 
 - `scripts/smoke-test.ps1` (Windows PowerShell 5.1 / PowerShell 7):
-  - Runs 19 cases (exit codes and JSON fields), plus two extra checks:
+  - Runs 22 cases on Windows (21 elsewhere; mcp-via-cmd is Windows-only), plus two extra checks:
     - stdout decoded with the console's original encoding (`default_encoding_check`);
     - running the `.bat` from `cmd.exe`.
   - Also lists `java.exe` paths under LOCALAPPDATA, APPDATA and Program Files for N3 (paths only; `-NoJavaSearch` disables this).
   - Writes `cct-run-smoke-report.json` (schema `cct-run/smoke-report@1`), with `passed`, `failed`, `skipped`, `environment.java8_for_switch_test` and a `skipped` flag per result.
   - The file is kept ASCII-only for PowerShell 5.1.
-- `scripts/smoke-test.sh` (macOS/Linux, bash 3.2, grep only): the same 19 cases; writes `cct-run-smoke-report.txt`. Java 8 for old-java-switch is searched under /usr/lib/jvm, /Library/Java/JavaVirtualMachines, ~/Library/Java/JavaVirtualMachines and `$CCT_SMOKE_JAVA8_ROOT`.
-- Cases: version, args-with-space-and-separator, runtime-error, syntax-error, fixture-wired-network-monitor, trace-latest, screen-latest-monitor, redstone-timeline-terminate, scrolled-output, timeout, too-long-without-yielding, path-with-space-and-cjk, utf8-stdout, usage-error, missing-program, startup-time, tick-rate (18.5-21.5 ticks/s over 60 ticks), guide (`cct-run guide` prints the ASCII guide), old-java-switch (JAVA_HOME = a Java 8 home; expects exit 0 and the "is too old; using Java" stderr line; SKIP when no Java 8 is installed; ps1 searches `release` files up to depth 4 under Program Files, Program Files (x86), /usr/lib/jvm, /Library/Java/JavaVirtualMachines).
+- `scripts/smoke-test.sh` (macOS/Linux, bash 3.2, grep only): the same cases minus mcp-via-cmd (21); writes `cct-run-smoke-report.txt`. Java 8 for old-java-switch is searched under /usr/lib/jvm, /Library/Java/JavaVirtualMachines, ~/Library/Java/JavaVirtualMachines and `$CCT_SMOKE_JAVA8_ROOT`.
+- Cases: version, args-with-space-and-separator, runtime-error, syntax-error, fixture-wired-network-monitor, trace-latest, screen-latest-monitor, redstone-timeline-terminate, scrolled-output, timeout, too-long-without-yielding, path-with-space-and-cjk, utf8-stdout, usage-error, missing-program, startup-time, tick-rate (18.5-21.5 ticks/s over 60 ticks), guide (`cct-run guide` prints the ASCII guide), memory-limit (examples/memory_hog.lua: exit 4, status out_of_memory, heap_limit_mb 900-1024; needs ~1 GB free RAM; ~4 s), mcp-stdio (one MCP session on stdin: initialize, tools/list = 4 tools, cct_run of print("mcp ok"), cct_guide), mcp-via-cmd (ps1 on Windows: the same through `cmd.exe /c "<bat>" mcp`, the form used in README client configs), old-java-switch (JAVA_HOME = a Java 8 home; expects exit 0 and the "is too old; using Java" stderr line; SKIP when no Java 8 is installed; ps1 searches `release` files up to depth 4 under Program Files, Program Files (x86), /usr/lib/jvm, /Library/Java/JavaVirtualMachines).
 - The guide also asks for manual cmd.exe output and an agent task, run in dsh, Codex and Claude Code on Windows, with a results table.
 
 ## VERIFICATION
@@ -399,6 +430,27 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - From the unzipped release zip with LC_ALL=C.UTF-8: smoke-test.sh 19/19 (old-java-switch exercised via CCT_SMOKE_JAVA8_ROOT); smoke-test.ps1 under PowerShell 7.6.7 18 pass + old-java-switch SKIP (the JRE 8 used here is outside the ps1 search roots). Under the C locale path-with-space-and-cjk fails with exit 65 as expected (L20).
   - docs/agent-guide.md is pure ASCII (grep for bytes > 0x7F finds none).
 - V10: Windows, by the maintainer, with the release zip of commit e98abe5 (report e9b34290-report-ps51-v3.json): 19/19 PASS, 0 skipped; default_encoding_check true; cmd.exe exit 0; tick_rate 19.4-19.8 on 40-143 ticks. old-java-switch: JAVA_HOME = Zulu 8 (1.8.0_482) -> "is too old; using Java 25.0.2 at C:\Program Files\Zulu\zulu-25", exit 0, 1.07 s (vs 0.51 s direct). Side effect: on Java 25, Guava 31.1 prints `sun.misc.Unsafe` deprecation WARNING lines to stderr (harmless; stdout JSON unaffected). Candidate fix: prefer the newest LTS <= 21, or pass `--sun-misc-unsafe-memory-access=allow` when re-executing on Java >= 24.
+- V11: MCP server on Linux (build JDK 21):
+  - McpServerTest 3 cases: handshake (protocol echo and fallback, 4 tools with object schemas, ping, -32601/-32700/-32602), child-JVM runs (code with Lua error -> isError false and correct /bad.lua:3 message; file with args incl. "b c"; inline fixture; invalid inline fixture -> isError true, JSON path shown, temp path hidden; argument errors; missing file), read-only tools (trace with kind/limit hint, empty result, screen, bad run dir), cancel of a running child (no response, server exits promptly).
+  - Official MCP TypeScript SDK client (@modelcontextprotocol/sdk 1.32.1, StdioClientTransport) against the unzipped release zip: connect + initialize, listTools (4), cct_run with inline fixture and timed monitor_touch (status ok, monitor "hello", screen "touched 2 3"), cct_trace, cct_screen, syntax error result, bad timeout -> isError, cct_guide, two cct_run calls in parallel (1.76 s total). Same with JAVA_HOME = JRE 8 (launcher re-exec passes stdio through).
+  - smoke-test.sh 20/20 and smoke-test.ps1 (PowerShell 7.6.7) 19 + 1 SKIP, both with the new mcp-stdio case.
+- V12: Heap limit on Linux (Java 21, 16 GB RAM):
+  - MainTest.heapExhaustionIsItsOwnStatus: child JVM with -Xmx128m runs an allocating program -> exit 4, out_of_memory, message contains OutOfMemoryError, heap_limit_mb <= 128, stopped well before the timeout. 39/39 tests.
+  - Release zip: `version` heap_limit_mb 989; with JAVA_OPTS=-Xmx256m 247 (override works); started from JRE 8 (re-exec) 989.
+  - examples/memory_hog.lua: exit 4 after 4.3 s, "/memory_hog.lua:7: vm error: java.lang.OutOfMemoryError: Java heap space", heap_peak_mb 983, tick_rate 19.7.
+  - Through MCP (SDK client): memory_hog -> isError false, out_of_memory, heap_limit_mb 989 (child inherits -Xmx1g); a small program -> heap_peak_mb 40.
+  - smoke-test.sh 21/21; smoke-test.ps1 (PowerShell 7) 20 + 1 SKIP.
+- Before D33 (same machine, JAVA_OPTS=-Xmx256m): the OOM already surfaced as an ordinary Lua error (status error, exit 1), showing Cobalt's conversion.
+- V13: Windows, by the maintainer, with the release zip of commit 732e355 (report e5f7fb1a-cct-run-smoke-report.json, unpacked at D:\AI\test\mcp):
+  - Environment as V8 (Windows 11 26100, PowerShell 5.1, code page 936, Zulu 21 via JAVA_HOME).
+  - smoke-test.ps1: 22/22, 0 skipped. default_encoding_check true; cmd.exe exit 0.
+  - memory-limit: exit 4, out_of_memory, "/memory_hog.lua:7: vm error: java.lang.OutOfMemoryError: Java heap space", heap_limit_mb 989, heap_peak_mb 979, after 10 ticks / 0.6 s (Linux took 79 ticks / 4 s).
+  - mcp-stdio and mcp-via-cmd pass: the `cmd /c "<bat>" mcp` form used in README client configs works on Windows; protocol 2025-06-18 negotiated.
+  - old-java-switch: Zulu 8 -> Zulu 25, exit 0; heap_limit_mb 989 after the re-exec. Java 25 still prints the Guava sun.misc.Unsafe warnings on stderr (V10, open).
+  - heap_peak_mb of ordinary runs 54-67; no_yield 146.
+  - Agent task, CLI form (client not named): correct status/exit_code/message/line 4; counted 2 events and identified both as harness:true setting_changed caused by cct-run (W3 flags read correctly; contrast V6).
+  - Agent task, MCP form (client not named): called cct_guide, cct_run on a file (the prompt's C:\cct-run path did not exist; the agent used the server's actual install path), cct_trace (2 harness events), cct_run with inline code (screen "hello from mcp"). All answers correct.
+  - Not yet reported: which clients were used, and per-client results for Claude Code, Codex, dsh, Autoclaw (docs/testing.md 4b table).
 - V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md, docs/agent-guide.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
 
 ## JVM_COST
@@ -426,8 +478,8 @@ Order set by D16; incremental.
 1. N1: DONE (D28, V9). Follow-up: move or link the guide from the skill repo when M6 resumes (D21).
 2. N3: DONE (D27, V9, V10). Open: Java 25 Unsafe warnings on stderr (V10).
 3. N2: W1-W3 confirmed on Windows (V8). Remaining: N3 Windows re-test (above); macOS optional; Claude Code and Codex results come from users later (D25).
-4. N4: Resource limits with the D17 values: `-Xmx1g` in the start scripts, OutOfMemoryError as a distinct status, a trace size cap with truncation (plus a `truncated` flag in the summary), and `cct-run clean`.
-5. N5: MCP wrapper over the CLI (stdio): tools run/trace/screen map 1:1 to the CLI; each call spawns one `cct-run` (D1).
+4. N4: Heap limit DONE (D33, V12). Remaining: a trace size cap with truncation (plus a `truncated` flag in the summary), and `cct-run clean`.
+5. N5: DONE as test version (D30-D32, V11). Windows smoke and one MCP client session confirmed (V13). Open: per-client results for Claude Code, Codex, dsh, Autoclaw (docs/testing.md 4b); then consider progress notifications for long runs and structuredContent.
 6. N6: Peripherals as the skill's templates need them (D20): e.g. furnace slot rules (DV3), speaker, printer, disk drive, wireless modem + multi-computer rednet. Each one adds DIVERGENCES rows.
 7. N7: Colour in screen records (L14), if agents need it.
 8. N8: Startup time: optional AppCDS archive created on first run (one file per install); measure the benefit on Java 17.
