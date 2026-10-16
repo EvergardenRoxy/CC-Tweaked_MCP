@@ -476,7 +476,8 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - Trace: trace_start, computer_seen, vm_start, power on, screen (fg "4..." yellow / bg "b..." blue), peripheral_call list -> event task_complete -> peripheral_return ok with both stacks; peripheral_call nosuchmethod -> peripheral_return ok false "No such method nosuchmethod"; redstone_output top 15; event char "x" injected via POST /event; screen shows "/startup.lua:19: deliberate failure". Reboot via POST /power -> vm_close, power off, vm_start, power on.
   - HTTP checks: no/wrong token 401; foreign Host 403; unknown computer 404; bad action / non-object body 400 (first build sent empty replies on errors: try-with-resources closed the exchange before the catch; fixed).
   - Production: Forge installer 1.20.1-47.4.10 `--installServer`, mods = CC:T 1.120.2 forge jar + reobf cct-live jar, Temurin 17: loads, same trace kinds, char injection works.
-  - Not tested: single-player client, Windows, turtles/pocket/command computers, monitors, long sessions (trace size cap), performance with many computers.
+  - Owner, Windows single player (PCL2 launcher): mod loads, session dir and token created, but the endpoint listened on [::1]:47823 only (Get-NetTCPConnection), so http://127.0.0.1:47823 was refused; `InetAddress.getLoopbackAddress()` returned ::1 there (not reproducible on Linux, even with -Djava.net.preferIPv6Addresses=true). Fixed: bind 127.0.0.1 explicitly, log the bound address, accept Host [::1]:port. Re-checked on the production server (127.0.0.1 and localhost both 200).
+  - Not tested: turtles/pocket/command computers, monitors, long sessions (trace size cap), performance with many computers.
 
 ## JVM_COST
 

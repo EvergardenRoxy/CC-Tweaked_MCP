@@ -58,7 +58,9 @@ final class LiveHttp {
     }
 
     void start() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 16);
+        // Explicitly IPv4: InetAddress.getLoopbackAddress() is ::1 when the JVM prefers IPv6 addresses, and then
+        // http://127.0.0.1:<port>/ is refused (seen with a Windows launcher).
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getByAddress(new byte[]{127, 0, 0, 1}), port), 16);
         executor = Executors.newFixedThreadPool(2, r -> {
             var t = new Thread(r, "cct-live-http");
             t.setDaemon(true);
@@ -67,7 +69,8 @@ final class LiveHttp {
         server.setExecutor(executor);
         server.createContext("/", this::handle);
         server.start();
-        CctLive.LOG.info("cct-live: endpoint at http://127.0.0.1:{}/ (token in cct-live/token.txt)", port);
+        var bound = server.getAddress();
+        CctLive.LOG.info("cct-live: endpoint at http://{}:{}/ (token in cct-live/token.txt)", bound.getAddress().getHostAddress(), bound.getPort());
     }
 
     void stop() {
@@ -79,7 +82,7 @@ final class LiveHttp {
         // Not try-with-resources: the catch blocks below still need to send a response.
         try {
             if (!hostAllowed(exchange)) {
-                send(exchange, 403, error("Host header must be 127.0.0.1:" + port + " or localhost:" + port));
+                send(exchange, 403, error("Host header must be 127.0.0.1:" + port + ", localhost:" + port + " or [::1]:" + port));
                 return;
             }
             if (!authorised(exchange)) {
@@ -266,7 +269,7 @@ final class LiveHttp {
 
     private boolean hostAllowed(HttpExchange exchange) {
         var host = exchange.getRequestHeaders().getFirst("Host");
-        return host == null || host.equals("127.0.0.1:" + port) || host.equals("localhost:" + port);
+        return host == null || host.equals("127.0.0.1:" + port) || host.equals("localhost:" + port) || host.equals("[::1]:" + port);
     }
 
     private boolean authorised(HttpExchange exchange) {
