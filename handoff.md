@@ -9,7 +9,7 @@ base: empty repository (this branch holds the first commits)
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11), Windows client tests pending; 39/39 tests (engine 28, cli 11); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested
+status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 39/39 tests (engine 28, cli 11); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -440,6 +440,16 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - Through MCP (SDK client): memory_hog -> isError false, out_of_memory, heap_limit_mb 989 (child inherits -Xmx1g); a small program -> heap_peak_mb 40.
   - smoke-test.sh 21/21; smoke-test.ps1 (PowerShell 7) 20 + 1 SKIP.
 - Before D33 (same machine, JAVA_OPTS=-Xmx256m): the OOM already surfaced as an ordinary Lua error (status error, exit 1), showing Cobalt's conversion.
+- V13: Windows, by the maintainer, with the release zip of commit 732e355 (report e5f7fb1a-cct-run-smoke-report.json, unpacked at D:\AI\test\mcp):
+  - Environment as V8 (Windows 11 26100, PowerShell 5.1, code page 936, Zulu 21 via JAVA_HOME).
+  - smoke-test.ps1: 22/22, 0 skipped. default_encoding_check true; cmd.exe exit 0.
+  - memory-limit: exit 4, out_of_memory, "/memory_hog.lua:7: vm error: java.lang.OutOfMemoryError: Java heap space", heap_limit_mb 989, heap_peak_mb 979, after 10 ticks / 0.6 s (Linux took 79 ticks / 4 s).
+  - mcp-stdio and mcp-via-cmd pass: the `cmd /c "<bat>" mcp` form used in README client configs works on Windows; protocol 2025-06-18 negotiated.
+  - old-java-switch: Zulu 8 -> Zulu 25, exit 0; heap_limit_mb 989 after the re-exec. Java 25 still prints the Guava sun.misc.Unsafe warnings on stderr (V10, open).
+  - heap_peak_mb of ordinary runs 54-67; no_yield 146.
+  - Agent task, CLI form (client not named): correct status/exit_code/message/line 4; counted 2 events and identified both as harness:true setting_changed caused by cct-run (W3 flags read correctly; contrast V6).
+  - Agent task, MCP form (client not named): called cct_guide, cct_run on a file (the prompt's C:\cct-run path did not exist; the agent used the server's actual install path), cct_trace (2 harness events), cct_run with inline code (screen "hello from mcp"). All answers correct.
+  - Not yet reported: which clients were used, and per-client results for Claude Code, Codex, dsh, Autoclaw (docs/testing.md 4b table).
 - V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md, docs/agent-guide.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
 
 ## JVM_COST
@@ -468,7 +478,7 @@ Order set by D16; incremental.
 2. N3: DONE (D27, V9, V10). Open: Java 25 Unsafe warnings on stderr (V10).
 3. N2: W1-W3 confirmed on Windows (V8). Remaining: N3 Windows re-test (above); macOS optional; Claude Code and Codex results come from users later (D25).
 4. N4: Heap limit DONE (D33, V12). Remaining: a trace size cap with truncation (plus a `truncated` flag in the summary), and `cct-run clean`.
-5. N5: DONE as test version (D30-D32, V11). Open: Windows smoke (mcp-stdio, mcp-via-cmd) and client tests in Claude Code, Codex, dsh, Autoclaw (docs/testing.md 4b); then consider progress notifications for long runs and structuredContent.
+5. N5: DONE as test version (D30-D32, V11). Windows smoke and one MCP client session confirmed (V13). Open: per-client results for Claude Code, Codex, dsh, Autoclaw (docs/testing.md 4b); then consider progress notifications for long runs and structuredContent.
 6. N6: Peripherals as the skill's templates need them (D20): e.g. furnace slot rules (DV3), speaker, printer, disk drive, wireless modem + multi-computer rednet. Each one adds DIVERGENCES rows.
 7. N7: Colour in screen records (L14), if agents need it.
 8. N8: Startup time: optional AppCDS archive created on first run (one file per install); measure the benefit on Java 17.
