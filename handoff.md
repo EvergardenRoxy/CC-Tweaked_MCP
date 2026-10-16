@@ -4,12 +4,12 @@
 format: cct-run/handoff@1
 audience: machine reviewer / next agent (not end users)
 repo: EvergardenRoxy/CC-Tweaked_MCP
-branch: claude/cct-run-cli
-base: main (default branch; PR #1 merged d7b9c4e); this branch = main + MCP server, heap limit, V13, test record
+branch: claude/zealous-ramanujan-rrt0qh
+base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D37, V14)
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 39/39 tests (engine 28, cli 11); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested
+status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 39/39 tests (engine 28, cli 11); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers (V14)
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -56,6 +56,10 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D31 | MCP tool calls: `cct_run` starts one child JVM per call (`java <this JVM's flags> -cp <classpath> cctrun.cli.Main run ...`, same Java as the server), keeping D1. Read-only tools (`cct_trace`, `cct_screen`, `cct_guide`) call Main.dispatch in the server process (they only read run directories; avoids ~0.5 s JVM start per query). Calls run concurrently; `notifications/cancelled` kills the child. | impl |
 | D32 | MCP result conventions: text content = the CLI's stdout JSON (ASCII, unchanged). Lua error, timeout, shutdown, reboot, out_of_memory -> `isError: false` (a test result). Bad arguments, missing files, invalid fixtures, exit 64/65/69/70 -> `isError: true` with the CLI's message (temp paths of inline code/fixtures replaced by the given name / "(inline fixture)"). Unknown tool -> JSON-RPC error -32602. | impl |
 | D33 | Heap limit (N4 part 1, owner request): `-Xmx1g` in applicationDefaultJvmArgs, so the start scripts, the Java 8 re-exec (input args) and MCP child runs (input args) all get it; JAVA_OPTS / CCT_RUN_OPTS come later and can override. Cobalt converts a Java OutOfMemoryError inside Lua into a Lua error "vm error: java.lang.OutOfMemoryError: ..."; when that error ends the program, status = out_of_memory, exit 4 (string match on the message, Runner.OOM_MARKER). An OOM outside Lua is caught in Main: minimal JSON summary (status out_of_memory, exit 4, note that summary.json is missing). Summary gains `memory {heap_limit_mb, heap_peak_mb}`; `version` gains heap_limit_mb. MCP treats exit 4 as a result (isError false). | user (do 1 GB) + impl |
+| D34 | Live (in-game) observation as a Forge mod, not Lua forwarding (owner request after reviewing the community remote-desktop approach, which runs rawterm/server.lua inside the computer and needs a WebSocket relay). Java side sees what Lua cannot report honestly and the program cannot hide it; no CC http rules, no relay. Target Forge 1.20.1 + CC:T 1.120.2 (same as engine). Lives in `mod/` of this repo. | user |
+| D35 | `mod/` is a standalone Gradle build (own settings.gradle.kts), run with the root wrapper `./gradlew -p mod build`, so the root build never downloads Minecraft. Toolchain: ModDevGradle legacyforge 2.0.148 (works on Gradle 9.7.1; ForgeGradle 6 does not), foojay resolver for the Java 17 toolchain MCP tooling requires. Dependency: `cc.tweaked:cc-tweaked-1.20.1-forge:1.120.2` (fat jar incl. core; Cobalt jar-in-jar; cobalt compileOnly). mods.toml pins computercraft `[1.120.2]` because internals are used. | impl |
+| D36 | Hook points (from 1.120.2 sources): (a) `ServerContext.luaMachine` (public static, @VisibleForTesting, read in the ServerContext constructor on each server start) wrapped by LiveMachine: event (recorded before the VM resumes), vm_start, vm_close, vm_error. (b) VM -> computer: `MachineEnvironment.metrics()` is the computer's `ServerComputer.getMetrics()` (ServerComputer is the ComputerEnvironment); records made before the session maps it are held (max 1000). (c) Peripheral calls: the MachineEnvironment is rebuilt with a wrapped `MethodSupplier<LuaMethod>` that instruments `PeripheralAPI.call` (the ROM's wrap/find go through peripheral.call -> native.call); yielding results are followed through their callback chain via `MethodResult.yield`. (d) Polling on the server thread at the end of each tick over `ServerContext.get(server).registry().getComputers()`: terminal (private field `ServerComputer.terminal` via reflection, read under the Terminal's monitor), redstone, power, label, position. No mixins. | impl |
+| D37 | Prototype access: JDK `com.sun.net.httpserver` bound to 127.0.0.1 (port 47823), bearer token in `<game dir>/cct-live/token.txt`, Host header must be loopback (DNS rebinding), anything touching computers runs via `server.submit` (5 s timeout). ASCII-only JSON like the CLI. Not yet wired to `cct-run mcp`. | impl |
 | D29 | `duration.tick_rate` is reported only when a run lasts at least 40 ticks (2 s). Short runs include JVM/boot warm-up and measured 13.7-17.3 ticks/s on Windows (V8), which would look like a pacing bug. | impl |
 | D26 | W1: stdout JSON is ASCII-only (non-ASCII as \uXXXX); files stay UTF-8. W2: ticks paced against absolute deadlines (TickPacer); a lag above 1 s skips the missed ticks. W3: setting_changed events caused by cct-run's injected settings carry `harness: true`; a `program_start` record marks the start of the program. | user (do W1-W3) + impl |
 
@@ -102,6 +106,19 @@ docs/testing.md                                test guide for the maintainer (Ch
 LICENSE                                        MPL-2.0 (own code)
 LICENSES/                                      MPL-2.0, LicenseRef-CCPL, Apache-2.0, third-party/{cobalt-MIT, checker-qual-MIT, slf4j-MIT, jzlib-BSD-3-Clause, netty-NOTICE}
 THIRD-PARTY-NOTICES.md                         bundled artifacts, licenses, source links, CCPL conditions
+mod/                                           cct-live Forge mod prototype, standalone build (D34-D37); README.md (Chinese, user-facing)
+  settings.gradle.kts, build.gradle.kts        ModDevGradle legacyforge, Forge 1.20.1-47.4.10, CC:T 1.120.2; runs: client, server (run/ ignored)
+  src/main/java/cctrun/live/
+    CctLive.java          @Mod entry: installs LiveMachine factory, server start/stop/tick listeners
+    LiveConfig.java       config/cctlive-common.toml (http.enabled, http.port, trace.screens, trace.max_megabytes_per_computer)
+    LiveSession.java      one server session: sessions/<time>/ dir, metrics->computer map, per-tick polling, token
+    LiveMachine.java      ILuaMachine wrapper + Recorder (lazy computer resolution, pending buffer)
+    TracingMethods.java   MethodSupplier wrapper: peripheral_call / peripheral_return
+    Watched.java          per computer: trace + polled state (power, label, moved, redstone_output, screen with fg/bg)
+    ComputerTrace.java    JSONL writer, schema cct-live/trace@0, size cap with `truncated`
+    Terminals.java        terminal snapshot (reflection on ServerComputer.terminal)
+    LiveHttp.java         local HTTP endpoint (D37)
+    JsonValues.java       copy of engine's JsonValues (to share once a common module exists)
 ```
 
 ## BUILD
@@ -453,6 +470,14 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - Not yet reported: which clients were used, and per-client results for Claude Code, Codex, dsh, Autoclaw (docs/testing.md 4b table).
 - V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md, docs/agent-guide.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
 
+- V14: mod/ prototype (cct-live), Linux, JDK 21 build / Temurin 17 toolchain:
+  - `./gradlew -p mod build` -> BUILD SUCCESSFUL (first run ~3.5 min incl. Minecraft decompile/recompile). Container note: repo.maven.apache.org answered 429, so a container-only init script (~/.gradle/init.d) put Google's Central mirror first; nothing of that is in the repo.
+  - Dev server (`runServer`, Forge 47.4.10, flat world, driven by RCON): advanced computer placed with `{ComputerId:0,On:1b}` next to a chest; startup.lua sets colours, prints, sets redstone top, calls chest.list() (main thread), calls a missing method, waits for `char`, then errors.
+  - Trace: trace_start, computer_seen, vm_start, power on, screen (fg "4..." yellow / bg "b..." blue), peripheral_call list -> event task_complete -> peripheral_return ok with both stacks; peripheral_call nosuchmethod -> peripheral_return ok false "No such method nosuchmethod"; redstone_output top 15; event char "x" injected via POST /event; screen shows "/startup.lua:19: deliberate failure". Reboot via POST /power -> vm_close, power off, vm_start, power on.
+  - HTTP checks: no/wrong token 401; foreign Host 403; unknown computer 404; bad action / non-object body 400 (first build sent empty replies on errors: try-with-resources closed the exchange before the catch; fixed).
+  - Production: Forge installer 1.20.1-47.4.10 `--installServer`, mods = CC:T 1.120.2 forge jar + reobf cct-live jar, Temurin 17: loads, same trace kinds, char injection works.
+  - Not tested: single-player client, Windows, turtles/pocket/command computers, monitors, long sessions (trace size cap), performance with many computers.
+
 ## JVM_COST
 
 Measured on this machine (4 cores), program `print("done")`:
@@ -484,6 +509,7 @@ Order set by D16; incremental.
 7. N7: Colour in screen records (L14), if agents need it.
 8. N8: Startup time: optional AppCDS archive created on first run (one file per install); measure the benefit on Java 17.
 9. N10: Public release after R4 is decided.
+10. N11: cct-live (mod/, D34-D37). Prototype done (V14). Next: owner tests in the real game (single player, Windows); structured program result (harness in ROM via datapack + Lua API -> status/error/traceback like summary.json); `cct-run mcp` tools for live computers (list, screen, trace, event, power, run file) over the local endpoint; monitors, turtle state, file read/write; share Trace/JsonValues with engine in a common module; sim-vs-live trace diff for R1.
 - Deferred: N9 turtles (D19).
 
 ## REFERENCES

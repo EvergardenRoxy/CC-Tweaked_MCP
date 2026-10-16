@@ -288,6 +288,7 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版）
 4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；trace 超过上限截断、`cct-run clean` 清理旧记录（待做）
 5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
+6. **cct-live（原型）**：一个 Forge 1.20.1 mod，在真实游戏里从 Java 层观察 CC 电脑（事件、外设调用、带颜色的屏幕、红石），并通过本机接口提供给 AI；不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。
 
