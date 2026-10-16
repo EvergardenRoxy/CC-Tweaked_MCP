@@ -11,7 +11,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），提供 `cct_run`、`cct_trace`、`cct_screen`、`cct_guide` 四个工具。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop 等）配置一次即可使用。
 - **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。
 
-> MCP 服务器目前是**测试版**：在 Linux 上用官方 MCP SDK 客户端验证通过，Windows 上各客户端的实测正在进行。
+> MCP 服务器目前是**测试版**：Linux 上用官方 MCP SDK 客户端验证通过，Windows 上冒烟测试和一次 AI 客户端实测通过；Claude Code、Codex 等各客户端分别的接入结果还在收集。
 
 ---
 
@@ -254,13 +254,14 @@ MCP 工具与命令的对应关系：
 
 ## 测试情况
 
-- Windows 11 + Windows PowerShell 5.1 + cmd：19/19 冒烟测试通过（Zulu 8 / 21 / 25，代码页 936，路径含空格和中文）。
-- Linux：单元测试 39/39；冒烟测试全部通过（含从 Java 8 自动切换）；Java 17 / 21 / 25 均可运行。
-- macOS：尚未测试。
-- AI 客户端（命令行方式）：在 Autoclaw 和 DeepSeek Harness（Windows）上实测可用；Claude Code、Codex 待用户反馈。
-- MCP 服务器：Linux 上用官方 MCP TypeScript SDK 客户端验证通过（握手、四个工具、内联 fixture、并行运行、取消、从 Java 8 自动切换后启动）；Windows 待测。
+| 平台 / 项目 | 结果 |
+|---|---|
+| Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
+| Linux | 单元测试 39/39；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| macOS | 尚未测试 |
+| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次实测四步全部正确。各客户端分别的 MCP 接入结果待反馈 |
 
-在自己的机器上测试的方法见 `docs/testing.md`。
+每轮测试发现的问题和处理见 [`docs/test-results.md`](docs/test-results.md)；在自己的机器上测试的方法见 `docs/testing.md`。
 
 ---
 
@@ -284,7 +285,7 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 
 1. ~~命令行工具、全程记录、外设模拟~~（已完成）
 2. ~~旧 Java 自动切换、给 AI 的使用说明~~（已完成）
-3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版，Windows 实测中）
+3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版）
 4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；trace 超过上限截断、`cct-run clean` 清理旧记录（待做）
 5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
 

@@ -94,6 +94,7 @@ cli/src/launcher/java/cctrun/cli/Launcher.java start-script entry point, Java 8 
 cli/src/launcher/java/cctrun/cli/JavaFinder.java  Java home discovery: JAVA_HOME, PATH, per-OS default roots; reads `release` files
 cli/src/test/java/cctrun/cli/                  MainTest, JavaFinderTest, McpServerTest
 docs/agent-guide.md                            agent guide (D28); copied into the cli jar as /cctrun/agent-guide.md
+docs/test-results.md                           human-readable test history (Chinese), summary of VERIFICATION; shipped in the zip
 examples/                                      sample programs and fixtures used for end-to-end checks
 scripts/smoke-test.ps1                         maintainer smoke test, Windows PowerShell 5.1 / PowerShell 7 (ASCII only)
 scripts/smoke-test.sh                          same cases for macOS/Linux (bash 3.2, grep)

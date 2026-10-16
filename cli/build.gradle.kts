@@ -50,7 +50,7 @@ distributions {
     main {
         contents {
             from(rootProject.layout.projectDirectory) {
-                include("README.md", "LICENSE", "LICENSES/**", "THIRD-PARTY-NOTICES.md", "examples/**", "scripts/**", "docs/testing.md", "docs/agent-guide.md")
+                include("README.md", "LICENSE", "LICENSES/**", "THIRD-PARTY-NOTICES.md", "examples/**", "scripts/**", "docs/testing.md", "docs/test-results.md", "docs/agent-guide.md")
             }
             filesMatching("scripts/*.sh") {
                 permissions { unix("rwxr-xr-x") }
