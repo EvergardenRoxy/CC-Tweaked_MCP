@@ -2,6 +2,7 @@
 
 package cctrun.live;
 
+import com.google.gson.JsonObject;
 import dan200.computercraft.core.metrics.MetricsObserver;
 import dan200.computercraft.shared.computer.core.ServerComputer;
 import dan200.computercraft.shared.computer.core.ServerContext;
@@ -143,6 +144,17 @@ final class LiveSession {
     void startHttp(int port) throws IOException {
         http = new LiveHttp(this, port, token());
         http.start();
+        // How `cct-run mcp --live <game dir>` finds this endpoint; removed again when the world closes.
+        var endpoint = new JsonObject();
+        endpoint.addProperty("schema", "cct-live/endpoint@0");
+        endpoint.addProperty("url", "http://127.0.0.1:" + http.port() + "/");
+        endpoint.addProperty("pid", ProcessHandle.current().pid());
+        endpoint.addProperty("session", dir.toString());
+        Files.writeString(endpointFile(), ComputerTrace.GSON.toJson(endpoint) + "\n", StandardCharsets.UTF_8);
+    }
+
+    private Path endpointFile() {
+        return home.resolve("endpoint.json");
     }
 
     /** The access token for the HTTP endpoint: cct-live/token.txt, created once. */
@@ -160,7 +172,14 @@ final class LiveSession {
     }
 
     private void close() {
-        if (http != null) http.stop();
+        if (http != null) {
+            http.stop();
+            try {
+                Files.deleteIfExists(endpointFile());
+            } catch (IOException e) {
+                CctLive.LOG.warn("cct-live: could not remove {}", endpointFile(), e);
+            }
+        }
         for (var w : watched.values()) w.trace().close();
         watched.clear();
         byMetrics.clear();

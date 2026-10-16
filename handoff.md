@@ -5,11 +5,11 @@ format: cct-run/handoff@1
 audience: machine reviewer / next agent (not end users)
 repo: EvergardenRoxy/CC-Tweaked_MCP
 branch: claude/zealous-ramanujan-rrt0qh
-base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D37, V14)
+base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D39, V14-V15) + cct_live_* MCP tools
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 39/39 tests (engine 28, cli 11); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers (V14)
+status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15)
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -60,6 +60,8 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D35 | `mod/` is a standalone Gradle build (own settings.gradle.kts), run with the root wrapper `./gradlew -p mod build`, so the root build never downloads Minecraft. Toolchain: ModDevGradle legacyforge 2.0.148 (works on Gradle 9.7.1; ForgeGradle 6 does not), foojay resolver for the Java 17 toolchain MCP tooling requires. Dependency: `cc.tweaked:cc-tweaked-1.20.1-forge:1.120.2` (fat jar incl. core; Cobalt jar-in-jar; cobalt compileOnly). mods.toml pins computercraft `[1.120.2]` because internals are used. | impl |
 | D36 | Hook points (from 1.120.2 sources): (a) `ServerContext.luaMachine` (public static, @VisibleForTesting, read in the ServerContext constructor on each server start) wrapped by LiveMachine: event (recorded before the VM resumes), vm_start, vm_close, vm_error. (b) VM -> computer: `MachineEnvironment.metrics()` is the computer's `ServerComputer.getMetrics()` (ServerComputer is the ComputerEnvironment); records made before the session maps it are held (max 1000). (c) Peripheral calls: the MachineEnvironment is rebuilt with a wrapped `MethodSupplier<LuaMethod>` that instruments `PeripheralAPI.call` (the ROM's wrap/find go through peripheral.call -> native.call); yielding results are followed through their callback chain via `MethodResult.yield`. (d) Polling on the server thread at the end of each tick over `ServerContext.get(server).registry().getComputers()`: terminal (private field `ServerComputer.terminal` via reflection, read under the Terminal's monitor), redstone, power, label, position. No mixins. | impl |
 | D37 | Prototype access: JDK `com.sun.net.httpserver` bound to 127.0.0.1 (port 47823), bearer token in `<game dir>/cct-live/token.txt`, Host header must be loopback (DNS rebinding), anything touching computers runs via `server.submit` (5 s timeout). ASCII-only JSON like the CLI. Not yet wired to `cct-run mcp`. | impl |
+| D38 | cct-live traces http and file access (owner request, after a real case: a download that returned an HTML page and broke `require`). TracingMethods also instruments HTTPAPI request/checkURL/websocket and FSAPI open/delete/move/copy/makeDir (one `api` record per call: api, method, args, ok, result/error) and every method of handle objects (AbstractHandle, HttpResponseHandle incl. its ObjectSource body reader, WebsocketHandle; one `handle` record per call with the data). Handles are numbered per VM (Handles, weak identity keys) and appear in JSON as {handle, type, path/mode or url}; http_success/http_failure/websocket_success name the response after the URL. /rom paths skipped (shell and require read them on every program start). Byte data previews copy at most 200 bytes. | user (do 1) + impl |
+| D39 | MCP tools for live computers (owner request): `cct_live_computers`, `cct_live_screen`, `cct_live_trace` (kind, after, ticks, offset, limit), `cct_live_event`, `cct_live_type` (paste + key 257/key_up), `cct_live_power`, in `cct-run mcp` next to the simulation tools. Discovery: the mod writes `<game dir>/cct-live/endpoint.json` while a world is open; the game dir comes from the tool's `game_dir`, else `mcp --live DIR`, else CCT_LIVE_DIR. java.net.http client, no proxy, 5 s connect / 15 s request. Endpoint errors become isError results with the mod's message and HTTP status; refused connection -> "Is the world still open?". Input/power tools carry destructiveHint and tell the agent to act only on the user's request. | user (do 3) + impl |
 | D29 | `duration.tick_rate` is reported only when a run lasts at least 40 ticks (2 s). Short runs include JVM/boot warm-up and measured 13.7-17.3 ticks/s on Windows (V8), which would look like a pacing bug. | impl |
 | D26 | W1: stdout JSON is ASCII-only (non-ASCII as \uXXXX); files stay UTF-8. W2: ticks paced against absolute deadlines (TickPacer); a lag above 1 s skips the missed ticks. W3: setting_changed events caused by cct-run's injected settings carry `harness: true`; a `program_start` record marks the start of the program. | user (do W1-W3) + impl |
 
@@ -94,9 +96,10 @@ engine/src/test/java/cctrun/engine/            RunnerTest, PeripheralTest, Fixtu
 cli/src/main/java/cctrun/cli/Main.java         argument parsing, commands, exit codes (Java 17)
 cli/src/main/java/cctrun/cli/McpServer.java    `cct-run mcp`: stdio JSON-RPC loop, initialize/tools/ping/cancel, child-JVM runs, in-process queries (D30-D32)
 cli/src/main/java/cctrun/cli/McpTools.java     MCP tool definitions (JSON schemas) and tool-arguments -> CLI argv mapping
+cli/src/main/java/cctrun/cli/LiveTools.java    cct_live_* MCP tools: endpoint discovery (endpoint.json, token.txt) and HTTP calls to cct-live (D39)
 cli/src/launcher/java/cctrun/cli/Launcher.java start-script entry point, Java 8 bytecode: version check, re-exec on Java >= 17, exit 69 (D27)
 cli/src/launcher/java/cctrun/cli/JavaFinder.java  Java home discovery: JAVA_HOME, PATH, per-OS default roots; reads `release` files
-cli/src/test/java/cctrun/cli/                  MainTest, JavaFinderTest, McpServerTest
+cli/src/test/java/cctrun/cli/                  MainTest, JavaFinderTest, McpServerTest, LiveToolsTest (fake cct-live endpoint)
 docs/agent-guide.md                            agent guide (D28); copied into the cli jar as /cctrun/agent-guide.md
 docs/test-results.md                           human-readable test history (Chinese), summary of VERIFICATION; shipped in the zip
 examples/                                      sample programs and fixtures used for end-to-end checks
@@ -117,7 +120,8 @@ mod/                                           cct-live Forge mod prototype, sta
     Watched.java          per computer: trace + polled state (power, label, moved, redstone_output, screen with fg/bg)
     ComputerTrace.java    JSONL writer, schema cct-live/trace@0, size cap with `truncated`
     Terminals.java        terminal snapshot (reflection on ServerComputer.terminal)
-    LiveHttp.java         local HTTP endpoint (D37)
+    LiveHttp.java         local HTTP endpoint (D37); writes nothing itself, LiveSession writes cct-live/endpoint.json
+    Handles.java          numbering of file/HTTP/websocket handles for api/handle records (D38)
     JsonValues.java       copy of engine's JsonValues (to share once a common module exists)
 ```
 
@@ -174,6 +178,17 @@ Provisional (D8). `cct-run mcp [--out DIR]`, started by the MCP client.
 
 - Annotations: cct_run readOnlyHint false, others readOnlyHint true; all openWorldHint false.
 - Client configuration examples (Claude Code, Codex, generic mcpServers JSON) are in README.md; Windows uses `cmd /c <dir>\bin\cct-run.bat mcp`.
+
+Live tools (D39), all with optional `game_dir`; results are the cct-live endpoint's JSON (mod/README.md):
+
+| tool | endpoint | arguments |
+|---|---|---|
+| cct_live_computers | GET /computers | - |
+| cct_live_screen | GET /computers/{id}/screen | computer |
+| cct_live_trace | GET /computers/{id}/trace | computer; kind: string[]; after (seq); ticks; offset; limit (1..5000, default 200) |
+| cct_live_event | POST /computers/{id}/event | computer; name; args: array |
+| cct_live_type | 3x POST /event: paste text, key [257,false], key_up [257] | computer; text (one line); enter (default true) |
+| cct_live_power | POST /computers/{id}/power | computer; action on\|shutdown\|reboot |
 
 ## EXIT_CODES
 
@@ -479,6 +494,12 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - Owner, Windows single player (PCL2 launcher): mod loads, session dir and token created, but the endpoint listened on [::1]:47823 only (Get-NetTCPConnection), so http://127.0.0.1:47823 was refused; `InetAddress.getLoopbackAddress()` returned ::1 there (not reproducible on Linux, even with -Djava.net.preferIPv6Addresses=true). Fixed: bind 127.0.0.1 explicitly, log the bound address, accept Host [::1]:port. Re-checked on the production server (127.0.0.1 and localhost both 200).
   - Not tested: turtles/pocket/command computers, monitors, long sessions (trace size cap), performance with many computers.
 
+- V15: http/fs tracing and cct_live_* tools, Linux:
+  - Dev server, startup.lua downloads http://127.0.0.1:8765/User.lua (a local server answering an HTML 404 page; CC's http rules allowed 127.0.0.1 in the test world's config), writes it to icons/User.lua, then require("icons.User"). Trace: api http.request -> event http_success {handle, type http_response, url} -> handle readAll "<!DOCTYPE html>..." -> api fs.makeDir -> api fs.open icons/User.lua w -> handle write (same text) -> close -> api fs.open r + readAll (require) -> screen "/icons/User.lua:1: unexpected symbol near '<'" (same error as the owner's game). The shell then reads startup.lua line by line to print the failing line (visible as handle readLine records).
+  - `cct-run mcp --live mod/run` (installDist) driven over stdio: 10 tools listed, instructions name the game directory; cct_live_type "startup" re-ran the program; cct_live_trace with ticks "<tick>-" returned the paste/key events and the whole chain above; cct_live_screen showed the error.
+  - Unit tests: LiveToolsTest (fake endpoint): request paths/bodies, typing order, errors for missing configuration, missing endpoint.json, 404/401 from the endpoint, bad arguments, refused connection. 41/41 tests.
+  - Not yet on Windows: the api/handle records and the MCP tools (the owner's earlier run predates them).
+
 ## JVM_COST
 
 Measured on this machine (4 cores), program `print("done")`:
@@ -510,7 +531,7 @@ Order set by D16; incremental.
 7. N7: Colour in screen records (L14), if agents need it.
 8. N8: Startup time: optional AppCDS archive created on first run (one file per install); measure the benefit on Java 17.
 9. N10: Public release after R4 is decided.
-10. N11: cct-live (mod/, D34-D37). Prototype done (V14). Next: owner tests in the real game (single player, Windows); structured program result (harness in ROM via datapack + Lua API -> status/error/traceback like summary.json); `cct-run mcp` tools for live computers (list, screen, trace, event, power, run file) over the local endpoint; monitors, turtle state, file read/write; share Trace/JsonValues with engine in a common module; sim-vs-live trace diff for R1.
+10. N11: cct-live (mod/, D34-D39). Prototype done (V14), http/fs tracing and cct_live_* MCP tools done (V15). Next: owner re-test on Windows with an MCP client; structured program result (harness in ROM via datapack + Lua API -> status/error/traceback like summary.json); monitors, turtle state, file read/write; share Trace/JsonValues with engine in a common module; sim-vs-live trace diff for R1.
 - Deferred: N9 turtles (D19).
 
 ## REFERENCES

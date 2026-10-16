@@ -52,7 +52,8 @@ final class LiveMachine implements ILuaMachine {
         if (eventName != null) {
             var data = new JsonObject();
             data.addProperty("name", eventName);
-            data.add("args", JsonValues.array(arguments));
+            noteHttpHandle(eventName, arguments);
+            data.add("args", JsonValues.array(arguments, recorder.handles()));
             recorder.record("event", data);
         }
         var result = inner.handleEvent(eventName, arguments);
@@ -63,6 +64,14 @@ final class LiveMachine implements ILuaMachine {
             recorder.record("vm_error", data);
         }
         return result;
+    }
+
+    /** http_success (url, handle) and http_failure (url, message, handle?): remember which URL a response is for. */
+    private void noteHttpHandle(String eventName, Object[] arguments) {
+        if (arguments == null || arguments.length < 2 || !(arguments[0] instanceof String url)) return;
+        if (eventName.equals("http_success")) recorder.handles().http(arguments[1], url, "http_response");
+        else if (eventName.equals("http_failure") && arguments.length >= 3 && arguments[2] != null) recorder.handles().http(arguments[2], url, "http_response");
+        else if (eventName.equals("websocket_success")) recorder.handles().http(arguments[1], url, "websocket");
     }
 
     @Override
@@ -87,11 +96,16 @@ final class LiveMachine implements ILuaMachine {
         private final MetricsObserver metrics;
         private volatile Watched watched;
         private final List<Pending> pending = new ArrayList<>();
+        private final Handles handles = new Handles();
         private int dropped;
 
         Recorder(LiveSession session, MetricsObserver metrics) {
             this.session = session;
             this.metrics = metrics;
+        }
+
+        Handles handles() {
+            return handles;
         }
 
         long nextCallId() {

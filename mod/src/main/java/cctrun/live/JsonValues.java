@@ -23,17 +23,26 @@ public final class JsonValues {
     }
 
     public static JsonArray array(Object[] values) {
+        return array(values, null);
+    }
+
+    /** As {@link #array(Object[])}; handle objects (files, HTTP responses) become their {@link Handles} entry. */
+    public static JsonArray array(Object[] values, Handles handles) {
         var out = new JsonArray();
-        if (values != null) for (var value : values) out.add(of(value, 0));
+        if (values != null) for (var value : values) out.add(of(value, 0, handles));
         return out;
     }
 
     public static JsonElement of(Object value) {
-        return of(value, 0);
+        return of(value, 0, null);
     }
 
-    private static JsonElement of(Object value, int depth) {
+    private static JsonElement of(Object value, int depth, Handles handles) {
         if (value == null) return JsonNull.INSTANCE;
+        if (handles != null) {
+            var handle = handles.describe(value);
+            if (handle != null) return handle;
+        }
         if (value instanceof Boolean b) return new JsonPrimitive(b);
         if (value instanceof Number n) {
             var d = n.doubleValue();
@@ -43,10 +52,15 @@ public final class JsonValues {
         }
         if (value instanceof String s) return new JsonPrimitive(truncate(s));
         if (value instanceof ByteBuffer b) {
+            // Only the bytes that will be shown are copied: file and HTTP bodies can be large.
             var copy = b.duplicate();
-            var bytes = new byte[copy.remaining()];
+            var length = copy.remaining();
+            var bytes = new byte[Math.min(length, MAX_STRING)];
             copy.get(bytes);
-            return new JsonPrimitive(truncate(new String(bytes, StandardCharsets.ISO_8859_1)));
+            return new JsonPrimitive(preview(new String(bytes, StandardCharsets.ISO_8859_1), length));
+        }
+        if (value instanceof byte[] b) {
+            return new JsonPrimitive(preview(new String(b, 0, Math.min(b.length, MAX_STRING), StandardCharsets.ISO_8859_1), b.length));
         }
         if (depth >= MAX_DEPTH) return new JsonPrimitive("<nested>");
         if (value instanceof Map<?, ?> map) {
@@ -57,23 +71,23 @@ public final class JsonValues {
                     out.addProperty("...", (map.size() - MAX_ENTRIES) + " more");
                     break;
                 }
-                out.add(keyOf(entry.getKey()), of(entry.getValue(), depth + 1));
+                out.add(keyOf(entry.getKey()), of(entry.getValue(), depth + 1, handles));
             }
             return out;
         }
-        if (value instanceof Collection<?> list) return arrayOf(list.toArray(), depth);
-        if (value instanceof Object[] list) return arrayOf(list, depth);
+        if (value instanceof Collection<?> list) return arrayOf(list.toArray(), depth, handles);
+        if (value instanceof Object[] list) return arrayOf(list, depth, handles);
         return new JsonPrimitive(truncate(String.valueOf(value)));
     }
 
-    private static JsonArray arrayOf(Object[] values, int depth) {
+    private static JsonArray arrayOf(Object[] values, int depth, Handles handles) {
         var out = new JsonArray();
         for (var i = 0; i < values.length; i++) {
             if (i >= MAX_ENTRIES) {
                 out.add("... " + (values.length - MAX_ENTRIES) + " more");
                 break;
             }
-            out.add(of(values[i], depth + 1));
+            out.add(of(values[i], depth + 1, handles));
         }
         return out;
     }
@@ -85,5 +99,9 @@ public final class JsonValues {
 
     static String truncate(String s) {
         return s.length() <= MAX_STRING ? s : s.substring(0, MAX_STRING) + "...(" + s.length() + " chars)";
+    }
+
+    private static String preview(String head, int length) {
+        return length <= MAX_STRING ? head : head + "...(" + length + " bytes)";
     }
 }

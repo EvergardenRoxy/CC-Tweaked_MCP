@@ -34,7 +34,9 @@ import java.util.function.Supplier;
  * <pre>
  * GET  /computers                                    computers on the server now
  * GET  /computers/{id}/screen                        text, colours, cursor
- * GET  /computers/{id}/trace?kind=a,b&offset=&limit= this session's trace records (offset counts matches)
+ * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&offset=&limit=
+ *                                                    this session's trace records; after = only seq > N,
+ *                                                    ticks = N, A-B, A- or -B; offset counts matches
  * POST /computers/{id}/event   {"name": "...", "args": [...]}
  * POST /computers/{id}/power   {"action": "on" | "shutdown" | "reboot"}
  * </pre>
@@ -71,6 +73,10 @@ final class LiveHttp {
         server.start();
         var bound = server.getAddress();
         CctLive.LOG.info("cct-live: endpoint at http://{}:{}/ (token in cct-live/token.txt)", bound.getAddress().getHostAddress(), bound.getPort());
+    }
+
+    int port() {
+        return server.getAddress().getPort();
     }
 
     void stop() {
@@ -199,6 +205,21 @@ final class LiveHttp {
         var w = onServer(() -> find(id));
         var kinds = new HashSet<String>();
         if (query.containsKey("kind")) for (var k : query.get("kind").split(",")) if (!k.isBlank()) kinds.add(k.trim());
+        var after = intParam(query, "after", 0, 0, Integer.MAX_VALUE);
+        long fromTick = 0, toTick = Long.MAX_VALUE;
+        if (query.containsKey("ticks")) {
+            var range = query.get("ticks").trim();
+            try {
+                var dash = range.indexOf('-');
+                if (dash < 0) fromTick = toTick = Long.parseLong(range);
+                else {
+                    if (dash > 0) fromTick = Long.parseLong(range.substring(0, dash));
+                    if (dash < range.length() - 1) toTick = Long.parseLong(range.substring(dash + 1));
+                }
+            } catch (NumberFormatException e) {
+                throw new BadRequest(400, "ticks must be N, A-B, A- or -B");
+            }
+        }
         var offset = intParam(query, "offset", 0, 0, Integer.MAX_VALUE);
         var limit = intParam(query, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT);
 
@@ -211,6 +232,9 @@ final class LiveHttp {
                 if (line.isBlank()) continue;
                 var record = JsonParser.parseString(line).getAsJsonObject();
                 if (!kinds.isEmpty() && !kinds.contains(record.get("kind").getAsString())) continue;
+                if (record.get("seq").getAsLong() <= after) continue;
+                var tick = record.get("tick").getAsLong();
+                if (tick < fromTick || tick > toTick) continue;
                 if (matched++ < offset) continue;
                 if (records.size() < limit) records.add(record);
             }
@@ -218,6 +242,7 @@ final class LiveHttp {
         var out = new JsonObject();
         out.addProperty("id", id);
         out.addProperty("file", w.trace().file().toString());
+        out.addProperty("tick", session.tickCount());
         out.addProperty("matched", matched);
         out.addProperty("offset", offset);
         out.add("records", records);

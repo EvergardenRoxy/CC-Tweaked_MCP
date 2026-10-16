@@ -58,15 +58,24 @@ final class McpServer {
         return thread;
     });
     private final Map<String, Call> active = new ConcurrentHashMap<>();
+    private final Path liveDir;
+    private final LiveTools live;
 
     McpServer(InputStream in, OutputStream out, Path outDir, Path workDir) {
+        this(in, out, outDir, workDir, null);
+    }
+
+    /** @param liveDir game directory for the cct_live_* tools (--live / CCT_LIVE_DIR); may be null. */
+    McpServer(InputStream in, OutputStream out, Path outDir, Path workDir, Path liveDir) {
         this.in = in;
         this.out = out;
         this.outDir = outDir.toAbsolutePath().normalize();
         this.workDir = workDir.toAbsolutePath().normalize();
+        this.liveDir = liveDir == null ? null : this.workDir.resolve(liveDir).normalize();
+        this.live = new LiveTools(this.liveDir, this.workDir);
     }
 
-    /** {@code cct-run mcp [--out DIR]}. */
+    /** {@code cct-run mcp [--out DIR] [--live GAME_DIR]}. */
     static int main(Main.Args args, PrintStream stdout) throws Exception {
         if (!args.positional().isEmpty()) throw new Main.UsageException("mcp: takes no arguments");
         // stdout belongs to the protocol from here on; anything else that prints goes to stderr.
@@ -77,8 +86,15 @@ final class McpServer {
         if (outOption != null) outDir = workDir.resolve(outOption);
         else if (Files.isWritable(workDir)) outDir = workDir.resolve(".cct-runs");
         else outDir = Path.of(System.getProperty("user.home"), ".cct-run", "runs");
-        System.err.println("cct-run mcp " + Versions.TOOL + ": ready; runs go to " + outDir.normalize() + "; working directory " + workDir);
-        return new McpServer(System.in, stdout, outDir, workDir).serve();
+        var liveOption = args.option("--live");
+        if (liveOption == null) {
+            var env = System.getenv("CCT_LIVE_DIR");
+            if (env != null && !env.isBlank()) liveOption = env;
+        }
+        Path liveDir = liveOption == null ? null : workDir.resolve(liveOption);
+        System.err.println("cct-run mcp " + Versions.TOOL + ": ready; runs go to " + outDir.normalize() + "; working directory " + workDir
+            + (liveDir == null ? "" : "; live game directory " + liveDir.normalize()));
+        return new McpServer(System.in, stdout, outDir, workDir, liveDir).serve();
     }
 
     int serve() throws IOException, InterruptedException {
@@ -121,7 +137,9 @@ final class McpServer {
             case "ping" -> reply(id, new JsonObject());
             case "tools/list" -> {
                 var result = new JsonObject();
-                result.add("tools", McpTools.definitions());
+                var tools = McpTools.definitions();
+                tools.addAll(LiveTools.definitions());
+                result.add("tools", tools);
                 reply(id, result);
             }
             case "tools/call" -> {
@@ -174,8 +192,11 @@ final class McpServer {
             (20 ticks/s) and records everything that happens. Use it to test a program before giving it to the user, and \
             to debug it from the recorded evidence. Call cct_guide once before the first run: it explains the result \
             fields, the trace, fixtures (simulated peripherals, redstone, timed events) and what a passing run does and \
-            does not prove. Runs are stored in %s. Relative paths resolve against %s; prefer absolute paths."""
-            .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir));
+            does not prove. Runs are stored in %s. Relative paths resolve against %s; prefer absolute paths. \
+            The cct_live_* tools work on real computers in a running Minecraft game with the cct-live mod (screen, \
+            trace of events, peripheral calls, http and file access, input, power); %s"""
+            .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir,
+                liveDir == null ? "no game directory is configured, so pass game_dir to them." : "the game directory is " + liveDir + "."));
         return result;
     }
 
@@ -188,6 +209,7 @@ final class McpServer {
                 case McpTools.TRACE -> inProcess(McpTools.traceArgs(arguments, outDir), McpTools.traceLimit(arguments));
                 case McpTools.SCREEN -> inProcess(McpTools.screenArgs(arguments, outDir), -1);
                 case McpTools.GUIDE -> inProcess(List.of("guide"), -1);
+                case LiveTools.COMPUTERS, LiveTools.SCREEN, LiveTools.TRACE, LiveTools.EVENT, LiveTools.TYPE, LiveTools.POWER -> live.call(name, arguments);
                 default -> {
                     var unknown = new JsonObject();
                     unknown.addProperty("jsonrpcError", "Unknown tool: " + name);

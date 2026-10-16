@@ -46,7 +46,7 @@ public final class Main {
                                          [--offset N] [--limit N] [--out DIR]
           cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR] [--out DIR]
           cct-run guide
-          cct-run mcp [--out DIR]
+          cct-run mcp [--out DIR] [--live GAME_DIR]
           cct-run version
 
         run      Runs the program on a headless CC: Tweaked %s computer (Minecraft %s) in real time and
@@ -60,6 +60,8 @@ public final class Main {
         guide    Prints the agent guide: workflow, reading results, fixtures, what a pass means. Read it first.
         mcp      Runs a local MCP server on stdin/stdout (tools cct_run, cct_trace, cct_screen, cct_guide).
                  Start it from an MCP client, not by hand. Runs go to --out (default .cct-runs).
+                 --live GAME_DIR (or CCT_LIVE_DIR): Minecraft game directory with the cct-live mod, for the
+                 cct_live_* tools (computers, screen, trace, event, type, power) on real in-game computers.
         version  Prints tool, CC: Tweaked, Minecraft and Java versions as JSON.
         """.formatted(Versions.CC_TWEAKED, Versions.MINECRAFT);
 
@@ -107,7 +109,7 @@ public final class Main {
             case "screen" -> screen(new Args(rest, Set.of("--tick", "--source", "--out"), Set.of()), out);
             case "version", "--version" -> version(out);
             case "guide" -> guide(out);
-            case "mcp" -> McpServer.main(new Args(rest, Set.of("--out"), Set.of()), out);
+            case "mcp" -> McpServer.main(new Args(rest, Set.of("--out", "--live"), Set.of()), out);
             case "help", "--help", "-h" -> {
                 out.print(USAGE);
                 yield 0;

@@ -178,7 +178,7 @@ cct-run run <程序.lua> [--fixture 文件] [--timeout 秒] [--out 目录] [--te
 cct-run trace  <运行目录|latest> [--kind 类型1,类型2] [--ticks A-B] [--peripheral 名称] [--source 名称] [--offset N] [--limit N]
 cct-run screen <运行目录|latest> [--tick N] [--source term|显示器名]
 cct-run guide | version | help
-cct-run mcp [--out 目录]          # MCP 服务器，由客户端启动
+cct-run mcp [--out 目录] [--live 游戏目录]   # MCP 服务器，由客户端启动
 ```
 
 MCP 工具与命令的对应关系：
@@ -189,6 +189,7 @@ MCP 工具与命令的对应关系：
 | `cct_trace` | `trace` | `run`（默认 `latest`）、`kind`（数组）、`ticks`、`peripheral`、`source`、`offset`、`limit` |
 | `cct_screen` | `screen` | `run`、`tick`、`source` |
 | `cct_guide` | `guide` | 无 |
+| `cct_live_computers` / `cct_live_screen` / `cct_live_trace` / `cct_live_type` / `cct_live_event` / `cct_live_power` | — | 操作**真实游戏里**的电脑，需要 cct-live mod（原型），见 [`mod/README.md`](mod/README.md)；用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录 |
 
 工具返回的 JSON 和命令行输出相同。程序本身出错（`status: "error"`）是正常的测试结果；只有参数错误、文件不存在等情况，工具调用才会标记为出错。
 
@@ -257,7 +258,7 @@ MCP 工具与命令的对应关系：
 | 平台 / 项目 | 结果 |
 |---|---|
 | Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
-| Linux | 单元测试 39/39；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| Linux | 单元测试 41/41；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
 | macOS | 尚未测试 |
 | AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次实测四步全部正确。各客户端分别的 MCP 接入结果待反馈 |
 
