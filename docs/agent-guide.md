@@ -1,6 +1,6 @@
 # cct-run agent guide
 
-For AI agents. `cct-run guide` prints this text.
+For AI agents. `cct-run guide` and the MCP tool `cct_guide` return this text.
 
 cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s. It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
 
@@ -30,6 +30,19 @@ cct-run guide | version | help
 - Program arguments go after `--`.
 - `latest` means the newest run under `--out` (default `.cct-runs` in the current directory).
 - `--term 26x20` gives a pocket computer size; `--basic` gives a non-colour computer.
+
+Through MCP (`cct-run mcp`), the same commands are tools. Results are the same JSON as the CLI's stdout.
+
+| tool | command | arguments |
+|---|---|---|
+| `cct_run` | `run` | `file` (path) or `code` (Lua source; `name` sets its file name, default `program.lua`), `args` (array), `fixture` (JSON object) or `fixture_file`, `timeout`, `term`, `computer` (`advanced`/`basic`) |
+| `cct_trace` | `trace` | `run` (run_dir or `latest`, the default), `kind` (array), `ticks`, `peripheral`, `source`, `offset`, `limit` |
+| `cct_screen` | `screen` | `run`, `tick`, `source` |
+| `cct_guide` | `guide` | none |
+
+- A Lua error, a timeout or a shutdown is a normal result (`isError: false`); read `status`. `isError: true` means the call itself was wrong: bad arguments, missing file, invalid fixture (with its JSON path).
+- Use absolute paths for `file`, `fixture_file` and `run`. Every result of `cct_run` contains `run_dir`; pass it as `run` when several runs are in progress, since `latest` is simply the newest one.
+- In the command examples below, read `trace latest --kind event` as `cct_trace {"kind": ["event"]}`, and so on.
 
 Platform notes:
 - stdout is pure ASCII JSON: non-ASCII characters are escaped as `\uXXXX`. Parse it as JSON; never compare raw bytes.

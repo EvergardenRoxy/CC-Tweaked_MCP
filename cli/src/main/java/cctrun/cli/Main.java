@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
  * Command-line entry point. All machine-readable output goes to stdout as ASCII-only JSON (non-ASCII characters are
  * escaped as \\uXXXX); diagnostics go to stderr.
  * Exit codes: run 0/1/2/3 (see RunResult), 64 usage error, 65 bad input, 70 internal error.
+ * {@code mcp} serves the same commands as MCP tools (McpServer).
  */
 public final class Main {
     static final int EX_USAGE = 64, EX_DATAERR = 65, EX_SOFTWARE = 70;
@@ -45,6 +46,7 @@ public final class Main {
                                          [--offset N] [--limit N] [--out DIR]
           cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR] [--out DIR]
           cct-run guide
+          cct-run mcp [--out DIR]
           cct-run version
 
         run      Runs the program on a headless CC: Tweaked %s computer (Minecraft %s) in real time and
@@ -55,6 +57,8 @@ public final class Main {
                         modem_transmit fixture_action program_end vm_error run_start run_end
         screen   Prints the screen of the computer ("term", default) or of a monitor at a tick.
         guide    Prints the agent guide: workflow, reading results, fixtures, what a pass means. Read it first.
+        mcp      Runs a local MCP server on stdin/stdout (tools cct_run, cct_trace, cct_screen, cct_guide).
+                 Start it from an MCP client, not by hand. Runs go to --out (default .cct-runs).
         version  Prints tool, CC: Tweaked, Minecraft and Java versions as JSON.
         """.formatted(Versions.CC_TWEAKED, Versions.MINECRAFT);
 
@@ -99,6 +103,7 @@ public final class Main {
             case "screen" -> screen(new Args(rest, Set.of("--tick", "--source", "--out"), Set.of()), out);
             case "version", "--version" -> version(out);
             case "guide" -> guide(out);
+            case "mcp" -> McpServer.main(new Args(rest, Set.of("--out"), Set.of()), out);
             case "help", "--help", "-h" -> {
                 out.print(USAGE);
                 yield 0;

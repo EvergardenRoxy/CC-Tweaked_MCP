@@ -110,6 +110,31 @@ else
     skipped=$((skipped + 1)); echo "SKIP old-java-switch                  (no Java 8 installation found)" | tee -a "$report"
 fi
 
+# MCP server over stdio (cct-run mcp): handshake, tool list, one run and the guide in one session.
+mcp_start=$(date +%s)
+mcp_out="$(printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"cct_run","arguments":{"code":"print(\"mcp ok\")"}}}' \
+    '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"cct_guide","arguments":{}}}' \
+    | "$cct" mcp --out "$work/mcp-runs" 2>"$work/stderr.txt")"
+mcp_code=$?
+mcp_problem=""
+for expect in '"id":1,"result":{"protocolVersion":"2025-06-18"' '"name":"cct_screen"' '\"status\": \"ok\"' 'mcp ok' '"id":4,"result":{"content":[{"type":"text","text":"# cct-run agent guide'; do
+    printf '%s\n' "$mcp_out" | grep -Fq -- "$expect" || mcp_problem="${mcp_problem:+$mcp_problem; }missing $expect"
+done
+[ "$mcp_code" -eq 0 ] || mcp_problem="exit code $mcp_code; $mcp_problem"
+if [ -z "$mcp_problem" ]; then
+    passed=$((passed + 1))
+    printf 'PASS %-32s exit=%-3s %3ss\n' mcp-stdio "$mcp_code" "$(( $(date +%s) - mcp_start ))" | tee -a "$report"
+else
+    failed=$((failed + 1))
+    printf 'FAIL %-32s exit=%-3s %3ss %s\n' mcp-stdio "$mcp_code" "$(( $(date +%s) - mcp_start ))" "$mcp_problem" | tee -a "$report"
+    { echo "  stdout:"; printf '%s\n' "$mcp_out" | cut -c1-300 | sed 's/^/    /'
+      echo "  stderr:"; head -20 "$work/stderr.txt" | sed 's/^/    /'; } >> "$report"
+fi
+
 echo | tee -a "$report"
 echo "$passed passed, $failed failed, $skipped skipped. Report: $report" | tee -a "$report"
 echo "work dir: $work" >> "$report"

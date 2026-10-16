@@ -6,8 +6,12 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - 按真实时间运行，每秒 20 刻。
 - 每次运行都会输出 JSON 摘要（结果、错误和行号、最终屏幕），并把全过程记录到 trace 文件里。
 
-> **当前状态：命令行工具（CLI）可用，MCP 服务器还没做。**
-> 现在的用法是让 AI 通过终端调用 `cct-run` 命令；以 MCP 形式接入是下一阶段的工作，会作为这个命令行工具的一层薄包装（见文末“路线图”）。所有支持终端命令的 AI 客户端现在就能用。
+有两种接入方式，功能相同：
+
+- **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），提供 `cct_run`、`cct_trace`、`cct_screen`、`cct_guide` 四个工具。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop 等）配置一次即可使用。
+- **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。
+
+> MCP 服务器目前是**测试版**：在 Linux 上用官方 MCP SDK 客户端验证通过，Windows 上各客户端的实测正在进行。
 
 ---
 
@@ -23,6 +27,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 | 回放屏幕 | 查询任意一刻电脑或显示器上显示的内容 |
 | 模拟外设和世界 | 用 fixture 文件布置箱子等容器、能量存储、流体存储、显示器、有线调制解调器网络、红石输入和预置文件 |
 | 按时间注入事件 | 在指定的刻改变红石输入、修改箱子内容、改能量、发送任意事件（如按键、触摸显示器），或者按下 Ctrl+T 终止程序 |
+| MCP 服务器 | `cct-run mcp`：本地 stdio MCP 服务器，四个工具和命令一一对应；可以直接传 Lua 代码和 fixture 对象，不必先写文件；每次运行都在独立的 Java 进程里，可以同时运行多个，也可以取消 |
 | AI 使用说明 | `cct-run guide` 打印一份写给 AI 的英文说明：使用流程、各字段含义、排查方法、常见陷阱，以及“测试通过”意味着什么 |
 
 ### 一个例子
@@ -94,7 +99,63 @@ bin/cct-run version
 
 能输出带有 `"cc_tweaked": "1.120.2"` 的 JSON 就说明装好了。
 
-### 4. 告诉 AI 怎么用
+### 4. 接入 AI 客户端（MCP，推荐）
+
+下面以解压到 `C:\cct-run`（Windows）或 `/opt/cct-run`（macOS / Linux）为例，请换成你自己的路径。Windows 上通过 `cmd /c` 启动 `.bat`，这是多数客户端启动批处理文件的可靠写法。
+
+**Claude Code**：在 **cmd** 里运行（PowerShell 可能吞掉 `--`）：
+
+```bat
+claude mcp add --scope user cct-run -- cmd /c C:\cct-run\bin\cct-run.bat mcp
+```
+
+macOS / Linux：
+
+```bash
+claude mcp add --scope user cct-run -- /opt/cct-run/bin/cct-run mcp
+```
+
+也可以在项目根目录放一个 `.mcp.json`（只对这个项目生效，第一次使用时 Claude Code 会请你确认）：
+
+```json
+{
+  "mcpServers": {
+    "cct-run": { "command": "cmd", "args": ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp"] }
+  }
+}
+```
+
+**Codex**：编辑 `~/.codex/config.toml`（Windows 上是 `%USERPROFILE%\.codex\config.toml`）：
+
+```toml
+[mcp_servers.cct-run]
+command = "cmd"
+args = ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp"]
+tool_timeout_sec = 300          # 运行可能持续到 --timeout 秒，默认的 60 秒可能不够
+# Codex 不会把所有环境变量传给 MCP 服务器；如果 java 不在 PATH 上，请写明：
+# env = { JAVA_HOME = "C:\\Program Files\\Zulu\\zulu-21" }
+```
+
+**其他支持 MCP 的客户端**（Claude Desktop、Cherry Studio 等使用 `mcpServers` JSON 的客户端；DeepSeek Harness、Autoclaw 如果支持 MCP，填写同样的命令和参数即可，配置位置见各自的文档）：
+
+```json
+{
+  "mcpServers": {
+    "cct-run": {
+      "command": "cmd",
+      "args": ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp", "--out", "C:\\cct-run\\runs"]
+    }
+  }
+}
+```
+
+说明：
+
+- 运行记录默认保存在客户端启动服务器时所在目录的 `.cct-runs` 下（Claude Code 是项目目录，建议把 `.cct-runs/` 加进 `.gitignore`）；这个目录不可写时改存到 `~/.cct-run/runs`。像上面那样加 `--out 目录` 可以固定位置。
+- 服务器启动后，第一次调用前 AI 会看到提示：先调用 `cct_guide` 阅读说明。
+- 配置好后可以直接对 AI 说：“写一个……的 CC 程序，并用 cct_run 测试。”
+
+### 4（另一种）. 用命令行方式接入
 
 在 AI 客户端的项目说明文件里（Claude Code 用 `CLAUDE.md`，Codex 用 `AGENTS.md`，其他客户端用各自的说明或提示词）加上一段，例如：
 
@@ -116,7 +177,19 @@ cct-run run <程序.lua> [--fixture 文件] [--timeout 秒] [--out 目录] [--te
 cct-run trace  <运行目录|latest> [--kind 类型1,类型2] [--ticks A-B] [--peripheral 名称] [--source 名称] [--offset N] [--limit N]
 cct-run screen <运行目录|latest> [--tick N] [--source term|显示器名]
 cct-run guide | version | help
+cct-run mcp [--out 目录]          # MCP 服务器，由客户端启动
 ```
+
+MCP 工具与命令的对应关系：
+
+| 工具 | 对应命令 | 参数 |
+|---|---|---|
+| `cct_run` | `run` | `file`（路径）或 `code`（Lua 源码，可配 `name`）、`args`、`fixture`（JSON 对象）或 `fixture_file`、`timeout`、`term`、`computer`（`advanced`/`basic`） |
+| `cct_trace` | `trace` | `run`（默认 `latest`）、`kind`（数组）、`ticks`、`peripheral`、`source`、`offset`、`limit` |
+| `cct_screen` | `screen` | `run`、`tick`、`source` |
+| `cct_guide` | `guide` | 无 |
+
+工具返回的 JSON 和命令行输出相同。程序本身出错（`status: "error"`）是正常的测试结果；只有参数错误、文件不存在等情况，工具调用才会标记为出错。
 
 - `--timeout` 是游戏时间（秒），默认 15，最大 3600。死循环程序以 `timeout` 结束是正常的。
 - 每次运行的结果保存在 `.cct-runs\<运行编号>\` 下：`summary.json`（摘要）、`trace.jsonl`（全程记录）、程序和 fixture 的副本。`latest` 指最新的一次运行。
@@ -178,9 +251,10 @@ cct-run guide | version | help
 ## 测试情况
 
 - Windows 11 + Windows PowerShell 5.1 + cmd：19/19 冒烟测试通过（Zulu 8 / 21 / 25，代码页 936，路径含空格和中文）。
-- Linux：单元测试 35/35；冒烟测试全部通过（含从 Java 8 自动切换）；Java 17 / 21 / 25 均可运行。
+- Linux：单元测试 38/38；冒烟测试全部通过（含从 Java 8 自动切换）；Java 17 / 21 / 25 均可运行。
 - macOS：尚未测试。
-- AI 客户端：在 Autoclaw 和 DeepSeek Harness（Windows）上实测可用；Claude Code、Codex 待用户反馈。
+- AI 客户端（命令行方式）：在 Autoclaw 和 DeepSeek Harness（Windows）上实测可用；Claude Code、Codex 待用户反馈。
+- MCP 服务器：Linux 上用官方 MCP TypeScript SDK 客户端验证通过（握手、四个工具、内联 fixture、并行运行、取消、从 Java 8 自动切换后启动）；Windows 待测。
 
 在自己的机器上测试的方法见 `docs/testing.md`。
 
@@ -206,8 +280,8 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 
 1. ~~命令行工具、全程记录、外设模拟~~（已完成）
 2. ~~旧 Java 自动切换、给 AI 的使用说明~~（已完成）
-3. 资源限制：1 GB 内存上限、内存耗尽单独作为一种结果、trace 超过上限截断、`cct-run clean` 清理旧记录
-4. **MCP 服务器**：本地 stdio 方式，`run` / `trace` / `screen` 等工具和命令一一对应，每次调用启动一次 cct-run（不做远程 MCP）
+3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版，Windows 实测中）
+4. 资源限制：1 GB 内存上限、内存耗尽单独作为一种结果、trace 超过上限截断、`cct-run clean` 清理旧记录
 5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。

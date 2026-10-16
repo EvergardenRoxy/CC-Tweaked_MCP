@@ -194,6 +194,74 @@ foreach ($case in $cases) {
     }
 }
 
+# MCP server over stdio (cct-run mcp): handshake, tool list, one run and the guide in one session. On Windows
+# also through "cmd /c", the form the MCP client configurations in README.md use.
+$mcpLines = @(
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}',
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
+    '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"cct_run","arguments":{"code":"print(\"mcp ok\")"}}}',
+    '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"cct_guide","arguments":{}}}'
+)
+
+function Invoke-McpSession([string]$FileName, [string]$Arguments) {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $FileName
+    $psi.Arguments = $Arguments
+    $psi.WorkingDirectory = $work # runs go to $work\.cct-runs
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $p = [System.Diagnostics.Process]::Start($psi)
+    $errTask = $p.StandardError.ReadToEndAsync()
+    foreach ($l in $mcpLines) { $p.StandardInput.WriteLine($l) }
+    $p.StandardInput.Close()
+    $stdout = $p.StandardOutput.ReadToEnd()
+    $p.WaitForExit()
+    $sw.Stop()
+    return [pscustomobject]@{ Code = $p.ExitCode; Stdout = $stdout.Trim(); Stderr = $errTask.Result.Trim(); Seconds = [math]::Round($sw.Elapsed.TotalSeconds, 2) }
+}
+
+function Test-McpOutput($r) {
+    $problems = @()
+    if ($r.Code -ne 0) { $problems += "exit code $($r.Code)" }
+    $byId = @{}
+    foreach ($line in ($r.Stdout -split "`n")) {
+        $m = Parse-Json $line.Trim()
+        if ($null -eq $m) { if ($line.Trim()) { $problems += "not JSON: $($line.Trim())" }; continue }
+        $byId[[string]$m.id] = $m
+    }
+    if (-not $byId["1"] -or $byId["1"].result.protocolVersion -ne "2025-06-18") { $problems += "initialize" }
+    if (-not $byId["2"] -or @($byId["2"].result.tools).Count -ne 4) { $problems += "tools/list" }
+    $run = $null
+    if ($byId["3"]) { $run = Parse-Json $byId["3"].result.content[0].text }
+    if (-not $run -or $run.status -ne "ok" -or $run.screen.lines[0] -ne "mcp ok") { $problems += "cct_run" }
+    if (-not $byId["4"] -or $byId["4"].result.content[0].text -notlike "# cct-run agent guide*") { $problems += "cct_guide" }
+    if ($problems.Count -eq 0) { return $null }
+    return ($problems -join "; ")
+}
+
+$mcpCases = @(@{ Name = "mcp-stdio"; File = $CctRun; Arguments = "mcp" })
+if ($onWindows) { $mcpCases += @{ Name = "mcp-via-cmd"; File = "cmd.exe"; Arguments = "/c `"$CctRun`" mcp" } }
+foreach ($case in $mcpCases) {
+    $r = Invoke-McpSession $case.File $case.Arguments
+    $problem = Test-McpOutput $r
+    $ok = -not $problem
+    $color = "Green"; $tag = "PASS"
+    if (-not $ok) { $color = "Red"; $tag = "FAIL" }
+    Write-Host ("{0} {1,-32} exit={2,-3} {3,6}s {4}" -f $tag, $case.Name, $r.Code, $r.Seconds, $problem) -ForegroundColor $color
+    $head = $r.Stdout
+    if ($head.Length -gt 1500) { $head = $head.Substring(0, 1500) }
+    $errHead = $r.Stderr
+    if ($errHead.Length -gt 1500) { $errHead = $errHead.Substring(0, 1500) }
+    $results += [pscustomobject]@{
+        name = $case.Name; ok = $ok; problem = $problem; exit = $r.Code; expected_exit = 0
+        seconds = $r.Seconds; args = @($case.File, $case.Arguments); stdout_head = $head; stderr_head = $errHead
+    }
+}
+
 # Informational: the same UTF-8 program decoded with the console's original encoding. A mismatch here is
 # expected on consoles that are not UTF-8 and tells agents they must set UTF-8 before reading cct-run's stdout.
 $r = Invoke-Cct @("run", $utf8Program) $originalEncoding

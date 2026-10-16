@@ -72,6 +72,8 @@ bash scripts/smoke-test.sh          # 生成 cct-run-smoke-report.txt
 | usage-error / missing-program | 退出码 64、65 |
 | startup-time | 单次运行耗时（看 `seconds`） |
 | guide | `cct-run guide` 能输出给 AI 看的使用说明（纯 ASCII） |
+| mcp-stdio | **本轮新增**：以 MCP 服务器方式启动（`cct-run.bat mcp`），完成握手、列出 4 个工具、运行一段代码、读取说明 |
+| mcp-via-cmd | **本轮新增**（仅 Windows）：同上，但通过 `cmd /c` 启动，这是 README 里客户端配置使用的写法 |
 | old-java-switch | **本轮新增**：把 `JAVA_HOME` 临时指向本机的 Java 8，cct-run 应提示 "is too old; using Java ..." 并自动换用 Java 17+ 运行成功。脚本会在 Program Files 下自动找 Java 8（你的机器上有 Zulu 8）；找不到时显示 `SKIP`，不算失败 |
 
 报告里还有几项附加信息：
@@ -101,7 +103,7 @@ echo %ERRORLEVEL%
 
 **双击 / 资源管理器**：不需要测，cct-run 是命令行工具。
 
-## 4. AI 客户端实测（重点）
+## 4. AI 客户端实测：命令行方式（可选，上一轮已测）
 
 在 **Windows** 上用各个客户端打开解压目录，把下面这段话原样发给 AI：
 
@@ -117,12 +119,32 @@ echo %ERRORLEVEL%
 
 如果某个客户端失败，请附上它的完整回复，或者终端输出的截图。
 
+## 4b. MCP 客户端实测（重点）
+
+先按 README “安装”第 4 步，把 cct-run 配置进客户端（Claude Code、Codex，以及 DeepSeek Harness、Autoclaw 中支持 MCP 的）。配置后重启客户端，在客户端里确认能看到 `cct-run` 服务器和 4 个工具（Claude Code 里输入 `/mcp`；Codex 里输入 `/mcp`）。
+
+然后把下面这段话原样发给 AI（路径按解压位置修改）：
+
+> 先调用 cct_guide 阅读说明。然后用 cct_run 运行 C:\cct-run\examples\runtime_error.lua，告诉我 status、error.message 和出错的行号。再用 cct_trace 查询这次运行中 kind 为 event 的记录有几条。最后用 cct_run 直接运行代码 `print("hello from mcp")`，把屏幕第一行告诉我。
+
+每个客户端记录：
+
+| 客户端 | 能否连上 MCP（看到 4 个工具） | 行号（应为 4） | 事件条数（应为 2） | 屏幕第一行 | 配置写法 / 报错 |
+|---|---|---|---|---|---|
+| Claude Code | | | | | |
+| Codex | | | | | |
+| DeepSeek Harness（dsh） | | | | | |
+| Autoclaw | | | | | |
+
+连不上时，请附上客户端的 MCP 日志或报错截图，以及你用的配置。
+
 ## 5. 需要发回的东西
 
 1. `report-ps51.json`（必需）、`report-ps7.json` 或 `cct-run-smoke-report.txt`（如果测了）
-2. 第 3 步 cmd 的输出（复制文本即可）
-3. 第 4 步的表格
-4. 系统信息：Windows 版本、使用的启动器（官方、Prism、CurseForge、HMCL、PCL 等）、是否装了杀毒软件
+2. 第 4b 步的 MCP 实测表格（重点）
+3. 第 3 步 cmd 的输出（复制文本即可）
+4. 第 4 步的命令行方式表格（可选，上一轮已测过）
+5. 系统信息：Windows 版本、使用的启动器、是否装了杀毒软件
 
 ## 6. 常见问题
 
