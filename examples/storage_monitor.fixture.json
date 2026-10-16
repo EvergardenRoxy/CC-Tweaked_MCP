@@ -1,0 +1,20 @@
+{
+  "schema": "cct-run/fixture@1",
+  "peripherals": {
+    "back": {
+      "type": "wired_modem",
+      "network": {
+        "minecraft:chest_0": {
+          "type": "inventory",
+          "items": { "1": { "name": "minecraft:iron_ingot", "count": 64 }, "2": { "name": "minecraft:cobblestone", "count": 12 } }
+        },
+        "minecraft:chest_1": {
+          "type": "inventory",
+          "size": 9,
+          "items": { "1": { "name": "minecraft:iron_ingot", "count": 40 } }
+        },
+        "monitor_0": { "type": "monitor", "blocks": [3, 2] }
+      }
+    }
+  }
+}

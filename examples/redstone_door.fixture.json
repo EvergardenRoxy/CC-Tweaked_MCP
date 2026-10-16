@@ -1,0 +1,8 @@
+{
+  "schema": "cct-run/fixture@1",
+  "timeline": [
+    { "tick": 10, "do": "redstone", "side": "back", "level": 15 },
+    { "tick": 12, "do": "redstone", "side": "back", "level": 0 },
+    { "tick": 50, "do": "terminate" }
+  ]
+}

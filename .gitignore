@@ -1,0 +1,6 @@
+.gradle/
+build/
+.cct-runs/
+*.jsa
+.idea/
+*.iml

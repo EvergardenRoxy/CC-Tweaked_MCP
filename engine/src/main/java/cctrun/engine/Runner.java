@@ -1,0 +1,423 @@
+package cctrun.engine;
+
+import cctrun.engine.peripheral.EnergyPeripheral;
+import cctrun.engine.peripheral.Inventory;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import dan200.computercraft.core.ComputerContext;
+import dan200.computercraft.core.CoreConfig;
+import dan200.computercraft.core.computer.Computer;
+import dan200.computercraft.core.computer.ComputerSide;
+import dan200.computercraft.core.computer.mainthread.MainThread;
+import dan200.computercraft.core.computer.mainthread.MainThreadConfig;
+import dan200.computercraft.core.filesystem.MemoryMount;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Runs one program on one headless CC: Tweaked computer in real time (20 ticks per second) and writes
+ * a run directory: {@code summary.json}, {@code trace.jsonl}, {@code program/<name>} and
+ * {@code fixture.json}.
+ * <p>
+ * Designed for one run per JVM (the CLI exits afterwards): {@link CoreConfig} is global state.
+ */
+public final class Runner {
+    public static final int TPS = 20;
+    /**
+     * Computer.START_DELAY in CC: Tweaked 1.120.2: a computer starts at most once per 50 ticks, so os.reboot()
+     * soon after boot leaves it off for up to 2.5 s before the new boot.
+     */
+    private static final int START_DELAY = 50;
+    /** Private Computer.startRequested: set while a reboot waits for START_DELAY. Null if CC: Tweaked renamed it. */
+    private static final java.lang.reflect.Field START_REQUESTED = startRequestedField();
+    private static final int START_GRACE_TICKS = 10;
+    /** CC: Tweaked's default computer_space_limit. Reported by fs.getFreeSpace; writes are not limited (see handoff.md). */
+    private static final long DISK_CAPACITY = 1_000_000;
+    private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
+
+    private Runner() {
+    }
+
+    public static RunResult run(RunSpec spec) throws IOException {
+        var created = Instant.now();
+        var runId = RUN_ID.format(created) + "-" + HexFormat.of().toHexDigits((short) ThreadLocalRandom.current().nextInt());
+        var runDir = spec.outDir().resolve(runId);
+        Files.createDirectories(runDir.resolve("program"));
+
+        var fixture = spec.fixture();
+        var advanced = spec.advanced() != null ? spec.advanced() : fixture.advanced != null ? fixture.advanced : Boolean.TRUE;
+        var size = spec.termSize() != null ? spec.termSize() : fixture.term != null ? fixture.term : new int[]{ 51, 19 };
+        var storedName = storedName(spec.programName());
+
+        Files.writeString(runDir.resolve("program").resolve(storedName), spec.programSource(), StandardCharsets.UTF_8);
+        if (spec.fixtureSource() != null) Files.writeString(runDir.resolve("fixture.json"), spec.fixtureSource(), StandardCharsets.UTF_8);
+
+        // Untrusted code: no network access.
+        CoreConfig.httpEnabled = false;
+        CoreConfig.httpWebsocketEnabled = false;
+        // Without multishell the program writes straight to the native terminal, so lines that scroll off are
+        // recorded exactly (with multishell, a Lua window redraws via blit and never calls Terminal.scroll).
+        // The startup tip is noise in the first screen record.
+        CoreConfig.defaultComputerSettings = "motd.enable=false" + (fixture.multishell ? "" : ",bios.use_multishell=false");
+
+        var clock = new Clock();
+        try (var trace = new Trace(runDir.resolve("trace.jsonl"), clock)) {
+            var mount = new MemoryMount(DISK_CAPACITY);
+            for (var file : fixture.files.entrySet()) addFile(mount, file.getKey(), file.getValue());
+            addFile(mount, storedName, spec.programSource());
+            addFile(mount, "startup.lua", harness(storedName, spec.args()));
+
+            var env = new RunnerEnvironment(mount);
+            var terminal = TracingTerminal.create(size[0], size[1], advanced, "term", trace);
+            var mainThread = new MainThread(MainThreadConfig.DEFAULT);
+            var machines = new RecordingMachine.Holder();
+            var context = ComputerContext.builder(env)
+                .mainThreadScheduler(mainThread)
+                .luaFactory(RecordingMachine.factory(trace, machines))
+                .build();
+            var computer = new Computer(context, env, terminal, fixture.computerId);
+            if (fixture.label != null) computer.setLabel(fixture.label);
+            var api = new HarnessApi(trace, terminal);
+            computer.addApi(api);
+
+            var built = fixture.build(trace, advanced);
+            for (var entry : built.sides().entrySet()) computer.getEnvironment().setPeripheral(entry.getKey(), entry.getValue());
+            for (var entry : fixture.redstone.entrySet()) computer.getRedstone().setInput(entry.getKey(), entry.getValue(), 0);
+
+            var start = new JsonObject();
+            start.addProperty("program", storedName);
+            start.add("args", JsonValues.array(spec.args().toArray()));
+            start.addProperty("timeout_s", spec.timeoutSeconds());
+            trace.record("run_start", start);
+
+            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture);
+
+            var timeoutState = outcome.equals("timeout") ? machines.executionState() : null;
+            // The VM only has a state to print while Lua code is running, not while it waits for an event.
+            if (timeoutState != null && timeoutState.isBlank()) timeoutState = null;
+            List<String> finalScreen;
+            if (api.finished) finalScreen = api.screen;
+            else if ((outcome.equals("shutdown") || outcome.equals("reboot")) && terminal.beforeReset() != null) finalScreen = terminal.beforeReset();
+            else finalScreen = terminal.lines();
+            var monitorScreens = new JsonObject();
+            for (var monitor : built.monitors()) {
+                monitor.terminal().snapshot();
+                monitorScreens.add(monitor.terminal().source(), stringArray(monitor.terminal().lines()));
+            }
+
+            computer.shutdown();
+            computer.tick();
+            computer.unload();
+            // Ask the computer threads to stop without waiting for them: the process exits right after.
+            try {
+                if (!context.close(50, TimeUnit.MILLISECONDS)) trace.record("context_close_pending", new JsonObject());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            var exitCode = switch (outcome) {
+                case "ok" -> 0;
+                case "error" -> 1;
+                case "timeout" -> 2;
+                default -> 3;
+            };
+
+            var end = new JsonObject();
+            end.addProperty("status", outcome);
+            end.addProperty("exit_code", exitCode);
+            trace.record("run_end", end);
+
+            var summary = summary(spec, fixture, created, runId, storedName, outcome, exitCode, clock, api, finalScreen,
+                terminal, monitorScreens, timeoutState, advanced, size, trace);
+            trace.close();
+            Files.writeString(runDir.resolve("summary.json"), Trace.GSON.newBuilder().setPrettyPrinting().create().toJson(summary) + "\n", StandardCharsets.UTF_8);
+            return new RunResult(outcome, exitCode, runDir, summary);
+        }
+    }
+
+    /** Tick loop. Returns ok | error | timeout | shutdown | reboot. */
+    private static String loop(RunSpec spec, Clock clock, Trace trace, Computer computer, MainThread mainThread, TracingTerminal terminal,
+                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture) {
+        var maxTicks = spec.timeoutSeconds() * TPS;
+        var everOn = false;
+        var bootTick = 0;
+        var boots = 0;
+        var lastStartPending = -1;
+        computer.turnOn();
+        for (var tick = 0; ; tick++) {
+            clock.setTick(tick);
+            if (tick >= maxTicks) return "timeout";
+            var tickStart = System.nanoTime();
+
+            for (var action : fixture.timeline) if (action.tick() == tick) apply(action, computer, built, trace);
+
+            computer.tick();
+            mainThread.tick();
+
+            var changed = computer.pollRedstoneChanges();
+            for (var side : ComputerSide.values()) {
+                if ((changed & (1 << side.ordinal())) == 0) continue;
+                var data = new JsonObject();
+                data.addProperty("side", side.getName());
+                data.addProperty("level", computer.getRedstone().getExternalOutput(side));
+                data.addProperty("bundled", computer.getRedstone().getExternalBundledOutput(side));
+                trace.record("redstone_output", data);
+            }
+
+            terminal.snapshot();
+            for (var monitor : built.monitors()) monitor.terminal().snapshot();
+
+            if (api.finished) return api.ok ? "ok" : "error";
+            if (machines.created.get() > 1) return "reboot";
+            // A warm JVM can boot, run and shut down within one tick, so "has started" is "a VM was created".
+            everOn |= computer.isOn() || machines.created.get() > 0;
+            if (machines.created.get() != boots) {
+                boots = machines.created.get();
+                bootTick = tick;
+            }
+            // os.reboot() also turns the computer off, then starts it again once START_DELAY has passed. After the
+            // start is handed to the computer thread there is a short gap before it is on, hence the grace ticks.
+            if (rebootPending(computer, tick, bootTick)) lastStartPending = tick;
+            if (everOn && !computer.isOn() && tick - lastStartPending > START_GRACE_TICKS) return "shutdown";
+
+            var sleepNanos = TimeUnit.MILLISECONDS.toNanos(1000 / TPS) - (System.nanoTime() - tickStart);
+            if (sleepNanos > 0) {
+                try {
+                    TimeUnit.NANOSECONDS.sleep(sleepNanos);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return "timeout";
+                }
+            }
+        }
+    }
+
+    private static boolean rebootPending(Computer computer, int tick, int bootTick) {
+        if (START_REQUESTED != null) {
+            try {
+                return START_REQUESTED.getBoolean(computer);
+            } catch (IllegalAccessException ignored) {
+                // Fall through to the timing rule.
+            }
+        }
+        return tick - bootTick <= START_DELAY + 5;
+    }
+
+    private static java.lang.reflect.Field startRequestedField() {
+        try {
+            var field = Computer.class.getDeclaredField("startRequested");
+            if (field.getType() != boolean.class) return null;
+            field.setAccessible(true);
+            return field;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static void apply(Fixture.TimelineAction action, Computer computer, Fixture.Built built, Trace trace) {
+        var spec = action.spec();
+        var data = new JsonObject();
+        data.addProperty("do", action.action());
+        switch (action.action()) {
+            case "event" -> {
+                var args = spec.has("args") ? spec.getAsJsonArray("args") : new JsonArray();
+                var values = new Object[args.size()];
+                for (var i = 0; i < args.size(); i++) values[i] = toLua(args.get(i));
+                computer.queueEvent(spec.get("name").getAsString(), values);
+                data.addProperty("name", spec.get("name").getAsString());
+                data.add("args", args);
+            }
+            case "terminate" -> computer.queueEvent("terminate", null);
+            case "redstone" -> {
+                var side = ComputerSide.valueOfInsensitive(spec.get("side").getAsString());
+                var level = spec.get("level").getAsInt();
+                computer.getRedstone().setInput(side, level, 0);
+                data.addProperty("side", side.getName());
+                data.addProperty("level", level);
+            }
+            case "energy" -> {
+                var name = spec.get("peripheral").getAsString();
+                var storage = (EnergyPeripheral.Storage) built.byName().get(name).getTarget();
+                storage.setEnergy(spec.get("energy").getAsLong());
+                data.addProperty("peripheral", name);
+                data.addProperty("energy", spec.get("energy").getAsLong());
+            }
+            case "item" -> {
+                var name = spec.get("peripheral").getAsString();
+                var inventory = (Inventory) built.byName().get(name).getTarget();
+                var slot = spec.get("slot").getAsInt();
+                var item = spec.get("item");
+                inventory.set(slot - 1, item.isJsonNull() ? null : Fixture.itemUnchecked(item));
+                data.addProperty("peripheral", name);
+                data.addProperty("slot", slot);
+                data.add("item", item);
+            }
+            default -> throw new IllegalStateException("validated earlier: " + action.action());
+        }
+        trace.record("fixture_action", data);
+    }
+
+    private static Object toLua(JsonElement value) {
+        if (value == null || value.isJsonNull()) return null;
+        if (value.isJsonPrimitive()) {
+            var p = value.getAsJsonPrimitive();
+            if (p.isBoolean()) return p.getAsBoolean();
+            if (p.isNumber()) return p.getAsDouble();
+            return p.getAsString();
+        }
+        if (value.isJsonArray()) {
+            var out = new java.util.HashMap<Object, Object>();
+            var array = value.getAsJsonArray();
+            for (var i = 0; i < array.size(); i++) out.put((double) (i + 1), toLua(array.get(i)));
+            return out;
+        }
+        var out = new java.util.HashMap<Object, Object>();
+        for (var entry : value.getAsJsonObject().entrySet()) out.put(entry.getKey(), toLua(entry.getValue()));
+        return out;
+    }
+
+    private static JsonObject summary(RunSpec spec, Fixture fixture, Instant created, String runId, String storedName, String outcome,
+                                      int exitCode, Clock clock, HarnessApi api, List<String> finalScreen, TracingTerminal terminal,
+                                      JsonObject monitorScreens, String timeoutState, boolean advanced, int[] size, Trace trace) {
+        var out = new JsonObject();
+        out.addProperty("schema", Versions.SUMMARY_SCHEMA);
+        out.addProperty("run_id", runId);
+        out.addProperty("created_at", created.toString());
+        out.addProperty("status", outcome);
+        out.addProperty("exit_code", exitCode);
+
+        var error = new JsonObject();
+        if (outcome.equals("error")) {
+            error.addProperty("phase", api.phase);
+            error.addProperty("message", api.message);
+            error.addProperty("traceback", api.traceback);
+            out.add("error", error);
+        } else {
+            out.add("error", null);
+        }
+        if (timeoutState != null) out.addProperty("timeout_state", timeoutState.strip());
+
+        var duration = new JsonObject();
+        duration.addProperty("ticks", clock.tick());
+        duration.addProperty("seconds", clock.tick() / (double) TPS);
+        duration.addProperty("wall_ms", clock.millis());
+        out.add("duration", duration);
+
+        var screen = new JsonObject();
+        screen.add("size", intArray(size[0], size[1]));
+        screen.add("lines", stringArray(finalScreen));
+        out.add("screen", screen);
+        if (monitorScreens.size() > 0) out.add("monitors", monitorScreens);
+
+        var counts = new JsonObject();
+        for (var entry : trace.counts().entrySet()) counts.addProperty(entry.getKey(), entry.getValue());
+        out.add("trace_counts", counts);
+        out.add("notes", trace.notes());
+
+        var input = new JsonObject();
+        var program = new JsonObject();
+        program.addProperty("name", spec.programName());
+        program.addProperty("path", "/" + storedName);
+        program.addProperty("sha256", sha256(spec.programSource()));
+        program.addProperty("bytes", spec.programSource().getBytes(StandardCharsets.UTF_8).length);
+        input.add("program", program);
+        input.add("args", JsonValues.array(spec.args().toArray()));
+        input.addProperty("fixture_sha256", spec.fixtureSource() == null ? null : sha256(spec.fixtureSource()));
+        out.add("input", input);
+
+        var env = new JsonObject();
+        env.addProperty("tool", Versions.TOOL);
+        env.addProperty("cc_tweaked", Versions.CC_TWEAKED);
+        env.addProperty("minecraft", Versions.MINECRAFT);
+        env.addProperty("java", System.getProperty("java.version"));
+        env.addProperty("computer_id", fixture.computerId);
+        env.addProperty("advanced", advanced);
+        env.addProperty("multishell", fixture.multishell);
+        env.addProperty("http", false);
+        env.addProperty("timeout_s", spec.timeoutSeconds());
+        env.addProperty("time_model", "real-time, " + TPS + " ticks/s");
+        out.add("environment", env);
+
+        var files = new JsonObject();
+        files.addProperty("trace", "trace.jsonl");
+        files.addProperty("program", "program/" + storedName);
+        if (spec.fixtureSource() != null) files.addProperty("fixture", "fixture.json");
+        out.add("files", files);
+        return out;
+    }
+
+    /** The harness owns /startup.lua, so a program called startup.lua is stored as main.lua. */
+    static String storedName(String programName) {
+        var name = Path.of(programName).getFileName().toString();
+        if (name.equals("startup.lua") || name.equals("startup")) return "main.lua";
+        return name;
+    }
+
+    static String harness(String path, List<String> args) {
+        String template;
+        try (var in = Runner.class.getResourceAsStream("/cctrun/harness.lua")) {
+            if (in == null) throw new IllegalStateException("harness.lua missing from the jar");
+            template = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        var luaArgs = new StringBuilder();
+        for (var i = 0; i < args.size(); i++) {
+            if (i > 0) luaArgs.append(", ");
+            luaArgs.append(luaString(args.get(i)));
+        }
+        return template.replace("__CCTRUN_PATH__", luaString(path)).replace("__CCTRUN_ARGS__", luaArgs);
+    }
+
+    /** A Lua string literal for any text: printable ASCII as is, everything else as \ddd bytes (UTF-8). */
+    static String luaString(String value) {
+        var out = new StringBuilder("\"");
+        for (var b : value.getBytes(StandardCharsets.UTF_8)) {
+            var c = b & 0xff;
+            if (c == '"' || c == '\\') out.append('\\').append((char) c);
+            else if (c >= 0x20 && c < 0x7f) out.append((char) c);
+            else out.append('\\').append(String.format("%03d", c));
+        }
+        return out.append('"').toString();
+    }
+
+    private static void addFile(MemoryMount mount, String path, String contents) throws IOException {
+        var slash = path.lastIndexOf('/');
+        if (slash > 0) mount.makeDirectory(path.substring(0, slash));
+        mount.addFile(path, contents);
+    }
+
+    private static JsonArray stringArray(List<String> values) {
+        var out = new JsonArray();
+        for (var value : values) out.add(value);
+        return out;
+    }
+
+    private static JsonArray intArray(int... values) {
+        var out = new JsonArray();
+        for (var value : values) out.add(value);
+        return out;
+    }
+
+    static String sha256(String text) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}
