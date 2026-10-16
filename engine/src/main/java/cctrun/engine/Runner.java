@@ -47,6 +47,7 @@ public final class Runner {
     /** Private Computer.startRequested: set while a reboot waits for START_DELAY. Null if CC: Tweaked renamed it. */
     private static final java.lang.reflect.Field START_REQUESTED = startRequestedField();
     private static final int START_GRACE_TICKS = 10;
+    private static final int MIN_TICKS_FOR_RATE = 40;
     /** CC: Tweaked's default computer_space_limit. Reported by fs.getFreeSpace; writes are not limited (see handoff.md). */
     private static final long DISK_CAPACITY = 1_000_000;
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
@@ -321,7 +322,8 @@ public final class Runner {
         duration.addProperty("seconds", clock.tick() / (double) TPS);
         duration.addProperty("wall_ms", clock.millis());
         // Measured over the tick loop; should be close to 20. Lower means game time ran slow (see handoff.md DV14).
-        duration.addProperty("tick_rate", Math.round(pacer.tickRate(clock.tick()) * 10) / 10.0);
+        // Omitted for runs under 2 s, where JVM warm-up in the first ticks dominates the figure.
+        if (clock.tick() >= MIN_TICKS_FOR_RATE) duration.addProperty("tick_rate", Math.round(pacer.tickRate(clock.tick()) * 10) / 10.0);
         if (pacer.lagResets() > 0) duration.addProperty("lag_resets", pacer.lagResets());
         out.add("duration", duration);
 

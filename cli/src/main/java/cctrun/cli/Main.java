@@ -44,6 +44,7 @@ public final class Main {
           cct-run trace <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME]
                                          [--offset N] [--limit N] [--out DIR]
           cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR] [--out DIR]
+          cct-run guide
           cct-run version
 
         run      Runs the program on a headless CC: Tweaked %s computer (Minecraft %s) in real time and
@@ -53,6 +54,7 @@ public final class Main {
                  Kinds: event screen output peripheral_call peripheral_return redstone_output
                         modem_transmit fixture_action program_end vm_error run_start run_end
         screen   Prints the screen of the computer ("term", default) or of a monitor at a tick.
+        guide    Prints the agent guide: workflow, reading results, fixtures, what a pass means. Read it first.
         version  Prints tool, CC: Tweaked, Minecraft and Java versions as JSON.
         """.formatted(Versions.CC_TWEAKED, Versions.MINECRAFT);
 
@@ -96,6 +98,7 @@ public final class Main {
             case "trace" -> trace(new Args(rest, Set.of("--kind", "--ticks", "--peripheral", "--source", "--offset", "--limit", "--out"), Set.of()), out);
             case "screen" -> screen(new Args(rest, Set.of("--tick", "--source", "--out"), Set.of()), out);
             case "version", "--version" -> version(out);
+            case "guide" -> guide(out);
             case "help", "--help", "-h" -> {
                 out.print(USAGE);
                 yield 0;
@@ -210,6 +213,14 @@ public final class Main {
         screen.lines().forEach(lines::add);
         json.add("lines", lines);
         out.println(ascii(PRETTY.toJson(json)));
+        return 0;
+    }
+
+    private static int guide(PrintStream out) throws IOException {
+        try (var in = Main.class.getResourceAsStream("/cctrun/agent-guide.md")) {
+            if (in == null) throw new IOException("agent-guide.md missing from the jar");
+            out.print(ascii(new String(in.readAllBytes(), StandardCharsets.UTF_8)));
+        }
         return 0;
     }
 

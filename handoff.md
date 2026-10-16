@@ -9,7 +9,7 @@ base: empty repository (this branch holds the first commits)
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; 30/30 tests (engine 28, cli 2); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 16/16 (V6); W1-W3 fixed and verified on Linux (V7), Windows re-test pending; macOS untested; MCP wrapper not started
+status: CLI implemented; 35/35 tests (engine 28, cli 7); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), Windows re-test of N3 pending; macOS untested; MCP wrapper not started
 readme: intentionally absent (user instruction); this file replaces it for now
 ```
 
@@ -50,6 +50,9 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D23 | Java discovery (N3): launchers such as Prism and PCL CE use the system JDK by default and normally do not download Java into their own folders. Discovery = JAVA_HOME, then PATH, then (fallback only) common system JDK install folders; launcher folders are not searched. | user |
 | D24 | R4 closed by the owner: the project serves the game, which the owner judges compatible with the CCPL; packaging the zip (D15) proceeds. harness.lua stays CCPL-marked and the notices stay. | user |
 | D25 | Agent clients tested so far: Autoclaw and dsh (Windows). Claude Code and Codex wait for user feedback. PowerShell 7 is not installed on the maintainer's machine, so it is not tested. | user |
+| D27 | N3: the start scripts launch `cctrun.cli.Launcher`, compiled for Java 8 (source set `launcher`). On Java >= 17 it calls Main in the same JVM. On older Java it searches per D23 (JAVA_HOME, PATH, then common system JDK folders; version read from each home's `release` file), re-executes itself with the newest Java >= 17 (same JVM flags and classpath, env CCT_RUN_REEXEC=1 prevents loops) and says so on stderr. None found: exit 69 with JAVA_HOME instructions for PowerShell, cmd and sh. The Gradle start scripts still choose the first `java` (JAVA_HOME, else PATH); a Java older than 8 cannot load the launcher at all. | user (do N3) + impl |
+| D28 | N1: agent guide `docs/agent-guide.md` (English, ASCII, for agents; placement in the skill repo stays parked under D21). Bundled in the jar and printed by `cct-run guide`; also shipped as a file in the zip. Covers workflow, commands, summary fields, trace queries and pitfalls, fixtures, and what a pass means (DIVERGENCES in plain terms). | user (do N1) + impl |
+| D29 | `duration.tick_rate` is reported only when a run lasts at least 40 ticks (2 s). Short runs include JVM/boot warm-up and measured 13.7-17.3 ticks/s on Windows (V8), which would look like a pacing bug. | impl |
 | D26 | W1: stdout JSON is ASCII-only (non-ASCII as \uXXXX); files stay UTF-8. W2: ticks paced against absolute deadlines (TickPacer); a lag above 1 s skips the missed ticks. W3: setting_changed events caused by cct-run's injected settings carry `harness: true`; a `program_start` record marks the start of the program. | user (do W1-W3) + impl |
 
 ## LAYOUT
@@ -79,8 +82,12 @@ engine/src/main/java/cctrun/engine/peripheral/
   MonitorPeripheral.java     delegates terminal methods to CC:T's own TermMethods
   WiredModemPeripheral.java, RemoteAccess.java
 engine/src/main/resources/cctrun/harness.lua   installed as /startup.lua; mirrors shell.lua executeProgram
-engine/src/test/java/cctrun/engine/            RunnerTest, PeripheralTest, FixtureTest, TraceQueryTest, RunHelper
-cli/src/main/java/cctrun/cli/Main.java         argument parsing, commands, exit codes
+engine/src/test/java/cctrun/engine/            RunnerTest, PeripheralTest, FixtureTest, TraceQueryTest, TickPacerTest, RunHelper
+cli/src/main/java/cctrun/cli/Main.java         argument parsing, commands, exit codes (Java 17)
+cli/src/launcher/java/cctrun/cli/Launcher.java start-script entry point, Java 8 bytecode: version check, re-exec on Java >= 17, exit 69 (D27)
+cli/src/launcher/java/cctrun/cli/JavaFinder.java  Java home discovery: JAVA_HOME, PATH, per-OS default roots; reads `release` files
+cli/src/test/java/cctrun/cli/                  MainTest, JavaFinderTest
+docs/agent-guide.md                            agent guide (D28); copied into the cli jar as /cctrun/agent-guide.md
 examples/                                      sample programs and fixtures used for end-to-end checks
 scripts/smoke-test.ps1                         maintainer smoke test, Windows PowerShell 5.1 / PowerShell 7 (ASCII only)
 scripts/smoke-test.sh                          same cases for macOS/Linux (bash 3.2, grep)
@@ -93,14 +100,16 @@ THIRD-PARTY-NOTICES.md                         bundled artifacts, licenses, sour
 ## BUILD
 
 ```
-./gradlew build                      # compile + 25 tests (~20 s of test time; some tests wait real game time)
+./gradlew build                      # compile + 35 tests (~25 s of test time; some tests wait real game time)
 ./gradlew :cli:installDist           # -> cli/build/install/cct-run/{bin/cct-run, bin/cct-run.bat, lib/*.jar}
-./gradlew :cli:distZip               # -> cli/build/distributions/cct-run-<version>.zip (~28 MB): bin, lib, LICENSE(S), notices, examples, scripts, docs/testing.md
+./gradlew :cli:distZip               # -> cli/build/distributions/cct-run-<version>.zip (~28 MB): bin, lib, LICENSE(S), notices, examples, scripts, docs/testing.md, docs/agent-guide.md
 cli/build/install/cct-run/bin/cct-run run examples/hello.lua
 ```
 
 - JVM flags baked into the start scripts (`cli/build.gradle.kts`): `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Xss4m`.
-- Start scripts find Java via `JAVA_HOME`, else `java` on PATH (Gradle-generated). No other discovery yet (see L18).
+- Start scripts (Gradle-generated) start the first Java found via `JAVA_HOME`, else `java` on PATH, with main class `cctrun.cli.Launcher`; the launcher handles Java < 17 (D27).
+- The launcher source set compiles with `--release 8` (`-Xlint:-options` hides the obsolete-target warning); its classes go into the cli jar. Check: Launcher.class/JavaFinder.class major version 52, Main.class 61.
+- Test-only system property `cctrun.java.searchOnly=<roots separated by File.pathSeparator>`: the launcher searches only these roots (ignores JAVA_HOME, PATH and default roots). Used to exercise the exit-69 path.
 
 ## INTERFACE_CLI
 
@@ -112,6 +121,7 @@ cct-run run <program.lua> [--fixture FILE] [--timeout SECONDS=15 (1..3600)] [--o
 cct-run trace  <run-dir|latest> [--kind K1,K2] [--ticks N|A-B|A-|-B] [--peripheral NAME] [--source NAME]
                                 [--offset N=0] [--limit N=200] [--out DIR]
 cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR_NAME] [--out DIR]
+cct-run guide                     # prints docs/agent-guide.md (ASCII)
 cct-run version
 cct-run help
 ```
@@ -131,7 +141,8 @@ cct-run help
 | 2 | run: timeout (program still running after `--timeout` seconds of real time) |
 | 3 | run: program shut down or rebooted the computer |
 | 64 | usage error (unknown command/option, bad option value) |
-| 65 | bad input (program/fixture not found or unreadable, invalid fixture, not a run directory, no such screen source) |
+| 65 | bad input (program/fixture not found or unreadable, invalid fixture, not a run directory, no such screen source, non-ASCII path under a non-UTF-8 locale) |
+| 69 | no Java 17+ found (launcher, D27); guidance on stderr |
 | 70 | internal error (stack trace on stderr) |
 
 ## RUN_DIRECTORY
@@ -155,7 +166,7 @@ cct-run help
 | exit_code | int | 0/1/2/3 |
 | error | object or null | {phase: syntax or runtime, message, traceback (string or null)}; only when status=error |
 | timeout_state | string | only on timeout and only if the VM was executing Lua at that moment (CobaltLuaMachine.printExecutionState); absent while waiting for events |
-| duration | object | {ticks, seconds (ticks/20), wall_ms, tick_rate (measured ticks/s over the loop, about 20), lag_resets (only if > 0)} |
+| duration | object | {ticks, seconds (ticks/20), wall_ms, tick_rate (measured ticks/s over the loop, about 20; only when ticks >= 40, D29), lag_resets (only if > 0)} |
 | screen | object | {size: [w,h], lines: [...]} final screen; trailing spaces and trailing blank lines removed. For status ok/error: captured when the harness reports; for shutdown/reboot: last non-blank screen before CC:T reset the terminal |
 | monitors | object | {name: [lines]} final monitor screens; absent if no monitors |
 | trace_counts | object | {kind: count} |
@@ -269,14 +280,15 @@ Matches CC: Tweaked 1.120.2 because the real code runs, or because behaviour was
 - L13: A program that prints and shuts down/reboots in the same tick: screen kept via the reset hook; anything printed after the reset is not shown.
 - L14: Screen records carry text only; colours and palette are not recorded.
 - L15: Run directories accumulate under `.cct-runs`; no cleanup command.
-- L16: Verified on Windows 11 / Windows PowerShell 5.1 / cmd.exe (V6). Not run on macOS.
-- L17: Java discovery = JAVA_HOME or PATH only; the Java runtime bundled with the Minecraft launcher (usually not on PATH) is not found automatically.
+- L16: Verified on Windows 11 / Windows PowerShell 5.1 / cmd.exe (V6, V8). Not run on macOS. PowerShell 7 not tested on Windows (D25).
+- L17: Resolved by N3 (D27) for Java 8-16 on JAVA_HOME/PATH. Remaining: (a) if neither JAVA_HOME nor PATH has any Java, the Gradle start script fails before the launcher runs ("JAVA_HOME is not set and no 'java' command"); (b) Java runtimes inside launcher folders are not searched (D23); (c) homes without a `release` file are ignored; (d) the re-exec costs one extra JVM start (~150-300 ms). Windows re-test pending (smoke case old-java-switch).
 - L18: No AppCDS archive; measured fixed cost ~645 ms per run (see JVM_COST).
 - L19: Engine tests run many runs per JVM; CoreConfig is global and computer threads may linger briefly. Fine for tests; do not run concurrent runs in one JVM.
 - L20: Non-ASCII paths fail under a POSIX/C locale (Java's sun.jnu.encoding = ASCII): exit 65 with a hint to use a UTF-8 locale. Works with a UTF-8 locale; Windows uses Unicode file APIs (to be confirmed by the test kit).
-- L21: Resolved by W1 (ASCII-only stdout). Before the fix, Windows code page 936 mis-decoded "caf" + U+00C3 U+00A9 as "caf" + U+8119 U+6F0F (V6). Windows re-test pending.
-- L22: Resolved by W2 (absolute-deadline pacing): before the fix, Windows ran about 15.5-16 ticks/s (V6), so game time ran ~20% slow against wall time. Cause: Thread.sleep(50 - elapsed) rounded up to the 15.6 ms Windows timer granularity, giving 62.5 ms ticks. TickPacerTest reproduces that granularity and shows 200 ticks in 10.0 s; Windows re-test pending (smoke case tick-rate). A single tick can still start up to one timer quantum late.
+- L21: Resolved by W1 (ASCII-only stdout); confirmed on Windows code page 936 (V8). Before the fix, code page 936 mis-decoded "caf" + U+00C3 U+00A9 as "caf" + U+8119 U+6F0F (V6).
+- L22: Resolved by W2 (absolute-deadline pacing): before the fix, Windows ran about 15.5-16 ticks/s (V6), so game time ran ~20% slow against wall time. Cause: Thread.sleep(50 - elapsed) rounded up to the 15.6 ms Windows timer granularity, giving 62.5 ms ticks. TickPacerTest reproduces that granularity and shows 200 ticks in 10.0 s; confirmed on Windows: 19.3-19.8 ticks/s on runs of 40-143 ticks (V8). A single tick can still start up to one timer quantum late; short runs are dominated by warm-up (D29).
 - L23: Every trace still contains the setting_changed events caused by cct-run's own default settings (motd.enable, and bios.use_multishell unless multishell is on). They are now flagged `harness: true` with a note (W3). Agents must read setting_changed args as (name, new value, old value); one agent read them backwards (V6).
+- L24: Screen text uses CC's own character set: chars 0x80-0xFF are CC graphics glyphs (e.g. the error gutter U+0095, marker U+0083), not Latin-1; Lua strings are bytes, so UTF-8 text appears as 2-3 glyphs per letter. Documented in the agent guide; no translation is done.
 
 ## DIVERGENCES
 
@@ -327,14 +339,14 @@ Ledger of simulated behaviour that can differ from the real game (D20). Rule: ev
 For the maintainer (D22). Guide: `docs/testing.md`.
 
 - `scripts/smoke-test.ps1` (Windows PowerShell 5.1 / PowerShell 7):
-  - Runs 16 cases (exit codes and JSON fields), plus two extra checks:
+  - Runs 19 cases (exit codes and JSON fields), plus two extra checks:
     - stdout decoded with the console's original encoding (`default_encoding_check`);
     - running the `.bat` from `cmd.exe`.
   - Also lists `java.exe` paths under LOCALAPPDATA, APPDATA and Program Files for N3 (paths only; `-NoJavaSearch` disables this).
-  - Writes `cct-run-smoke-report.json` (schema `cct-run/smoke-report@1`).
+  - Writes `cct-run-smoke-report.json` (schema `cct-run/smoke-report@1`), with `passed`, `failed`, `skipped`, `environment.java8_for_switch_test` and a `skipped` flag per result.
   - The file is kept ASCII-only for PowerShell 5.1.
-- `scripts/smoke-test.sh` (macOS/Linux, bash 3.2, grep only): the same 16 cases; writes `cct-run-smoke-report.txt`.
-- Cases: version, args-with-space-and-separator, runtime-error, syntax-error, fixture-wired-network-monitor, trace-latest, screen-latest-monitor, redstone-timeline-terminate, scrolled-output, timeout, too-long-without-yielding, path-with-space-and-cjk, utf8-stdout, usage-error, missing-program, startup-time.
+- `scripts/smoke-test.sh` (macOS/Linux, bash 3.2, grep only): the same 19 cases; writes `cct-run-smoke-report.txt`. Java 8 for old-java-switch is searched under /usr/lib/jvm, /Library/Java/JavaVirtualMachines, ~/Library/Java/JavaVirtualMachines and `$CCT_SMOKE_JAVA8_ROOT`.
+- Cases: version, args-with-space-and-separator, runtime-error, syntax-error, fixture-wired-network-monitor, trace-latest, screen-latest-monitor, redstone-timeline-terminate, scrolled-output, timeout, too-long-without-yielding, path-with-space-and-cjk, utf8-stdout, usage-error, missing-program, startup-time, tick-rate (18.5-21.5 ticks/s over 60 ticks), guide (`cct-run guide` prints the ASCII guide), old-java-switch (JAVA_HOME = a Java 8 home; expects exit 0 and the "is too old; using Java" stderr line; SKIP when no Java 8 is installed; ps1 searches `release` files up to depth 4 under Program Files, Program Files (x86), /usr/lib/jvm, /Library/Java/JavaVirtualMachines).
 - The guide also asks for manual cmd.exe output and an agent task, run in dsh, Codex and Claude Code on Windows, with a results table.
 
 ## VERIFICATION
@@ -374,7 +386,19 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
 - V7: W1-W3 on Linux:
   - 30/30 tests: TickPacerTest (simulated 15.625 ms granularity -> 20.0 ticks/s; stall -> one lag reset), RunnerTest (harness-flagged settings, program_start, tick_rate 15-25), MainTest (ASCII-only stdout decodes to the original text; files stay UTF-8).
   - smoke-test.ps1 under PowerShell 7.6.7 and smoke-test.sh: 17/17 each (new case tick-rate).
-- V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
+- V8: Windows, by the maintainer, with the release zip of commit a913616 (report 3a803f2d-report-ps51-v2.json):
+  - Environment: Windows 11 (NT 10.0.26100), Windows PowerShell 5.1.26100.9711, console gb2312 / code page 936, Zulu 21.0.12.1 via JAVA_HOME `C:\Program Files\Zulu\zulu-21`.
+  - smoke-test.ps1: 17/17 PASS; cmd.exe exit 0.
+  - W1 confirmed: default_encoding_check true on code page 936.
+  - W2 confirmed: tick_rate 19.3 (40 ticks), 19.5 (51), 19.5 (60), 19.8 (143). Runs of 3-8 ticks showed 13.7-17.3 (warm-up) -> D29.
+  - Cold runs 0.44-0.73 s.
+- V9: N1 + N3 on Linux (build JDK 21; Temurin JRE 8u504 for the old-Java checks):
+  - 35/35 tests: JavaFinderTest 4 (version parsing incl. "1.8.0_x", newest >= 17 wins, JAVA_HOME before PATH), MainTest 3 (+ guide bundled and ASCII), RunnerTest 12.
+  - Launcher.class and JavaFinder.class are major 52 (Java 8), Main.class 61 (Java 17).
+  - JAVA_HOME=JRE 8: stderr "is too old; using Java 21 ...", run exit 0. With `cctrun.java.searchOnly` limited to the JRE 8 root: exit 69 with guidance.
+  - From the unzipped release zip with LC_ALL=C.UTF-8: smoke-test.sh 19/19 (old-java-switch exercised via CCT_SMOKE_JAVA8_ROOT); smoke-test.ps1 under PowerShell 7.6.7 18 pass + old-java-switch SKIP (the JRE 8 used here is outside the ps1 search roots). Under the C locale path-with-space-and-cjk fails with exit 65 as expected (L20).
+  - docs/agent-guide.md is pure ASCII (grep for bytes > 0x7F finds none).
+- V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md, docs/agent-guide.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
 
 ## JVM_COST
 
@@ -398,9 +422,9 @@ Most of the remaining cost is JVM start/class loading plus ~6 boot ticks at 50 m
 
 Order set by D16; incremental.
 
-1. N1: Agent-facing usage notes: when to run cct-run, reading summary/notes, querying the trace, a fixture cookbook, reading stdout as UTF-8 (L21), and DIVERGENCES (what a pass means). Placement is undecided (M6 parked); start in this repo.
-2. N3: Java discovery in the launcher scripts (L17), scoped by D23: JAVA_HOME, then PATH, then a fallback scan of common system JDK folders. On Windows: Program Files\{Zulu, Java, Eclipse Adoptium, Microsoft, BellSoft}, as seen in V6. Pick the newest version >= 17. Print a clear message when none is found.
-3. N2: W1-W3 done (D26, V7). Remaining: the maintainer re-runs smoke-test.ps1 on Windows with the new zip (expect 17/17, default_encoding_check true, tick-rate pass); Claude Code and Codex results come from users later (D25).
+1. N1: DONE (D28, V9). Follow-up: move or link the guide from the skill repo when M6 resumes (D21).
+2. N3: DONE on Linux (D27, V9). The maintainer re-runs smoke-test.ps1 on Windows with the new zip: expect 19/19 or 18 + SKIP; old-java-switch should use the installed Zulu 8 and must PASS.
+3. N2: W1-W3 confirmed on Windows (V8). Remaining: N3 Windows re-test (above); macOS optional; Claude Code and Codex results come from users later (D25).
 4. N4: Resource limits with the D17 values: `-Xmx1g` in the start scripts, OutOfMemoryError as a distinct status, a trace size cap with truncation (plus a `truncated` flag in the summary), and `cct-run clean`.
 5. N5: MCP wrapper over the CLI (stdio): tools run/trace/screen map 1:1 to the CLI; each call spawns one `cct-run` (D1).
 6. N6: Peripherals as the skill's templates need them (D20): e.g. furnace slot rules (DV3), speaker, printer, disk drive, wireless modem + multi-computer rednet. Each one adds DIVERGENCES rows.

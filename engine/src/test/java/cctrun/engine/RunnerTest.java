@@ -117,7 +117,7 @@ class RunnerTest {
 
     @Test
     void cctRunsOwnSettingEventsAreFlaggedAndProgramStartIsMarked() throws Exception {
-        var result = run(out, "settings.set('motd.enable', true) os.pullEvent('setting_changed') sleep(0.25)", null, 10);
+        var result = run(out, "settings.set('motd.enable', true) os.pullEvent('setting_changed') sleep(2.5)", null, 10);
         assertEquals("ok", result.status());
         var settingEvents = trace(result, "event", r -> r.get("name").getAsString().equals("setting_changed"));
         // Two from cct-run's defaults (flagged), one from the program (not flagged).

@@ -5,7 +5,7 @@
 - `cct-run.bat` 在 PowerShell 和 cmd 里能否正确接收参数（含空格的参数、`--` 分隔符）
 - 控制台编码对 JSON 输出的影响
 - 含空格、含中文的路径
-- Java 能否被找到（很多玩家的 Java 只在 Minecraft 启动器目录里）
+- Java 能否被找到；用旧 Java（如 Java 8）启动时，cct-run 能否自动换用本机的 Java 17+
 - DeepSeek Harness（dsh）、Claude Code、Codex 能否在 Windows 上实际调用 cct-run
 
 > 测试包里带有 CC: Tweaked 的 jar（CCPL / MPL-2.0 许可，见 `THIRD-PARTY-NOTICES.md`），仅供测试，请勿公开转发。CCPL 要求使用者拥有正版 Minecraft。
@@ -19,7 +19,7 @@
    cct-run\
      bin\cct-run.bat      bin\cct-run
      lib\*.jar
-     examples\            scripts\            docs\testing.md
+     examples\            scripts\            docs\testing.md  docs\agent-guide.md
      LICENSE  LICENSES\   THIRD-PARTY-NOTICES.md
    ```
 2. **确认 Java（17 或更高）**：在 PowerShell 里运行：
@@ -52,7 +52,7 @@ pwsh -File scripts\smoke-test.ps1 -Report report-ps7.json
 bash scripts/smoke-test.sh          # 生成 cct-run-smoke-report.txt
 ```
 
-每个用例输出一行 `PASS` 或 `FAIL`。**无论成败，都请把报告文件发回来**（`report-ps51.json` 等）。
+每个用例输出一行 `PASS`、`FAIL` 或 `SKIP`。**无论成败，都请把报告文件发回来**（`report-ps51.json` 等）。
 
 ### 脚本测了什么
 
@@ -66,17 +66,20 @@ bash scripts/smoke-test.sh          # 生成 cct-run-smoke-report.txt
 | redstone-timeline-terminate | 红石时间线、注入 Ctrl+T |
 | scrolled-output | 滚出屏幕的输出被完整记录 |
 | timeout / too-long-without-yielding | 超时；死循环约 7 秒后被终止 |
-| tick-rate | 游戏刻速率接近每秒 20 刻（之前 Windows 上只有约 16） |
+| tick-rate | 游戏刻速率接近每秒 20 刻（上一轮 Windows 实测 19.3–19.8，已通过） |
 | path-with-space-and-cjk | 程序、fixture、输出目录的路径都含空格和中文 |
 | utf8-stdout | JSON 里的非 ASCII 字符是否正确（cct-run 现在只输出 ASCII，非 ASCII 字符写成 `\uXXXX`） |
 | usage-error / missing-program | 退出码 64、65 |
 | startup-time | 单次运行耗时（看 `seconds`） |
+| guide | `cct-run guide` 能输出给 AI 看的使用说明（纯 ASCII） |
+| old-java-switch | **本轮新增**：把 `JAVA_HOME` 临时指向本机的 Java 8，cct-run 应提示 "is too old; using Java ..." 并自动换用 Java 17+ 运行成功。脚本会在 Program Files 下自动找 Java 8（你的机器上有 Zulu 8）；找不到时显示 `SKIP`，不算失败 |
 
 报告里还有几项附加信息：
 - `default_encoding_check`：不改控制台编码时，输出是否仍然正确。现在应该是 `true`；如果是 `false`，请告诉我们。
 - `cmd_exe_exit`：从 cmd 直接调用 `.bat` 的结果。
 - `code_page`：当前代码页。
 - `java_on_path`、`java_candidates`：本机能找到的 Java，只记录路径。
+- `java8_for_switch_test`：old-java-switch 用例实际用的 Java 8 路径（为空说明没找到，用例被跳过）。
 
 ## 3. 手动检查（约 5 分钟）
 
@@ -87,6 +90,14 @@ bin\cct-run.bat run examples\hello.lua -- a "b c"
 echo %ERRORLEVEL%
 ```
 预期：输出的 JSON 里 `"status": "ok"`，`screen.lines` 第二行是 `args:\ta\tb c`，最后打印 `0`。
+
+**旧 Java 自动切换**（选做，脚本已自动测过，这里是手动确认）：在 cmd 里把 `JAVA_HOME` 临时指向 Java 8（路径按你的机器修改）：
+```bat
+set JAVA_HOME=C:\Program Files\Zulu\zulu-8
+bin\cct-run.bat version
+echo %ERRORLEVEL%
+```
+预期：先打印一行 `cct-run: Java 1.8... is too old; using Java 21 ...`（或类似），然后输出版本 JSON，最后打印 `0`。关闭这个 cmd 窗口即可恢复原来的 `JAVA_HOME`。
 
 **双击 / 资源管理器**：不需要测，cct-run 是命令行工具。
 
@@ -120,5 +131,6 @@ echo %ERRORLEVEL%
 | "无法加载文件……因为在此系统上禁止运行脚本" | 用第 2 步的 `-ExecutionPolicy Bypass` 写法运行 |
 | `cct-run launcher not found` | 用 `-CctRun C:\cct-run\bin\cct-run.bat` 指定路径 |
 | 提示找不到 `java` / `JAVA_HOME is set to an invalid directory` | 见第 1 步，设置 `JAVA_HOME` |
+| 退出码 69，提示需要 Java 17 | 本机没有找到 Java 17 或更高版本；按提示设置 `JAVA_HOME`，并把这段输出发回来 |
 | 所有用例都很慢，或被拦截 | 可能是杀毒软件在扫描 jar，请在报告里注明 |
 | 中文路径用例失败 | 请保留报告，这正是需要知道的结果 |

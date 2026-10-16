@@ -35,6 +35,7 @@ printf 'print("caf" .. string.char(195, 169))' > "$work/utf8.lua"
 printf 'print("done")' > "$work/quick.lua"
 
 passed=0
+skipped=0
 failed=0
 {
     echo "cct-run smoke report"
@@ -90,8 +91,26 @@ check utf8-stdout                   0  '"caf\\u00c3\\u00a9"'                    
 check usage-error                   64 ''                                              -- run "$examples/hello.lua" --frobnicate
 check missing-program               65 ''                                              -- run no-such-file.lua
 check startup-time                  0  '"status": "ok"'                                -- run "$work/quick.lua"
+check guide                         0  'cct-run agent guide'                           -- guide
+
+# Started with Java 8 (if one is installed), cct-run must switch to an installed Java 17+ by itself.
+java8=""
+for r in /usr/lib/jvm /Library/Java/JavaVirtualMachines "$HOME/Library/Java/JavaVirtualMachines" "${CCT_SMOKE_JAVA8_ROOT:-}"; do
+    [ -n "$r" ] && [ -d "$r" ] || continue
+    found="$(grep -l '^JAVA_VERSION="1\.8' $(find "$r" -maxdepth 4 -name release 2>/dev/null) 2>/dev/null | head -1)"
+    if [ -n "$found" ]; then java8="$(dirname "$found")"; break; fi
+done
+if [ -n "$java8" ]; then
+    if JAVA_HOME="$java8" "$cct" run "$work/quick.lua" 2>&1 >/dev/null | grep -q 'is too old; using Java'; then
+        passed=$((passed + 1)); echo "PASS old-java-switch                  (from $java8)" | tee -a "$report"
+    else
+        failed=$((failed + 1)); echo "FAIL old-java-switch                  (from $java8)" | tee -a "$report"
+    fi
+else
+    skipped=$((skipped + 1)); echo "SKIP old-java-switch                  (no Java 8 installation found)" | tee -a "$report"
+fi
 
 echo | tee -a "$report"
-echo "$passed passed, $failed failed. Report: $report" | tee -a "$report"
+echo "$passed passed, $failed failed, $skipped skipped. Report: $report" | tee -a "$report"
 echo "work dir: $work" >> "$report"
 [ "$failed" -eq 0 ]

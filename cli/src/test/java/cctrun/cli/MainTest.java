@@ -20,6 +20,15 @@ class MainTest {
     Path dir;
 
     @Test
+    void guideIsBundledAndAscii() throws Exception {
+        var bytes = new ByteArrayOutputStream();
+        assertEquals(0, Main.dispatch(new String[]{ "guide" }, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        var text = bytes.toString(StandardCharsets.US_ASCII);
+        assertTrue(text.startsWith("# cct-run agent guide"));
+        for (var b : bytes.toByteArray()) assertTrue(b >= 0, "guide must be ASCII only");
+    }
+
+    @Test
     void asciiEscapesEveryNonAsciiCharacter() {
         assertEquals("{\"a\":\"plain\"}", Main.ascii("{\"a\":\"plain\"}"));
         assertEquals("{\"a\":\"caf\\u00c3\\u00a9 \\u6d4b \\ud83d\\ude00\"}", Main.ascii("{\"a\":\"cafÃ© 测 😀\"}"));

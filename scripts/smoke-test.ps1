@@ -80,13 +80,16 @@ Copy-Item -LiteralPath (Ex "storage_monitor.fixture.json") -Destination ([System
 # --- running cct-run ----------------------------------------------------------------------------
 $originalEncoding = [Console]::OutputEncoding
 
-function Invoke-Cct([string[]]$CmdArgs, [System.Text.Encoding]$Encoding) {
+function Invoke-Cct([string[]]$CmdArgs, [System.Text.Encoding]$Encoding, [hashtable]$Env = @{}) {
     [Console]::OutputEncoding = $Encoding
+    $saved = @{}
+    foreach ($k in $Env.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $Env[$k]) }
     $errFile = [System.IO.Path]::Combine($work, "stderr.txt")
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $lines = & $CctRun @CmdArgs 2> $errFile
     $code = $LASTEXITCODE
     $sw.Stop()
+    foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
     [Console]::OutputEncoding = $originalEncoding
     $stderr = ""
     if (Test-Path -LiteralPath $errFile) { $stderr = (Get-Content -LiteralPath $errFile | Out-String).Trim() }
@@ -100,6 +103,16 @@ function Invoke-Cct([string[]]$CmdArgs, [System.Text.Encoding]$Encoding) {
 
 function Parse-Json([string]$text) {
     try { return $text | ConvertFrom-Json } catch { return $null }
+}
+
+# A Java 8 home, if one is installed, to check that cct-run switches to an installed Java 17+ by itself.
+$java8 = $null
+$java8Roots = @(${env:ProgramFiles}, ${env:ProgramFiles(x86)}, "/usr/lib/jvm", "/Library/Java/JavaVirtualMachines") | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+foreach ($r in $java8Roots) {
+    foreach ($release in (Get-ChildItem -LiteralPath $r -Recurse -Depth 4 -Filter "release" -ErrorAction SilentlyContinue)) {
+        if ((Get-Content -LiteralPath $release.FullName -ErrorAction SilentlyContinue) -match '^JAVA_VERSION="1\.8') { $java8 = $release.DirectoryName; break }
+    }
+    if ($java8) { break }
 }
 
 # --- test cases: name, arguments, expected exit code, check returning $null (pass) or a problem -----
@@ -138,16 +151,27 @@ $cases = @(
         param($r, $j) if ($j.screen.lines[0] -ne $expectedUtf8) { "screen = '$($j.screen.lines[0])' (stdout decoded as UTF-8)" } } },
     @{ Name = "usage-error"; Args = @("run", (Ex "hello.lua"), "--frobnicate"); Exit = 64; Raw = $true; Check = { param($r, $j) $null } },
     @{ Name = "missing-program"; Args = @("run", "no-such-file.lua"); Exit = 65; Raw = $true; Check = { param($r, $j) $null } },
-    @{ Name = "startup-time"; Args = @("run", $quick); Exit = 0; Check = { param($r, $j) $null } }
+    @{ Name = "startup-time"; Args = @("run", $quick); Exit = 0; Check = { param($r, $j) $null } },
+    @{ Name = "old-java-switch"; Args = @("run", $quick); Exit = 0; Env = @{ JAVA_HOME = $java8 }; SkipIf = (-not $java8); Check = {
+        param($r, $j) if ($r.Stderr -notlike "*is too old; using Java*") { "no switch message on stderr: $($r.Stderr)" } } },
+    @{ Name = "guide"; Args = @("guide"); Exit = 0; Raw = $true; Check = {
+        param($r, $j) if ($r.Stdout -notlike "*cct-run agent guide*") { "guide text missing" } } }
 )
 
 # --- run ----------------------------------------------------------------------------------------
 $results = @()
 Write-Host ("cct-run: " + $CctRun)
 foreach ($case in $cases) {
+    if ($case.SkipIf) {
+        Write-Host ("SKIP {0,-32} (no Java 8 installation found)" -f $case.Name) -ForegroundColor Yellow
+        $results += [pscustomobject]@{ name = $case.Name; ok = $true; skipped = $true; problem = $null; exit = $null; expected_exit = $case.Exit; seconds = 0; args = $case.Args; stdout_head = ""; stderr_head = "" }
+        continue
+    }
     $encoding = $utf8
     if ($case.Encoding) { $encoding = $case.Encoding }
-    $r = Invoke-Cct $case.Args $encoding
+    $caseEnv = @{}
+    if ($case.Env) { $caseEnv = $case.Env }
+    $r = Invoke-Cct $case.Args $encoding $caseEnv
     $problem = $null
     $j = $null
     if (-not $case.Raw) {
@@ -199,12 +223,15 @@ if ($onWindows -and -not $NoJavaSearch) {
 $version = Parse-Json (Invoke-Cct @("version") $utf8).Stdout
 $codePage = $null
 if ($onWindows) { $codePage = (& cmd.exe /c chcp) -join " " }
-$passed = @($results | Where-Object { $_.ok }).Count
+$skipped = @($results | Where-Object { $_.skipped }).Count
+$passed = @($results | Where-Object { $_.ok -and -not $_.skipped }).Count
+$failed = @($results | Where-Object { -not $_.ok }).Count
 $reportData = [pscustomobject]@{
     schema = "cct-run/smoke-report@1"
     created_at = (Get-Date).ToUniversalTime().ToString("o")
     passed = $passed
-    failed = $results.Count - $passed
+    failed = $failed
+    skipped = $skipped
     environment = [pscustomobject]@{
         os = [System.Environment]::OSVersion.VersionString
         is_windows = $onWindows
@@ -218,6 +245,7 @@ $reportData = [pscustomobject]@{
         env_JAVA_HOME = $env:JAVA_HOME
         java_on_path = [string](Get-Command java -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
         java_candidates = $javaCandidates
+        java8_for_switch_test = $java8
         work_dir = $work
     }
     default_encoding_check = [pscustomobject]@{
@@ -232,7 +260,7 @@ $reportPath = [System.IO.Path]::GetFullPath($Report)
 [System.IO.File]::WriteAllText($reportPath, ($reportData | ConvertTo-Json -Depth 6), $utf8)
 
 Write-Host ""
-Write-Host ("{0} passed, {1} failed. Default-encoding UTF-8 check: {2}. cmd.exe exit: {3}" -f $passed, ($results.Count - $passed), $defaultEncodingOk, $cmdCode)
+Write-Host ("{0} passed, {1} failed, {2} skipped. Default-encoding UTF-8 check: {3}. cmd.exe exit: {4}" -f $passed, $failed, $skipped, $defaultEncodingOk, $cmdCode)
 Write-Host ("Report: " + $reportPath)
-if ($passed -ne $results.Count) { exit 1 }
+if ($failed -ne 0) { exit 1 }
 exit 0
