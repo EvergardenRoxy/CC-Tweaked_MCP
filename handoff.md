@@ -5,7 +5,7 @@ format: cct-run/handoff@1
 audience: machine reviewer / next agent (not end users)
 repo: EvergardenRoxy/CC-Tweaked_MCP
 branch: claude/cct-run-cli
-base: empty repository (this branch holds the first commits)
+base: main (default branch; PR #1 merged d7b9c4e); this branch = main + MCP server, heap limit, V13, test record
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
@@ -363,7 +363,7 @@ Ledger of simulated behaviour that can differ from the real game (D20). Rule: ev
   - Status: closed by D24.
 - R5: Unbounded trace size: a long run (timeout up to 3600 s) that redraws every tick writes one screen record per tick. Needs caps or sampling.
 - R6: Mostly resolved by D33 (1 GB heap cap, out_of_memory status). Remaining: detection is a message match (a program that pcall-catches the OOM and continues is not flagged, though heap_peak_mb shows it); several MCP runs in parallel can each use up to 1 GB.
-- R7: Confirmed: the repository's default branch is `claude/cct-run-cli` (first push to an empty repository). Owner action: create `main` and set it as default (A1).
+- R7: CLOSED. The owner created `main` (now the default branch) and merged PR #1 (work up to d7b9c4e). Later work continues on `claude/cct-run-cli`, which has `main` merged in (3bf8c50) so a follow-up PR carries only the new commits.
 
 ## TEST_KIT
 
