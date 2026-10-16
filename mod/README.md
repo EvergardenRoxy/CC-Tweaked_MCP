@@ -36,10 +36,10 @@ cct-live 是一个 Forge mod。装上以后，它在 Minecraft 服务端的 Java
    ```
 3. 令牌在 `<游戏目录>/cct-live/token.txt`，每个请求都要带上。
 
-PowerShell 示例：
+PowerShell 示例（在游戏目录里执行；启动器开了版本隔离时，游戏目录是版本文件夹，例如 `.minecraft\versions\<版本名>`）：
 
 ```powershell
-$t = (Get-Content "$env:APPDATA\.minecraft\cct-live\token.txt").Trim()   # 换成你的游戏目录
+$t = (Get-Content cct-live\token.txt).Trim()
 $h = @{ Authorization = "Bearer $t" }
 $u = "http://127.0.0.1:47823"
 
@@ -52,11 +52,20 @@ Invoke-RestMethod -Headers $h -Method Post -ContentType application/json `
   -Body '{"action":"reboot"}' "$u/computers/0/power"                      # on / shutdown / reboot
 ```
 
-curl 示例：
+curl 示例（bash / macOS / Linux）：
 
 ```
 curl -H "Authorization: Bearer $(cat cct-live/token.txt)" http://127.0.0.1:47823/computers
 ```
+
+在 Windows PowerShell 5.1 里，`curl` 是 `Invoke-WebRequest` 的别名，不支持上面的写法，要写成 `curl.exe`：
+
+```powershell
+$t = (Get-Content cct-live\token.txt).Trim()
+curl.exe -H "Authorization: Bearer $t" http://127.0.0.1:47823/computers
+```
+
+`/computers` 只列出已加载并且开过机的电脑。
 
 ## HTTP 接口
 
