@@ -8,6 +8,14 @@ dependencies {
     implementation(project(":engine"))
     implementation(libs.gson)
     runtimeOnly(libs.slf4j.nop)
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.launcher)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 application {

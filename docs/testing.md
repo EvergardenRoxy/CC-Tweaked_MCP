@@ -66,13 +66,14 @@ bash scripts/smoke-test.sh          # 生成 cct-run-smoke-report.txt
 | redstone-timeline-terminate | 红石时间线、注入 Ctrl+T |
 | scrolled-output | 滚出屏幕的输出被完整记录 |
 | timeout / too-long-without-yielding | 超时；死循环约 7 秒后被终止 |
+| tick-rate | 游戏刻速率接近每秒 20 刻（之前 Windows 上只有约 16） |
 | path-with-space-and-cjk | 程序、fixture、输出目录的路径都含空格和中文 |
-| utf8-stdout | 把控制台设为 UTF-8 后，JSON 里的非 ASCII 字符是否正确 |
+| utf8-stdout | JSON 里的非 ASCII 字符是否正确（cct-run 现在只输出 ASCII，非 ASCII 字符写成 `\uXXXX`） |
 | usage-error / missing-program | 退出码 64、65 |
 | startup-time | 单次运行耗时（看 `seconds`） |
 
 报告里还有几项附加信息：
-- `default_encoding_check`：不把控制台改成 UTF-8 时，中文字符会不会乱码。结果是 `false` 不算失败，但说明 AI 读取输出前需要先切换编码。
+- `default_encoding_check`：不改控制台编码时，输出是否仍然正确。现在应该是 `true`；如果是 `false`，请告诉我们。
 - `cmd_exe_exit`：从 cmd 直接调用 `.bat` 的结果。
 - `code_page`：当前代码页。
 - `java_on_path`、`java_candidates`：本机能找到的 Java，只记录路径。

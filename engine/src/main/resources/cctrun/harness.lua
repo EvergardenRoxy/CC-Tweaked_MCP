@@ -57,6 +57,7 @@ if settings.get("bios.strict_globals", false) then
     end
 end
 
+report.start()
 local ok, perr, co = exception.try(func, table.unpack(args, 1, #args))
 if ok then
     report.done(true, nil, nil, nil)

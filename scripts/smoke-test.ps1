@@ -128,6 +128,8 @@ $cases = @(
         param($r, $j) if ($j.trace_counts.output -ne 12) { "output records = $($j.trace_counts.output)" } } },
     @{ Name = "timeout"; Args = @("run", (Ex "stuck.lua"), "--timeout", "2"); Exit = 2; Check = {
         param($r, $j) if ($j.status -ne "timeout") { "status = $($j.status)" } } },
+    @{ Name = "tick-rate"; Args = @("run", (Ex "stuck.lua"), "--timeout", "3"); Exit = 2; Check = {
+        param($r, $j) if ($j.duration.tick_rate -lt 18.5 -or $j.duration.tick_rate -gt 21.5) { "tick_rate = $($j.duration.tick_rate) (expected about 20)" } } },
     @{ Name = "too-long-without-yielding"; Args = @("run", (Ex "no_yield.lua")); Exit = 1; Check = {
         param($r, $j) if ($j.error.message -notlike "*Too long without yielding*") { "message = '$($j.error.message)'" } } },
     @{ Name = "path-with-space-and-cjk"; Args = @("run", ([System.IO.Path]::Combine($odd, "hello.lua")), "--fixture", ([System.IO.Path]::Combine($odd, "fixture.json")), "--out", ([System.IO.Path]::Combine($odd, "runs"))); Exit = 0; Check = {
@@ -221,7 +223,7 @@ $reportData = [pscustomobject]@{
     default_encoding_check = [pscustomobject]@{
         ok = $defaultEncodingOk
         screen_line = $defaultEncodingLine
-        note = "stdout decoded with the console's original encoding; false means agents must switch the console to UTF-8"
+        note = "stdout decoded with the console's original encoding; cct-run escapes non-ASCII as \uXXXX, so this should be true on any code page"
     }
     cmd_exe_exit = $cmdCode
     results = $results

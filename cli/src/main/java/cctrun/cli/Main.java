@@ -27,7 +27,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Command-line entry point. All machine-readable output goes to stdout as JSON; diagnostics go to stderr.
+ * Command-line entry point. All machine-readable output goes to stdout as ASCII-only JSON (non-ASCII characters are
+ * escaped as \\uXXXX); diagnostics go to stderr.
  * Exit codes: run 0/1/2/3 (see RunResult), 64 usage error, 65 bad input, 70 internal error.
  */
 public final class Main {
@@ -143,7 +144,7 @@ public final class Main {
 
         var summary = result.summary().deepCopy();
         summary.addProperty("run_dir", result.runDir().toAbsolutePath().normalize().toString());
-        out.println(PRETTY.toJson(summary));
+        out.println(ascii(PRETTY.toJson(summary)));
         return result.exitCode();
     }
 
@@ -173,7 +174,7 @@ public final class Main {
         Set<String> kindSet = kinds == null ? null : Arrays.stream(kinds.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
 
         var records = TraceQuery.records(runDir, new TraceQuery.Filter(kindSet, from, to, peripheral, source, offset, limit));
-        for (var record : records) out.println(COMPACT.toJson(record));
+        for (var record : records) out.println(ascii(COMPACT.toJson(record)));
         if (records.size() == limit) System.err.println("cct-run: stopped at --limit " + limit + "; use --offset " + (offset + limit) + " for more");
         return 0;
     }
@@ -208,7 +209,7 @@ public final class Main {
         var lines = new JsonArray();
         screen.lines().forEach(lines::add);
         json.add("lines", lines);
-        out.println(PRETTY.toJson(json));
+        out.println(ascii(PRETTY.toJson(json)));
         return 0;
     }
 
@@ -219,7 +220,7 @@ public final class Main {
         json.addProperty("minecraft", Versions.MINECRAFT);
         json.addProperty("java", System.getProperty("java.version"));
         json.addProperty("java_home", System.getProperty("java.home"));
-        out.println(PRETTY.toJson(json));
+        out.println(ascii(PRETTY.toJson(json)));
         return 0;
     }
 
@@ -248,6 +249,25 @@ public final class Main {
         } catch (IOException e) {
             throw new InputException("cannot read " + what + " " + path + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Escape every non-ASCII character as \\uXXXX so stdout is plain ASCII. Consoles that are not UTF-8 (e.g.
+     * Windows code page 936) then cannot garble it, and JSON parsers turn the escapes back into the same text.
+     * Valid because JSON syntax itself is ASCII: any non-ASCII character is inside a string. Files on disk stay UTF-8.
+     */
+    static String ascii(String json) {
+        StringBuilder out = null;
+        for (var i = 0; i < json.length(); i++) {
+            var c = json.charAt(i);
+            if (c < 0x80) {
+                if (out != null) out.append(c);
+                continue;
+            }
+            if (out == null) out = new StringBuilder(json.length() + 16).append(json, 0, i);
+            out.append(String.format("\\u%04x", (int) c));
+        }
+        return out == null ? json : out.toString();
     }
 
     static int[] parseTerm(String value) {

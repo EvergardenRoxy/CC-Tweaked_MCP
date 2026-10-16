@@ -83,9 +83,10 @@ check screen-latest-monitor         0  '^    57,$'                              
 check redstone-timeline-terminate   1  '"redstone_output": 2'                          -- run "$examples/redstone_door.lua" --fixture "$examples/redstone_door.fixture.json"
 check scrolled-output               0  '"output": 12'                                  -- run "$examples/long_output.lua"
 check timeout                       2  '"status": "timeout"'                           -- run "$examples/stuck.lua" --timeout 2
+check tick-rate                     2  '"tick_rate": (18\.[5-9]|19\.[0-9]|2[01]\.[0-9])' -- run "$examples/stuck.lua" --timeout 3
 check too-long-without-yielding     1  'Too long without yielding'                     -- run "$examples/no_yield.lua"
 check path-with-space-and-cjk       0  '"status": "ok"'                                -- run "$odd/hello.lua" --fixture "$odd/fixture.json" --out "$odd/runs"
-check utf8-stdout                   0  "\"caf$(printf '\303\203\302\251')\""           -- run "$work/utf8.lua"
+check utf8-stdout                   0  '"caf\\u00c3\\u00a9"'                         -- run "$work/utf8.lua"
 check usage-error                   64 ''                                              -- run "$examples/hello.lua" --frobnicate
 check missing-program               65 ''                                              -- run no-such-file.lua
 check startup-time                  0  '"status": "ok"'                                -- run "$work/quick.lua"
