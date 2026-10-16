@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.cli;
 
 import cctrun.engine.Fixture;
@@ -68,6 +70,12 @@ public final class Main {
             code = EX_USAGE;
         } catch (InputException e) {
             System.err.println("cct-run: " + e.getMessage());
+            code = EX_DATAERR;
+        } catch (java.nio.file.InvalidPathException e) {
+            // Typically a non-ASCII path under a POSIX/C locale, where Java cannot encode file names.
+            System.err.println("cct-run: path cannot be used with this system's file name encoding (sun.jnu.encoding="
+                + System.getProperty("sun.jnu.encoding") + "): " + e.getInput()
+                + "\n  Use an ASCII path, or a UTF-8 locale (e.g. LC_ALL=C.UTF-8 on Linux/macOS).");
             code = EX_DATAERR;
         } catch (Exception e) {
             System.err.println("cct-run: internal error: " + e);

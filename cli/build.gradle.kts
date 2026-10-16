@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 plugins {
     application
 }
@@ -13,4 +15,18 @@ application {
     mainClass = "cctrun.cli.Main"
     // Startup flags that cut JVM start time for short runs (see handoff.md, JVM_COST).
     applicationDefaultJvmArgs = listOf("-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-Xss4m")
+}
+
+// The release zip carries the licences of everything inside it, plus what testers need.
+distributions {
+    main {
+        contents {
+            from(rootProject.layout.projectDirectory) {
+                include("LICENSE", "LICENSES/**", "THIRD-PARTY-NOTICES.md", "examples/**", "scripts/**", "docs/testing.md")
+            }
+            filesMatching("scripts/*.sh") {
+                permissions { unix("rwxr-xr-x") }
+            }
+        }
+    }
 }

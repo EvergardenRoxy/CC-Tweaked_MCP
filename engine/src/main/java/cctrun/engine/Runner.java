@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.engine;
 
 import cctrun.engine.peripheral.EnergyPeripheral;

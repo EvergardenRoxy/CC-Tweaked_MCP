@@ -9,7 +9,7 @@ base: empty repository (this branch holds the first commits)
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented, 25/25 engine tests pass, end-to-end verified on Linux (Java 17/21/25); MCP wrapper not started
+status: CLI implemented, 25/25 engine tests pass, end-to-end verified on Linux (Java 17/21/25); license files + release zip + maintainer test kit added; Windows/macOS results pending (maintainer); MCP wrapper not started
 readme: intentionally absent (user instruction); this file replaces it for now
 ```
 
@@ -37,7 +37,16 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D10 | Bytecode target Java 17 (`options.release = 17`), matching the runtime Minecraft 1.20.1 ships. | impl |
 | D11 | Multishell off by default (`bios.use_multishell=false`) so scrolled-off lines are captured exactly; fixture `computer.multishell: true` re-enables it. | impl |
 | D12 | Item transfer follows Forge semantics (target slots filled in slot order); Fabric fills existing stacks first. | impl |
-| D13 | Wired-modem lookup methods (getNamesRemote, isPresentRemote, getTypeRemote, hasTypeRemote, getMethodsRemote) are not traced: CraftOS calls them dozens of times per `peripheral.find`. | impl |
+| D13 | Wired-modem lookup methods (getNamesRemote, isPresentRemote, getTypeRemote, hasTypeRemote, getMethodsRemote) are not traced: CraftOS calls them dozens of times per `peripheral.find`. | impl, confirmed by user |
+| D14 | Licensing: comply with the licenses of bundled code. Own code MPL-2.0 (`LICENSE`, SPDX headers). `harness.lua` is CCPL because it adapts code from CC:T `rom/programs/shell.lua` (SPDX LicenseRef-CCPL, (c) 2017 Daniel Ratcliffe). Third-party licenses in `LICENSES/`, inventory in `THIRD-PARTY-NOTICES.md`. Open question on CCPL section 7: see R4. | user (comply) + impl (per-file split) |
+| D15 | Distribution: release zip (`./gradlew :cli:distZip`) with launcher, libs, licenses, notices, examples, test scripts, test guide. No public release until R4 is resolved; the current zip is a maintainer test build. | user |
+| D16 | Development order (incremental, not one round): N1 agent usage notes -> N3 Java discovery + N2 Windows/macOS -> N4 resource limits -> N5 MCP wrapper. | user |
+| D17 | Resource defaults for N4: JVM heap cap 1 GB; default timeout 15 s (unchanged); trace over its size cap is truncated (not sampled). Not implemented yet. | user |
+| D18 | D11, D12, D13 confirmed. | user |
+| D19 | Turtles (N9) out of scope for now. | user |
+| D20 | New peripherals (N6) are added as the skill's templates need them; every simulated behaviour that can differ from the game is recorded in DIVERGENCES. | user |
+| D21 | Skill integration (M6) parked; both repos will change later. Work in the skill repo (EvergardenRoxy/CC-Tweaked_LLM_skill, branch claude/charming-bohr-b36rua, 2 unmerged commits) is parked. | user |
+| D22 | Windows (required) and macOS (optional) testing is done by the maintainer with the test kit (`docs/testing.md`, `scripts/smoke-test.ps1`, `scripts/smoke-test.sh`); results come back as report files. | user |
 
 ## LAYOUT
 
@@ -69,6 +78,12 @@ engine/src/main/resources/cctrun/harness.lua   installed as /startup.lua; mirror
 engine/src/test/java/cctrun/engine/            RunnerTest, PeripheralTest, FixtureTest, TraceQueryTest, RunHelper
 cli/src/main/java/cctrun/cli/Main.java         argument parsing, commands, exit codes
 examples/                                      sample programs and fixtures used for end-to-end checks
+scripts/smoke-test.ps1                         maintainer smoke test, Windows PowerShell 5.1 / PowerShell 7 (ASCII only)
+scripts/smoke-test.sh                          same cases for macOS/Linux (bash 3.2, grep)
+docs/testing.md                                test guide for the maintainer (Chinese)
+LICENSE                                        MPL-2.0 (own code)
+LICENSES/                                      MPL-2.0, LicenseRef-CCPL, Apache-2.0, third-party/{cobalt-MIT, checker-qual-MIT, slf4j-MIT, jzlib-BSD-3-Clause, netty-NOTICE}
+THIRD-PARTY-NOTICES.md                         bundled artifacts, licenses, source links, CCPL conditions
 ```
 
 ## BUILD
@@ -76,6 +91,7 @@ examples/                                      sample programs and fixtures used
 ```
 ./gradlew build                      # compile + 25 tests (~20 s of test time; some tests wait real game time)
 ./gradlew :cli:installDist           # -> cli/build/install/cct-run/{bin/cct-run, bin/cct-run.bat, lib/*.jar}
+./gradlew :cli:distZip               # -> cli/build/distributions/cct-run-<version>.zip (~28 MB): bin, lib, LICENSE(S), notices, examples, scripts, docs/testing.md
 cli/build/install/cct-run/bin/cct-run run examples/hello.lua
 ```
 
@@ -246,20 +262,70 @@ Matches CC: Tweaked 1.120.2 because the real code runs, or because behaviour was
 - L13: A program that prints and shuts down/reboots in the same tick: screen kept via the reset hook; anything printed after the reset is not shown.
 - L14: Screen records carry text only; colours and palette are not recorded.
 - L15: Run directories accumulate under `.cct-runs`; no cleanup command.
-- L16: Not tested on Windows (cct-run.bat generated by Gradle, not executed) or macOS.
+- L16: Not yet run on Windows (cct-run.bat generated by Gradle, never executed) or macOS. Test kit ready (D22); results pending.
 - L17: Java discovery = JAVA_HOME or PATH only; the Java runtime bundled with the Minecraft launcher (usually not on PATH) is not found automatically.
 - L18: No AppCDS archive; measured fixed cost ~645 ms per run (see JVM_COST).
 - L19: Engine tests run many runs per JVM; CoreConfig is global and computer threads may linger briefly. Fine for tests; do not run concurrent runs in one JVM.
+- L20: Non-ASCII paths fail under a POSIX/C locale (Java's sun.jnu.encoding = ASCII): exit 65 with a hint to use a UTF-8 locale. Works with a UTF-8 locale; Windows uses Unicode file APIs (to be confirmed by the test kit).
+- L21: Callers reading stdout must decode it as UTF-8. On Windows consoles with a non-UTF-8 code page, non-ASCII characters in the JSON are mis-decoded unless the console is switched to UTF-8 (the test kit measures this: default_encoding_check).
+
+## DIVERGENCES
+
+Ledger of simulated behaviour that can differ from the real game (D20). Rule: every new or changed fake peripheral or harness behaviour adds a row with the upstream evidence used and what can differ. Agents should treat a passing run as "passes against this model", not "works in game", wherever a row applies.
+
+| id | area | simulation | real game | evidence / note |
+|---|---|---|---|---|
+| DV1 | inventory transfer order | Forge: fill target slots in order | Fabric: existing stacks first; Forge: slot order | forge/fabric InventoryMethods (D12) |
+| DV2 | inventory detail | subset of getItemDetail fields | full ItemDetails (enchantments, lore, durability...) | L3 |
+| DV3 | inventory slots | every slot accepts any item, limit 64 | per-block rules (furnace input/fuel/output, shulker boxes, modded inventories) | L3; matters for the furnace-array template |
+| DV4 | fluids | tanks() only, static | pushFluid/pullFluid; amounts change with the world | L2 |
+| DV5 | energy | static unless set by timeline | changes with generators/consumers | fixture timeline `energy` |
+| DV6 | monitors | size from blocks, no touch unless injected | players touch; multi-block monitors can be broken/extended | timeline `event` monitor_touch |
+| DV7 | wired network | fixed membership | peripherals join/leave (peripheral / peripheral_detach events) | L2 |
+| DV8 | modem messages | transmit recorded, nothing received | other computers reply | L2 |
+| DV9 | time | in-game time frozen at 0 | os.time()/os.day() advance | L12 |
+| DV10 | disk | capacity reported, not enforced | "Out of space" errors | L5 |
+| DV11 | http | disabled | server config decides | L4 |
+| DV12 | shell | multishell off by default; startup.lua is the harness | multishell on for advanced computers; user's own startup | D11, L7 |
+| DV13 | world | no blocks, no turtles, no chunk unloading, no server lag | all present | L1, D19 |
 
 ## RISKS
 
 - R1: False confidence from fakes. Any divergence from the game in peripheral behaviour makes passing runs misleading. Mitigation so far: messages/semantics copied from tag source (FIDELITY). Needed: document per-peripheral fidelity for agents; extend from source, not memory.
 - R2: `Computer.startRequested` is read by reflection (reboot detection). A CC:T upgrade may rename it; code falls back to a timing rule (not exercised by tests).
 - R3: Single source for the core artifact (maven.squiddev.cc). If unavailable, builds fail. Consider vendoring/mirroring before releases.
-- R4: Licensing. CC:T core is MPL-2.0; parts of the ROM/fonts inside the jar are CCPL (requires free source availability, CCPL for redistributed CC:T parts, and the user owning Minecraft). The repo does not contain CC:T code, but `installDist` output and any release archive include the CC:T jars. Decide release packaging and add a LICENSE/NOTICE before distributing binaries. This repo has no LICENSE file yet (owner decision).
+- R4: Licensing, CCPL section 7 (OPEN, owner decision needed before any public release).
+  - Facts:
+    - The published core jar's POM declares "ComputerCraft Public License, Version 1.0". Upstream source files are individually MPL-2.0 or CCPL; for example, `rom/programs/shell.lua` is CCPL.
+    - CCPL section 5 allows redistributing the mod, in whole or in part, "included in a distribution", provided sources stay available at no cost and the files remain CCPL. Done: see THIRD-PARTY-NOTICES.md.
+    - CCPL section 7: "It is permitted to use the code and assets contained in this mod ... in other Minecraft Mods, provided they are non-commercial. However: the code and assets may not be used in commercial mods, mods for other games, other games, other non-game projects, or any commercial projects."
+  - Exposure:
+    - (a) `harness.lua` adapts code from shell.lua, which is CCPL code used in a non-game project.
+    - (b) Bundling the core jar in a tool that is not a mod: section 5 permits redistribution, but section 7 may be read to restrict use.
+  - Context: upstream ARCHITECTURE.md describes `core` as usable "in emulators and other tooling"; CraftOS-PC (an emulator, not a mod) distributes the CraftOS ROM.
+  - Options:
+    - O1: ask the CC:T maintainers for clarification or permission (recommended in all cases).
+    - O2: remove copied CCPL code by rewriting harness.lua from the public behaviour/API only (keeps the same observable behaviour), so that all own code is MPL-2.0.
+    - O3: stop bundling CC:T and download the core jar from maven.squiddev.cc on first run; this reverses D15.
+  - Status: the zip has only been given to the maintainer for testing.
 - R5: Unbounded trace size: a long run (timeout up to 3600 s) that redraws every tick writes one screen record per tick. Needs caps or sampling.
 - R6: Untrusted code and memory: no Lua memory limit; a program allocating rapidly can exhaust the JVM heap (default max heap = 1/4 of RAM) before "Too long without yielding". Consider `-Xmx` in the start scripts and handling OutOfMemoryError as a distinct status.
-- R7: The first push of this branch to the empty repository may make `claude/cct-run-cli` the default branch on GitHub; the owner may want to create `main` and change the default.
+- R7: Confirmed: the repository's default branch is `claude/cct-run-cli` (first push to an empty repository). Owner action: create `main` and set it as default (A1).
+
+## TEST_KIT
+
+For the maintainer (D22). Guide: `docs/testing.md`.
+
+- `scripts/smoke-test.ps1` (Windows PowerShell 5.1 / PowerShell 7):
+  - Runs 16 cases (exit codes and JSON fields), plus two extra checks:
+    - stdout decoded with the console's original encoding (`default_encoding_check`);
+    - running the `.bat` from `cmd.exe`.
+  - Also lists `java.exe` paths under LOCALAPPDATA, APPDATA and Program Files for N3 (paths only; `-NoJavaSearch` disables this).
+  - Writes `cct-run-smoke-report.json` (schema `cct-run/smoke-report@1`).
+  - The file is kept ASCII-only for PowerShell 5.1.
+- `scripts/smoke-test.sh` (macOS/Linux, bash 3.2, grep only): the same 16 cases; writes `cct-run-smoke-report.txt`.
+- Cases: version, args-with-space-and-separator, runtime-error, syntax-error, fixture-wired-network-monitor, trace-latest, screen-latest-monitor, redstone-timeline-terminate, scrolled-output, timeout, too-long-without-yielding, path-with-space-and-cjk, utf8-stdout, usage-error, missing-program, startup-time.
+- The guide also asks for manual cmd.exe output and an agent task, run in dsh, Codex and Claude Code on Windows, with a results table.
 
 ## VERIFICATION
 
@@ -278,6 +344,12 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - usage/bad input: no command, missing program, `--timeout 0`, unknown option -> 64; missing file, invalid fixture (`$.peripherals.left.size: must be at least 1`), bad run dir, unknown screen source -> 65.
   - `trace --kind/--ticks/--peripheral/--offset/--limit`, `screen --source monitor_0`, `version` produce the documented JSON.
 - V3: Runtime compatibility: `cct-run version` and the storage_monitor example pass on Java 17.0.20 and 25.0.4.
+- V4: Test kit, on Linux only (not Windows):
+  - `smoke-test.ps1` under PowerShell 7.6.7: 16/16 with LC_ALL=C.UTF-8.
+  - Under the C locale, path-with-space-and-cjk fails with exit 65 and the locale hint (L20); before the fix this was exit 70 (internal error).
+  - `smoke-test.sh`: 16/16 with LC_ALL=C.UTF-8.
+  - Both were run from the source tree and from the unzipped release layout.
+- V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
 
 ## JVM_COST
 
@@ -299,18 +371,18 @@ Most of the remaining cost is JVM start/class loading plus ~6 boot ticks at 50 m
 
 ## NEXT
 
-Ordered by expected value; none started.
+Order set by D16; incremental.
 
-1. N1: Agent-facing usage notes (in this repo and/or the skill repo): when to run, how to read summary/notes, how to query trace, fixture cookbook.
-2. N2: Windows check for dsh/PowerShell (cct-run.bat, paths, UTF-8 stdout) and macOS.
-3. N3: Java discovery in launcher scripts (L17): JAVA_HOME, PATH, Minecraft launcher runtime dirs (`.minecraft/runtime/java-runtime-*`, Prism/CurseForge).
-4. N4: Resource limits (R5, R6): heap cap, OOM -> distinct status, trace size cap, `cct-run clean`.
-5. N5: MCP wrapper over the CLI (stdio): tools run/trace/screen mapping 1:1 to the CLI; spawns one `cct-run` per call (D1).
-6. N6: More peripherals by demand from the skill's templates: speaker, printer, disk drive, wireless modem + multi-computer rednet.
-7. N7: Colour in screen records (L14) if agents need it.
-8. N8: Startup time: optional AppCDS archive created on first run (R: per-install file), measure benefit on Java 17.
-9. N9: Turtles (L1) via CC:T gametest or a dedicated world model; scope decision needed.
-10. N10: Release packaging after the license decision (R4).
+1. N1: Agent-facing usage notes: when to run cct-run, reading summary/notes, querying the trace, a fixture cookbook, reading stdout as UTF-8 (L21), and DIVERGENCES (what a pass means). Placement is undecided (M6 parked); start in this repo.
+2. N3: Java discovery in the launcher scripts (L17). Order: JAVA_HOME, PATH, then Minecraft launcher runtimes. Use the `java_candidates` from maintainer reports to pick the paths.
+3. N2: Fix whatever the Windows/macOS reports show (D22).
+4. N4: Resource limits with the D17 values: `-Xmx1g` in the start scripts, OutOfMemoryError as a distinct status, a trace size cap with truncation (plus a `truncated` flag in the summary), and `cct-run clean`.
+5. N5: MCP wrapper over the CLI (stdio): tools run/trace/screen map 1:1 to the CLI; each call spawns one `cct-run` (D1).
+6. N6: Peripherals as the skill's templates need them (D20): e.g. furnace slot rules (DV3), speaker, printer, disk drive, wireless modem + multi-computer rednet. Each one adds DIVERGENCES rows.
+7. N7: Colour in screen records (L14), if agents need it.
+8. N8: Startup time: optional AppCDS archive created on first run (one file per install); measure the benefit on Java 17.
+9. N10: Public release after R4 is decided.
+- Deferred: N9 turtles (D19).
 
 ## REFERENCES
 
