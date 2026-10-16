@@ -72,6 +72,7 @@ bash scripts/smoke-test.sh          # 生成 cct-run-smoke-report.txt
 | usage-error / missing-program | 退出码 64、65 |
 | startup-time | 单次运行耗时（看 `seconds`） |
 | guide | `cct-run guide` 能输出给 AI 看的使用说明（纯 ASCII） |
+| memory-limit | **本轮新增**：不停分配内存的程序应在约 4 秒后以 `out_of_memory`（退出码 4）结束，内存上限约 1024 MB。需要约 1 GB 空闲内存 |
 | mcp-stdio | **本轮新增**：以 MCP 服务器方式启动（`cct-run.bat mcp`），完成握手、列出 4 个工具、运行一段代码、读取说明 |
 | mcp-via-cmd | **本轮新增**（仅 Windows）：同上，但通过 `cmd /c` 启动，这是 README 里客户端配置使用的写法 |
 | old-java-switch | **本轮新增**：把 `JAVA_HOME` 临时指向本机的 Java 8，cct-run 应提示 "is too old; using Java ..." 并自动换用 Java 17+ 运行成功。脚本会在 Program Files 下自动找 Java 8（你的机器上有 Zulu 8）；找不到时显示 `SKIP`，不算失败 |

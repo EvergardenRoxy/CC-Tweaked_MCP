@@ -17,6 +17,8 @@ import dan200.computercraft.core.filesystem.MemoryMount;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryType;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +50,9 @@ public final class Runner {
     private static final java.lang.reflect.Field START_REQUESTED = startRequestedField();
     private static final int START_GRACE_TICKS = 10;
     private static final int MIN_TICKS_FOR_RATE = 40;
+    /** How Cobalt words a Java OutOfMemoryError it turned into a Lua error. */
+    static final String OOM_MARKER = "vm error: java.lang.OutOfMemoryError";
+    private static final long MB = 1024 * 1024;
     /** CC: Tweaked's default computer_space_limit. Reported by fs.getFreeSpace; writes are not limited (see handoff.md). */
     private static final long DISK_CAPACITY = 1_000_000;
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
@@ -109,6 +114,9 @@ public final class Runner {
 
             var pacer = TickPacer.realTime(TPS);
             var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer);
+            // Cobalt turns a Java OutOfMemoryError inside Lua into a Lua error ("vm error: java.lang.OutOfMemoryError: ...").
+            // When that error ends the program, report it as its own status: the heap limit (1 GB, D33) was reached.
+            if (outcome.equals("error") && api.message != null && api.message.contains(OOM_MARKER)) outcome = "out_of_memory";
 
             var timeoutState = outcome.equals("timeout") ? machines.executionState() : null;
             // The VM only has a state to print while Lua code is running, not while it waits for an event.
@@ -137,6 +145,7 @@ public final class Runner {
                 case "ok" -> 0;
                 case "error" -> 1;
                 case "timeout" -> 2;
+                case "out_of_memory" -> 4;
                 default -> 3;
             };
 
@@ -296,6 +305,21 @@ public final class Runner {
         return out;
     }
 
+    /**
+     * Heap figures of this JVM (cct-run itself included): the limit (-Xmx, 1 GB from the start scripts) and the
+     * highest use seen, as the sum of each heap pool's peak, so an upper bound.
+     */
+    static JsonObject memory() {
+        long peak = 0;
+        for (var pool : ManagementFactory.getMemoryPoolMXBeans()) {
+            if (pool.getType() == MemoryType.HEAP) peak += pool.getPeakUsage().getUsed();
+        }
+        var memory = new JsonObject();
+        memory.addProperty("heap_limit_mb", Runtime.getRuntime().maxMemory() / MB);
+        memory.addProperty("heap_peak_mb", peak / MB);
+        return memory;
+    }
+
     private static JsonObject summary(RunSpec spec, Fixture fixture, Instant created, String runId, String storedName, String outcome,
                                       int exitCode, Clock clock, TickPacer pacer, HarnessApi api, List<String> finalScreen, TracingTerminal terminal,
                                       JsonObject monitorScreens, String timeoutState, boolean advanced, int[] size, Trace trace) {
@@ -307,7 +331,7 @@ public final class Runner {
         out.addProperty("exit_code", exitCode);
 
         var error = new JsonObject();
-        if (outcome.equals("error")) {
+        if (outcome.equals("error") || outcome.equals("out_of_memory")) {
             error.addProperty("phase", api.phase);
             error.addProperty("message", api.message);
             error.addProperty("traceback", api.traceback);
@@ -326,6 +350,7 @@ public final class Runner {
         if (clock.tick() >= MIN_TICKS_FOR_RATE) duration.addProperty("tick_rate", Math.round(pacer.tickRate(clock.tick()) * 10) / 10.0);
         if (pacer.lagResets() > 0) duration.addProperty("lag_resets", pacer.lagResets());
         out.add("duration", duration);
+        out.add("memory", memory());
 
         var screen = new JsonObject();
         screen.add("size", intArray(size[0], size[1]));

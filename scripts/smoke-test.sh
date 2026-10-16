@@ -92,6 +92,8 @@ check usage-error                   64 ''                                       
 check missing-program               65 ''                                              -- run no-such-file.lua
 check startup-time                  0  '"status": "ok"'                                -- run "$work/quick.lua"
 check guide                         0  'cct-run agent guide'                           -- guide
+# Exit 4 = out_of_memory; the limit is the start scripts' -Xmx1g (reported a little under 1024 MB).
+check memory-limit                  4  '"heap_limit_mb": (9[0-9][0-9]|10[0-2][0-9])'  -- run "$examples/memory_hog.lua"
 
 # Started with Java 8 (if one is installed), cct-run must switch to an installed Java 17+ by itself.
 java8=""

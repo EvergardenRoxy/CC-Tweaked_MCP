@@ -30,7 +30,7 @@ final class McpTools {
           {
             "name": "cct_run",
             "title": "Run a CC: Tweaked program",
-            "description": "Runs a ComputerCraft Lua program on a headless CC: Tweaked 1.120.2 computer (Minecraft 1.20.1) in real time, 20 ticks/s, and returns the run summary as JSON: status (ok, error, timeout, shutdown, reboot), exit_code (0, 1, 2, 3), error {phase, message with file:line, traceback}, final screen lines, monitors, notes (failed peripheral calls etc.), trace_counts, duration and run_dir. A Lua error is a normal result here, not a tool failure. Programs that loop forever end with status timeout; judge them by screen and trace. Give the program as 'file' (path) or 'code' (source text). Use a fixture to simulate peripherals, redstone and timed events. Read cct_guide once before the first run.",
+            "description": "Runs a ComputerCraft Lua program on a headless CC: Tweaked 1.120.2 computer (Minecraft 1.20.1) in real time, 20 ticks/s, and returns the run summary as JSON: status (ok, error, timeout, shutdown, reboot, out_of_memory), exit_code (0, 1, 2, 3, 4), error {phase, message with file:line, traceback}, final screen lines, monitors, notes (failed peripheral calls etc.), trace_counts, duration, memory (heap limit about 1 GB and peak use) and run_dir. A Lua error is a normal result here, not a tool failure. Programs that loop forever end with status timeout; judge them by screen and trace. Give the program as 'file' (path) or 'code' (source text). Use a fixture to simulate peripherals, redstone and timed events. Read cct_guide once before the first run.",
             "inputSchema": {
               "type": "object",
               "properties": {

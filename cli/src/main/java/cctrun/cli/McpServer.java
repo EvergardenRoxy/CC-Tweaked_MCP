@@ -228,7 +228,7 @@ final class McpServer {
                 var code = process.exitValue();
                 var stdout = Files.readString(stdoutFile, StandardCharsets.UTF_8).strip();
                 var stderr = request.hideTempPaths(Files.readString(stderrFile, StandardCharsets.UTF_8).strip());
-                if (code >= 0 && code <= 3 && !stdout.isEmpty()) return toolResult(stdout, false);
+                if (code >= 0 && code <= Main.EX_OUT_OF_MEMORY && !stdout.isEmpty()) return toolResult(stdout, false);
                 return toolResult("cct-run run failed with exit code " + code + " (" + exitMeaning(code) + ").\n" + stderr, true);
             } finally {
                 Files.deleteIfExists(stdoutFile);

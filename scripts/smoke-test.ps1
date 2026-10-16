@@ -155,7 +155,11 @@ $cases = @(
     @{ Name = "old-java-switch"; Args = @("run", $quick); Exit = 0; Env = @{ JAVA_HOME = $java8 }; SkipIf = (-not $java8); Check = {
         param($r, $j) if ($r.Stderr -notlike "*is too old; using Java*") { "no switch message on stderr: $($r.Stderr)" } } },
     @{ Name = "guide"; Args = @("guide"); Exit = 0; Raw = $true; Check = {
-        param($r, $j) if ($r.Stdout -notlike "*cct-run agent guide*") { "guide text missing" } } }
+        param($r, $j) if ($r.Stdout -notlike "*cct-run agent guide*") { "guide text missing" } } },
+    @{ Name = "memory-limit"; Args = @("run", (Ex "memory_hog.lua")); Exit = 4; Check = {
+        param($r, $j)
+        if ($j.status -ne "out_of_memory") { "status = $($j.status)" }
+        elseif ($j.memory.heap_limit_mb -lt 900 -or $j.memory.heap_limit_mb -gt 1024) { "heap_limit_mb = $($j.memory.heap_limit_mb) (expected about 1024)" } } }
 )
 
 # --- run ----------------------------------------------------------------------------------------

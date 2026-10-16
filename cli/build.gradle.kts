@@ -40,8 +40,9 @@ tasks.test {
 application {
     applicationName = "cct-run"
     mainClass = "cctrun.cli.Launcher"
-    // Startup flags that cut JVM start time for short runs (see handoff.md, JVM_COST).
-    applicationDefaultJvmArgs = listOf("-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-Xss4m")
+    // Startup flags that cut JVM start time for short runs (see handoff.md, JVM_COST), and the 1 GB heap limit for
+    // the Lua program (D33). JAVA_OPTS / CCT_RUN_OPTS come later on the command line, so -Xmx there overrides it.
+    applicationDefaultJvmArgs = listOf("-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-Xss4m", "-Xmx1g")
 }
 
 // The release zip carries the licences of everything inside it, plus what testers need.
