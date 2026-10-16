@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.engine;
 
 import com.google.gson.JsonObject;
@@ -17,6 +19,7 @@ public final class HarnessApi implements ILuaAPI {
     private final Trace trace;
     private final TracingTerminal terminal;
 
+    volatile boolean started;
     volatile boolean finished;
     volatile boolean ok;
     volatile String phase;
@@ -32,6 +35,14 @@ public final class HarnessApi implements ILuaAPI {
     @Override
     public String[] getNames() {
         return new String[]{ "__cctrun" };
+    }
+
+    /** Called by harness.lua right before the program's main chunk runs (after it compiled). */
+    @LuaFunction
+    public final void start() {
+        if (started) return;
+        started = true;
+        trace.record("program_start", new JsonObject());
     }
 
     @LuaFunction

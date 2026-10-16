@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.engine;
 
 import cctrun.engine.peripheral.EnergyPeripheral;
@@ -45,6 +47,7 @@ public final class Runner {
     /** Private Computer.startRequested: set while a reboot waits for START_DELAY. Null if CC: Tweaked renamed it. */
     private static final java.lang.reflect.Field START_REQUESTED = startRequestedField();
     private static final int START_GRACE_TICKS = 10;
+    private static final int MIN_TICKS_FOR_RATE = 40;
     /** CC: Tweaked's default computer_space_limit. Reported by fs.getFreeSpace; writes are not limited (see handoff.md). */
     private static final long DISK_CAPACITY = 1_000_000;
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
@@ -69,10 +72,10 @@ public final class Runner {
         // Untrusted code: no network access.
         CoreConfig.httpEnabled = false;
         CoreConfig.httpWebsocketEnabled = false;
-        // Without multishell the program writes straight to the native terminal, so lines that scroll off are
-        // recorded exactly (with multishell, a Lua window redraws via blit and never calls Terminal.scroll).
-        // The startup tip is noise in the first screen record.
-        CoreConfig.defaultComputerSettings = "motd.enable=false" + (fixture.multishell ? "" : ",bios.use_multishell=false");
+        // Settings cct-run applies to every computer (see injectedSettings).
+        var injected = injectedSettings(fixture);
+        CoreConfig.defaultComputerSettings = injected.entrySet().stream()
+            .map(e -> e.getKey() + "=" + e.getValue()).collect(java.util.stream.Collectors.joining(","));
 
         var clock = new Clock();
         try (var trace = new Trace(runDir.resolve("trace.jsonl"), clock)) {
@@ -87,7 +90,7 @@ public final class Runner {
             var machines = new RecordingMachine.Holder();
             var context = ComputerContext.builder(env)
                 .mainThreadScheduler(mainThread)
-                .luaFactory(RecordingMachine.factory(trace, machines))
+                .luaFactory(RecordingMachine.factory(trace, machines, injected))
                 .build();
             var computer = new Computer(context, env, terminal, fixture.computerId);
             if (fixture.label != null) computer.setLabel(fixture.label);
@@ -104,7 +107,8 @@ public final class Runner {
             start.addProperty("timeout_s", spec.timeoutSeconds());
             trace.record("run_start", start);
 
-            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture);
+            var pacer = TickPacer.realTime(TPS);
+            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer);
 
             var timeoutState = outcome.equals("timeout") ? machines.executionState() : null;
             // The VM only has a state to print while Lua code is running, not while it waits for an event.
@@ -141,7 +145,7 @@ public final class Runner {
             end.addProperty("exit_code", exitCode);
             trace.record("run_end", end);
 
-            var summary = summary(spec, fixture, created, runId, storedName, outcome, exitCode, clock, api, finalScreen,
+            var summary = summary(spec, fixture, created, runId, storedName, outcome, exitCode, clock, pacer, api, finalScreen,
                 terminal, monitorScreens, timeoutState, advanced, size, trace);
             trace.close();
             Files.writeString(runDir.resolve("summary.json"), Trace.GSON.newBuilder().setPrettyPrinting().create().toJson(summary) + "\n", StandardCharsets.UTF_8);
@@ -151,7 +155,7 @@ public final class Runner {
 
     /** Tick loop. Returns ok | error | timeout | shutdown | reboot. */
     private static String loop(RunSpec spec, Clock clock, Trace trace, Computer computer, MainThread mainThread, TracingTerminal terminal,
-                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture) {
+                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture, TickPacer pacer) {
         var maxTicks = spec.timeoutSeconds() * TPS;
         var everOn = false;
         var bootTick = 0;
@@ -161,7 +165,6 @@ public final class Runner {
         for (var tick = 0; ; tick++) {
             clock.setTick(tick);
             if (tick >= maxTicks) return "timeout";
-            var tickStart = System.nanoTime();
 
             for (var action : fixture.timeline) if (action.tick() == tick) apply(action, computer, built, trace);
 
@@ -194,14 +197,17 @@ public final class Runner {
             if (rebootPending(computer, tick, bootTick)) lastStartPending = tick;
             if (everOn && !computer.isOn() && tick - lastStartPending > START_GRACE_TICKS) return "shutdown";
 
-            var sleepNanos = TimeUnit.MILLISECONDS.toNanos(1000 / TPS) - (System.nanoTime() - tickStart);
-            if (sleepNanos > 0) {
-                try {
-                    TimeUnit.NANOSECONDS.sleep(sleepNanos);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return "timeout";
+            try {
+                var behind = pacer.awaitTick(tick + 1);
+                if (behind > 0) {
+                    var data = new JsonObject();
+                    data.addProperty("behind_ms", behind / 1_000_000);
+                    data.addProperty("note", "tick loop fell behind; missed ticks were skipped");
+                    trace.note("tick_lag", data);
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return "timeout";
             }
         }
     }
@@ -291,7 +297,7 @@ public final class Runner {
     }
 
     private static JsonObject summary(RunSpec spec, Fixture fixture, Instant created, String runId, String storedName, String outcome,
-                                      int exitCode, Clock clock, HarnessApi api, List<String> finalScreen, TracingTerminal terminal,
+                                      int exitCode, Clock clock, TickPacer pacer, HarnessApi api, List<String> finalScreen, TracingTerminal terminal,
                                       JsonObject monitorScreens, String timeoutState, boolean advanced, int[] size, Trace trace) {
         var out = new JsonObject();
         out.addProperty("schema", Versions.SUMMARY_SCHEMA);
@@ -315,6 +321,10 @@ public final class Runner {
         duration.addProperty("ticks", clock.tick());
         duration.addProperty("seconds", clock.tick() / (double) TPS);
         duration.addProperty("wall_ms", clock.millis());
+        // Measured over the tick loop; should be close to 20. Lower means game time ran slow (see handoff.md DV14).
+        // Omitted for runs under 2 s, where JVM warm-up in the first ticks dominates the figure.
+        if (clock.tick() >= MIN_TICKS_FOR_RATE) duration.addProperty("tick_rate", Math.round(pacer.tickRate(clock.tick()) * 10) / 10.0);
+        if (pacer.lagResets() > 0) duration.addProperty("lag_resets", pacer.lagResets());
         out.add("duration", duration);
 
         var screen = new JsonObject();
@@ -358,6 +368,20 @@ public final class Runner {
         if (spec.fixtureSource() != null) files.addProperty("fixture", "fixture.json");
         out.add("files", files);
         return out;
+    }
+
+    /**
+     * Settings cct-run sets on every computer through CC: Tweaked's default settings. Each one that differs from
+     * CraftOS's default produces one setting_changed event at boot, which RecordingMachine flags as cct-run's.
+     * Without multishell the program writes straight to the native terminal, so lines that scroll off are recorded
+     * exactly (with multishell, a Lua window redraws via blit and never calls Terminal.scroll). The startup tip is
+     * noise in the first screen record.
+     */
+    static java.util.Map<String, Object> injectedSettings(Fixture fixture) {
+        var settings = new java.util.LinkedHashMap<String, Object>();
+        settings.put("motd.enable", false);
+        if (!fixture.multishell) settings.put("bios.use_multishell", false);
+        return settings;
     }
 
     /** The harness owns /startup.lua, so a program called startup.lua is stored as main.lua. */

@@ -1,0 +1,223 @@
+# cct-run：给 AI 用的 CC: Tweaked 测试环境
+
+cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不用启动 Minecraft**，就能直接运行 CC: Tweaked 的 Lua 程序，并拿到结构化的运行结果和完整的运行记录，用来检查和调试程序。
+
+- 运行的是 **CC: Tweaked 1.120.2（Minecraft 1.20.1）的真实代码**，包括 Lua 运行时、ROM、BIOS、shell 和各个 API，不是自己仿写的。
+- 按真实时间运行，每秒 20 刻。
+- 每次运行都会输出 JSON 摘要（结果、错误和行号、最终屏幕），并把全过程记录到 trace 文件里。
+
+> **当前状态：命令行工具（CLI）可用，MCP 服务器还没做。**
+> 现在的用法是让 AI 通过终端调用 `cct-run` 命令；以 MCP 形式接入是下一阶段的工作，会作为这个命令行工具的一层薄包装（见文末“路线图”）。所有支持终端命令的 AI 客户端现在就能用。
+
+---
+
+## 能做什么
+
+| 功能 | 说明 |
+|---|---|
+| 运行程序 | 在无界面的 CC 电脑上运行 `.lua` 程序，可以传命令行参数，可以设置超时 |
+| 报告结果 | `ok` / `error` / `timeout` / `shutdown` / `reboot`，并给出对应的退出码 |
+| 定位错误 | 语法错误和运行时错误都给出文件名、行号、错误信息和调用栈，与游戏里显示的一致；“Too long without yielding”也能复现（约 7 秒） |
+| 屏幕内容 | 程序结束时电脑屏幕和每台显示器上的文字；滚出屏幕的行也有记录 |
+| 全程记录（trace） | 每个事件、每次外设调用及其返回值、红石输出、屏幕变化都带时间（第几刻）记录下来，可以按类型、时间段、外设筛选查询 |
+| 回放屏幕 | 查询任意一刻电脑或显示器上显示的内容 |
+| 模拟外设和世界 | 用 fixture 文件布置箱子等容器、能量存储、流体存储、显示器、有线调制解调器网络、红石输入和预置文件 |
+| 按时间注入事件 | 在指定的刻改变红石输入、修改箱子内容、改能量、发送任意事件（如按键、触摸显示器），或者按下 Ctrl+T 终止程序 |
+| AI 使用说明 | `cct-run guide` 打印一份写给 AI 的英文说明：使用流程、各字段含义、排查方法、常见陷阱，以及“测试通过”意味着什么 |
+
+### 一个例子
+
+```
+> bin\cct-run.bat run examples\runtime_error.lua
+{
+  "status": "error",
+  "exit_code": 1,
+  "error": {
+    "phase": "runtime",
+    "message": "/runtime_error.lua:4: attempt to index local 'mon' (a nil value)",
+    "traceback": "stack traceback:\n\t/runtime_error.lua:4: in local 'draw'\n..."
+  },
+  "screen": { "size": [51, 19], "lines": [ "/runtime_error.lua:4: attempt to index local 'mon'", ... ] },
+  "trace_counts": { "event": 2, "screen": 2, ... },
+  "run_dir": "...\\.cct-runs\\20261016-155108-066-fb88"
+  ...
+}
+```
+
+然后查这次运行收到了哪些事件：
+
+```
+> bin\cct-run.bat trace latest --kind event
+```
+
+---
+
+## 安装
+
+### 1. 准备 Java 17 或更高版本
+
+玩 Minecraft 1.20.1 的电脑一般都已经装了。检查方法：
+
+```
+java -version
+```
+
+- 如果系统默认的是旧版 Java（例如 Java 8），也没关系：cct-run 会自动找本机已安装的 Java 17+ 并换用它，查找顺序是 `JAVA_HOME`、`PATH`，最后是常见的 JDK 安装目录。
+- 如果一个 Java 17+ 都找不到，cct-run 会以退出码 69 结束，并提示如何设置 `JAVA_HOME`。可以安装任意一个发行版，例如 [Adoptium Temurin](https://adoptium.net/) 或 [Zulu](https://www.azul.com/downloads/)。
+
+### 2. 下载并解压
+
+解压发布包 `cct-run-<版本>.zip`（目前还没有公开发布，见“路线图”），例如解压到 `C:\cct-run`。目录结构：
+
+```
+cct-run\
+  bin\cct-run.bat   bin\cct-run      启动脚本（Windows / macOS、Linux）
+  lib\*.jar                          程序本体，含 CC: Tweaked
+  examples\                          示例程序和 fixture
+  README.md                          本文件
+  docs\agent-guide.md                给 AI 的使用说明
+  docs\testing.md  scripts\          维护者测试脚本
+  LICENSE  LICENSES\  THIRD-PARTY-NOTICES.md
+```
+
+不需要管理员权限，不写注册表，不需要安装 Minecraft 或其他模组。
+
+### 3. 确认可以运行
+
+```
+# Windows（PowerShell 或 cmd）
+bin\cct-run.bat version
+
+# macOS / Linux
+bin/cct-run version
+```
+
+能输出带有 `"cc_tweaked": "1.120.2"` 的 JSON 就说明装好了。
+
+### 4. 告诉 AI 怎么用
+
+在 AI 客户端的项目说明文件里（Claude Code 用 `CLAUDE.md`，Codex 用 `AGENTS.md`，其他客户端用各自的说明或提示词）加上一段，例如：
+
+```markdown
+## 测试 CC: Tweaked 程序
+本机装有 cct-run：C:\cct-run\bin\cct-run.bat
+写完或修改 ComputerCraft 程序后，先用它运行检查，再交给我。
+第一次使用前运行 `C:\cct-run\bin\cct-run.bat guide` 阅读使用说明。
+```
+
+或者也可以直接在对话里让 AI 执行 `cct-run guide`。
+
+---
+
+## 用法速查
+
+```
+cct-run run <程序.lua> [--fixture 文件] [--timeout 秒] [--out 目录] [--term 宽x高] [--basic|--advanced] [-- 程序参数...]
+cct-run trace  <运行目录|latest> [--kind 类型1,类型2] [--ticks A-B] [--peripheral 名称] [--source 名称] [--offset N] [--limit N]
+cct-run screen <运行目录|latest> [--tick N] [--source term|显示器名]
+cct-run guide | version | help
+```
+
+- `--timeout` 是游戏时间（秒），默认 15，最大 3600。死循环程序以 `timeout` 结束是正常的。
+- 每次运行的结果保存在 `.cct-runs\<运行编号>\` 下：`summary.json`（摘要）、`trace.jsonl`（全程记录）、程序和 fixture 的副本。`latest` 指最新的一次运行。
+- 标准输出只有 JSON，而且只包含 ASCII 字符（非 ASCII 字符写成 `\uXXXX`），所以在任何控制台编码下都不会乱码。
+
+| 退出码 | 含义 |
+|---|---|
+| 0 | 程序正常结束 |
+| 1 | Lua 错误（语法错误、运行时错误、Too long without yielding、被 Ctrl+T 终止） |
+| 2 | 超时，程序仍在运行 |
+| 3 | 程序关机或重启了电脑 |
+| 64 | 命令用法错误 |
+| 65 | 输入有问题（文件不存在、fixture 格式错误等，错误信息会指出 JSON 中的具体位置） |
+| 69 | 找不到 Java 17+ |
+| 70 | 内部错误 |
+
+### fixture 示例
+
+```json
+{
+  "schema": "cct-run/fixture@1",
+  "computer": { "label": "door", "advanced": true },
+  "peripherals": {
+    "top":  { "type": "monitor", "blocks": [3, 2] },
+    "back": { "type": "wired_modem", "network": {
+                "minecraft:chest_0": { "type": "inventory",
+                  "items": { "1": { "name": "minecraft:iron_ingot", "count": 64 } } } } }
+  },
+  "redstone": { "front": 15 },
+  "timeline": [
+    { "tick": 20, "do": "redstone", "side": "left", "level": 15 },
+    { "tick": 30, "do": "event", "name": "monitor_touch", "args": ["top", 3, 2] },
+    { "tick": 80, "do": "terminate" }
+  ]
+}
+```
+
+完整写法见 `docs/agent-guide.md` 第 5 节，以及 `examples/` 中的两个 fixture。
+
+---
+
+## 还不能模拟的内容
+
+测试通过表示程序**在这个模拟环境里**运行正确，不保证和游戏里完全一致。目前没有：
+
+- 海龟（turtle）、口袋电脑、命令电脑；
+- 真实世界（方块、区块加载、服务器卡顿）；
+- HTTP / WebSocket、扬声器、打印机、磁盘驱动器、无线 / 末影调制解调器、接收调制解调器消息；
+- 容器的格子限制：任何格子都能放任何物品，上限 64（真实的熔炉、模组方块有规则）；物品详情只有部分字段；
+- 能量和流体只在 fixture 时间线里改变；游戏内时间固定为 0（`os.time()`、`os.day()`）；
+- 磁盘容量只报告、不限制；
+- 只记录屏幕上的文字，不记录颜色；
+- CC 无法显示中文，屏幕上看到的是 CC 自己的字符集。
+
+完整的差异清单见 `handoff.md` 的 LIMITATIONS 和 DIVERGENCES 两节。
+
+---
+
+## 测试情况
+
+- Windows 11 + Windows PowerShell 5.1 + cmd：19/19 冒烟测试通过（Zulu 8 / 21 / 25，代码页 936，路径含空格和中文）。
+- Linux：单元测试 35/35；冒烟测试全部通过（含从 Java 8 自动切换）；Java 17 / 21 / 25 均可运行。
+- macOS：尚未测试。
+- AI 客户端：在 Autoclaw 和 DeepSeek Harness（Windows）上实测可用；Claude Code、Codex 待用户反馈。
+
+在自己的机器上测试的方法见 `docs/testing.md`。
+
+---
+
+## 从源码构建
+
+需要 JDK 17 或更高版本，构建时会下载依赖。
+
+```
+./gradlew build             # 编译并运行测试
+./gradlew :cli:distZip      # 生成 cli/build/distributions/cct-run-<版本>.zip
+./gradlew :cli:installDist  # 生成 cli/build/install/cct-run/，可以直接运行
+```
+
+CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2`（来自 https://maven.squiddev.cc），不需要自己编译 CC: Tweaked，也不需要下载 Minecraft。
+
+项目结构、设计决定、已知问题见 `handoff.md`。
+
+---
+
+## 路线图
+
+1. ~~命令行工具、全程记录、外设模拟~~（已完成）
+2. ~~旧 Java 自动切换、给 AI 的使用说明~~（已完成）
+3. 资源限制：1 GB 内存上限、内存耗尽单独作为一种结果、trace 超过上限截断、`cct-run clean` 清理旧记录
+4. **MCP 服务器**：本地 stdio 方式，`run` / `trace` / `screen` 等工具和命令一一对应，每次调用启动一次 cct-run（不做远程 MCP）
+5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
+
+配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。
+
+---
+
+## 许可证
+
+- 本项目代码：[MPL-2.0](LICENSE)
+- `engine/src/main/resources/cctrun/harness.lua` 改编自 CC: Tweaked 的 `shell.lua`，使用 CCPL（ComputerCraft Public License）
+- 发布包中包含 CC: Tweaked 及其依赖，它们各自的许可证见 `LICENSES/` 和 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)
+
+本项目不是 CC: Tweaked 官方项目。CC: Tweaked 由 SquidDev 等人开发：https://github.com/cc-tweaked/CC-Tweaked

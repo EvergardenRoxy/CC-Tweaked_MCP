@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.engine;
 
 /** Game tick counter plus wall-clock time since the run started. Shared by every recorder of one run. */

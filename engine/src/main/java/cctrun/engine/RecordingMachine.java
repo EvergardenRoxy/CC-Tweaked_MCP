@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.engine;
 
 import com.google.gson.JsonObject;
@@ -5,6 +7,9 @@ import dan200.computercraft.core.lua.CobaltLuaMachine;
 import dan200.computercraft.core.lua.ILuaMachine;
 import dan200.computercraft.core.lua.MachineResult;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -15,6 +20,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Limitation: an event that Lua code receives and then discards (e.g. inside {@code sleep}) is recorded
  * as delivered; whether Lua used it is not visible here.
+ * <p>
+ * The first {@code setting_changed} event for each setting cct-run injects (see Runner.injectedSettings) is
+ * marked {@code "harness": true}: it comes from cct-run's configuration, not from the program.
  */
 final class RecordingMachine implements ILuaMachine {
     /** Shared by the runner: which machine is live and how many have been created (a reboot creates another). */
@@ -31,9 +39,10 @@ final class RecordingMachine implements ILuaMachine {
         }
     }
 
-    static ILuaMachine.Factory factory(Trace trace, Holder holder) {
+    static ILuaMachine.Factory factory(Trace trace, Holder holder, Map<String, Object> injectedSettings) {
         return (environment, bios) -> {
-            var machine = new RecordingMachine(new CobaltLuaMachine(environment, bios), trace);
+            // Each boot applies the settings again, so each VM gets its own copy to match against.
+            var machine = new RecordingMachine(new CobaltLuaMachine(environment, bios), trace, new HashMap<>(injectedSettings));
             holder.created.incrementAndGet();
             holder.current.set(machine);
             return machine;
@@ -42,10 +51,12 @@ final class RecordingMachine implements ILuaMachine {
 
     private final ILuaMachine inner;
     private final Trace trace;
+    private final Map<String, Object> pendingSettings;
 
-    private RecordingMachine(ILuaMachine inner, Trace trace) {
+    private RecordingMachine(ILuaMachine inner, Trace trace, Map<String, Object> pendingSettings) {
         this.inner = inner;
         this.trace = trace;
+        this.pendingSettings = pendingSettings;
     }
 
     @Override
@@ -56,6 +67,10 @@ final class RecordingMachine implements ILuaMachine {
             var data = new JsonObject();
             data.addProperty("name", eventName);
             data.add("args", JsonValues.array(arguments));
+            if (fromInjectedSetting(eventName, arguments)) {
+                data.addProperty("harness", true);
+                data.addProperty("note", "caused by cct-run's default settings, not by the program");
+            }
             trace.record("event", data);
         }
         if (result.isError()) {
@@ -65,6 +80,15 @@ final class RecordingMachine implements ILuaMachine {
             trace.note("vm_error", data);
         }
         return result;
+    }
+
+    /** setting_changed arguments are (name, new value, old value). */
+    private boolean fromInjectedSetting(String eventName, Object[] arguments) {
+        if (!"setting_changed".equals(eventName) || arguments == null || arguments.length < 2) return false;
+        if (!(arguments[0] instanceof String name) || !pendingSettings.containsKey(name)) return false;
+        if (!Objects.equals(pendingSettings.get(name), arguments[1])) return false;
+        pendingSettings.remove(name);
+        return true;
     }
 
     @Override

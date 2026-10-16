@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 package cctrun.engine;
 
 import org.junit.jupiter.api.Test;
@@ -111,6 +113,23 @@ class RunnerTest {
         assertEquals("custom", events.get(0).get("name").getAsString());
         assertEquals(42, events.get(0).getAsJsonArray("args").get(0).getAsInt());
         assertEquals("timer", events.get(1).get("name").getAsString());
+    }
+
+    @Test
+    void cctRunsOwnSettingEventsAreFlaggedAndProgramStartIsMarked() throws Exception {
+        var result = run(out, "settings.set('motd.enable', true) os.pullEvent('setting_changed') sleep(2.5)", null, 10);
+        assertEquals("ok", result.status());
+        var settingEvents = trace(result, "event", r -> r.get("name").getAsString().equals("setting_changed"));
+        // Two from cct-run's defaults (flagged), one from the program (not flagged).
+        assertEquals(3, settingEvents.size());
+        assertEquals(2, settingEvents.stream().filter(r -> r.has("harness")).count());
+        var programs = settingEvents.stream().filter(r -> !r.has("harness")).toList();
+        assertEquals("motd.enable", programs.get(0).getAsJsonArray("args").get(0).getAsString());
+        assertTrue(programs.get(0).getAsJsonArray("args").get(1).getAsBoolean());
+        assertEquals(1, trace(result, "program_start").size());
+
+        var rate = result.summary().getAsJsonObject("duration").get("tick_rate").getAsDouble();
+        assertTrue(rate > 15 && rate < 25, "tick_rate " + rate);
     }
 
     @Test

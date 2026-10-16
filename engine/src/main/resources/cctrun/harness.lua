@@ -1,3 +1,9 @@
+-- SPDX-FileCopyrightText: 2017 Daniel Ratcliffe (original: rom/programs/shell.lua of CC: Tweaked 1.120.2)
+-- SPDX-License-Identifier: LicenseRef-CCPL
+--
+-- This file contains code adapted from shell.lua's executeProgram, so it is under the ComputerCraft Public
+-- License (LICENSES/LicenseRef-CCPL.txt), unlike the rest of cct-run (MPL-2.0).
+--
 -- cct-run harness: installed as /startup.lua, runs the program under test and reports the outcome to
 -- the Java side through the __cctrun API. It mirrors executeProgram in rom/programs/shell.lua
 -- (CC: Tweaked v1.20.1-1.120.2) so the program sees the same environment and prints the same errors
@@ -51,6 +57,7 @@ if settings.get("bios.strict_globals", false) then
     end
 end
 
+report.start()
 local ok, perr, co = exception.try(func, table.unpack(args, 1, #args))
 if ok then
     report.done(true, nil, nil, nil)

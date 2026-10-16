@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 // Shared configuration for all subprojects.
 subprojects {
     apply(plugin = "java")
