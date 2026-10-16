@@ -9,8 +9,8 @@ base: empty repository (this branch holds the first commits)
 date: 2026-10-16
 tool_version: 0.1.0 (engine/src/main/java/cctrun/engine/Versions.java)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; 35/35 tests (engine 28, cli 7); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), Windows re-test of N3 pending; macOS untested; MCP wrapper not started
-readme: intentionally absent (user instruction); this file replaces it for now
+status: CLI implemented; 35/35 tests (engine 28, cli 7); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; MCP wrapper not started
+readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
 ## GOAL
@@ -33,7 +33,7 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D6 | Trace purpose: AI debugging. Time model: real time (20 ticks/s). Recording on the Java side. | user |
 | D7 | Base: published artifact `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2` from https://maven.squiddev.cc (same code as tag v1.20.1-1.120.2); no CC:T fork/build, no Minecraft download. | user (tag) + impl (artifact) |
 | D8 | CLI interface is provisional; keep room to change it. | user |
-| D9 | No README.md yet; maintain this handoff.md. | user |
+| D9 | README.md (Chinese, for users: what it is, install, features, limits, roadmap) added on owner request; it states that the MCP server is not built yet. handoff.md stays the machine-oriented record. | user |
 | D10 | Bytecode target Java 17 (`options.release = 17`), matching the runtime Minecraft 1.20.1 ships. | impl |
 | D11 | Multishell off by default (`bios.use_multishell=false`) so scrolled-off lines are captured exactly; fixture `computer.multishell: true` re-enables it. | impl |
 | D12 | Item transfer follows Forge semantics (target slots filled in slot order); Fabric fills existing stacks first. | impl |
@@ -398,6 +398,7 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
   - JAVA_HOME=JRE 8: stderr "is too old; using Java 21 ...", run exit 0. With `cctrun.java.searchOnly` limited to the JRE 8 root: exit 69 with guidance.
   - From the unzipped release zip with LC_ALL=C.UTF-8: smoke-test.sh 19/19 (old-java-switch exercised via CCT_SMOKE_JAVA8_ROOT); smoke-test.ps1 under PowerShell 7.6.7 18 pass + old-java-switch SKIP (the JRE 8 used here is outside the ps1 search roots). Under the C locale path-with-space-and-cjk fails with exit 65 as expected (L20).
   - docs/agent-guide.md is pure ASCII (grep for bytes > 0x7F finds none).
+- V10: Windows, by the maintainer, with the release zip of commit e98abe5 (report e9b34290-report-ps51-v3.json): 19/19 PASS, 0 skipped; default_encoding_check true; cmd.exe exit 0; tick_rate 19.4-19.8 on 40-143 ticks. old-java-switch: JAVA_HOME = Zulu 8 (1.8.0_482) -> "is too old; using Java 25.0.2 at C:\Program Files\Zulu\zulu-25", exit 0, 1.07 s (vs 0.51 s direct). Side effect: on Java 25, Guava 31.1 prints `sun.misc.Unsafe` deprecation WARNING lines to stderr (harmless; stdout JSON unaffected). Candidate fix: prefer the newest LTS <= 21, or pass `--sun-misc-unsafe-memory-access=allow` when re-executing on Java >= 24.
 - V5: The release zip contains bin/{cct-run, cct-run.bat}, lib/ (27 jars), LICENSE, LICENSES/ (3 + 5 third-party files), THIRD-PARTY-NOTICES.md, examples/, scripts/ (smoke-test.sh is executable), docs/testing.md, docs/agent-guide.md. harness.lua inside lib/engine-*.jar carries its CCPL header.
 
 ## JVM_COST
@@ -423,7 +424,7 @@ Most of the remaining cost is JVM start/class loading plus ~6 boot ticks at 50 m
 Order set by D16; incremental.
 
 1. N1: DONE (D28, V9). Follow-up: move or link the guide from the skill repo when M6 resumes (D21).
-2. N3: DONE on Linux (D27, V9). The maintainer re-runs smoke-test.ps1 on Windows with the new zip: expect 19/19 or 18 + SKIP; old-java-switch should use the installed Zulu 8 and must PASS.
+2. N3: DONE (D27, V9, V10). Open: Java 25 Unsafe warnings on stderr (V10).
 3. N2: W1-W3 confirmed on Windows (V8). Remaining: N3 Windows re-test (above); macOS optional; Claude Code and Codex results come from users later (D25).
 4. N4: Resource limits with the D17 values: `-Xmx1g` in the start scripts, OutOfMemoryError as a distinct status, a trace size cap with truncation (plus a `truncated` flag in the summary), and `cct-run clean`.
 5. N5: MCP wrapper over the CLI (stdio): tools run/trace/screen map 1:1 to the CLI; each call spawns one `cct-run` (D1).
