@@ -59,9 +59,17 @@
 | 1 | 7 | 9293 万（开源 DeepSeek，算力中心部署） | 看板、按钮在实机上可用；聊天指令只用注入的事件测过，过载保护和缺料暂停没有测到；没有完成收尾 | 中文 Windows 上 fixture 出错不再变成 `MalformedInputException`；`cct_live_peripheral`（程序运行时读外设）；网络外设按真实名字记录；trace 的 `peripheral` / `method` 过滤和大小上限后的轮换；`cct_live_wait` 不再匹配旧画面；指南补充事件参数下标、事件丢失和 `os.clock` |
 | 2 | 8 | 7064 万（输出 24.5 万；deepseek-v4.1-flash-1017 官方 API；60 分钟，268 次调用） | 请玩家配合了 17 次：真实聊天、真实过载保护和通知去重、拆装应力表、远离禁止加速、开机自启都在实机上验证；缺料和满箱只在模拟器；收尾完整。CC 的事件丢失问题仍花了约 34 分钟，交付的程序只是缩小了丢失窗口 | 模拟器 `fs.move` 到同前缀的路径不再误报；trace 里的字符串按 Lua 实际收到的记录；指南：用 `parallel` 避免事件丢失、注入 UTF-8、同一外设接两次时事件重复、源码 tag。之后实现了 N12 / N13：fixture 的 `scripted` 外设（用它在模拟器里复现了这次交付程序的丢指令问题）、`cct_trace` 的 `contains`、`cct_live_files` 只读 `/rom` |
 
+## 联合测试 4：Create 订单产线（订单队列 + 断电恢复）
+
+提示词见 [`joint-test-orders.md`](joint-test-orders.md)，分析见 [`joint-test-orders-report.md`](joint-test-orders-report.md)。
+
+| 次数 | 电脑 | token | 结论 | 根据报告做的改进 |
+|---|---|---|---|---|
+| 1 | 0 | 4382 万（输出 19.9 万；deepseek-v4.1-flash-1017 官方 API；任务约 38 分钟） | 第一版就是并行结构，没有遇到事件丢失；模组外设在模拟器里全部用 `scripted`；实机验证了下单、计数、过载保护、重启续跑、触摸、拔插外设；中文回复乱码在玩家反馈后改为 JSON 文本组件。维护者验收待补 | `cct_trace` 可以用 `run_id`；箱子容量上限 1024 → 4096；fixture 中文变 `?` 时在 `notes` 里提示；指南补充向外设发中文的写法 |
+
 ## Linux 验证（开发环境）
 
-- 单元测试 53 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
+- 单元测试 54 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
 - 官方 MCP TypeScript SDK 客户端连接发布包：四个工具、内联 fixture 与定时触摸显示器、两个运行并行、参数错误提示、内存耗尽结果；用 Java 8 启动同样可用。
 - Java 8 自动切换、找不到 Java 17+ 时退出码 69 的提示、`JAVA_OPTS=-Xmx256m` 覆盖内存上限，均已验证。
 

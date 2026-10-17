@@ -30,7 +30,7 @@ cct-run guide | version | help
 
 - `--timeout` is in seconds of game time. Default 15, maximum 3600.
 - Program arguments go after `--`.
-- `latest` means the newest run under `--out` (default `.cct-runs` in the current directory).
+- `latest` means the newest run under `--out` (default `.cct-runs` in the current directory). A bare `run_id` also works for a run under `--out`.
 - `--term 26x20` gives a pocket computer size; `--basic` gives a non-colour computer.
 
 Through MCP (`cct-run mcp`), the same commands are tools. Results are the same JSON as the CLI's stdout.
@@ -89,7 +89,8 @@ Kinds and their pitfalls:
 - `event {name, args}`: every event delivered to the Lua VM, including `timer`, `task_complete` and `redstone`.
   - `args` are the values after the event name: in `local ev = {os.pullEvent()}`, `ev[1]` is the name and `args[1]` is `ev[2]`. Count from the Lua side before changing an index.
   - An event delivered while the program was inside `sleep()`, a filtered `os.pullEvent(x)`, or a `main_thread` peripheral method (it waits for `task_complete`) was received and thrown away, although the trace lists it. This is a classic CC bug: a timer that fires while the program is in a slow peripheral call is lost, and a loop that only re-arms its timer when the timer arrives stops for good. Compare event ticks with the program's peripheral calls. The fix is `parallel`: put the peripheral polling and the event handling (chat, touches, timers) in separate functions under `parallel.waitForAny`/`waitForAll`. Each coroutine keeps its own filter, so the listener gets every event while the poller waits (measured here: 20 of 20 chat events with `parallel`, 1 of 20 in a single loop). Compare deadlines with `os.epoch("utc")`.
-  - Strings in `args` (and in peripheral results) are recorded as Lua receives them: Lua strings are bytes, and a character above U+00FF in a Java string arrives as `?`. Chinese text from a peripheral therefore reaches the program as `??` (the Advanced Peripherals chat box sends a separate `messageUtf8` with the real bytes). To inject UTF-8 text in a fixture event, write each byte as an escape up to U+00FF (`"\u00e5\u00b7\u00a5"` is the UTF-8 of U+5DE5).
+  - Strings in `args` (and in peripheral results) are recorded as Lua receives them: Lua strings are bytes, and a character above U+00FF in a Java string arrives as `?`. Chinese text from a peripheral therefore reaches the program as `??` (the Advanced Peripherals chat box sends a separate `messageUtf8` with the real bytes). To inject UTF-8 text in a fixture event, write each byte as an escape up to U+00FF (`"\u00e5\u00b7\u00a5"` is the UTF-8 of U+5DE5). Fixture strings that would lose characters this way are listed in the summary's `notes` (`fixture_text`).
+  - The other way round, a Lua string passed to a peripheral reaches Java byte by byte, so UTF-8 text appears in `peripheral_call` args as sequences like `\u00e5\u00b7\u00b2`, and the game shows it as mojibake. To send Chinese through the Advanced Peripherals chat box, use `sendFormattedMessage`/`sendFormattedMessageToPlayer` with a JSON text component whose text is written as `\uXXXX` escapes: `textutils.serialiseJSON({ text = msg }, { unicode_strings = true })` produces it.
   - A peripheral that the computer reaches twice (directly on a side and again over a wired modem) is attached twice; one that sends events (seen with the Advanced Peripherals chat box) then delivers each event twice. Deduplicate, or use only one of the two names.
   - `"harness": true` marks events caused by cct-run itself (its default settings). Ignore those.
   - `setting_changed` args are `(name, new value, old value)`.

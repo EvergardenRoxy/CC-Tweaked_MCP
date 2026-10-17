@@ -112,6 +112,12 @@ public final class Runner {
             start.add("args", JsonValues.array(spec.args().toArray()));
             start.addProperty("timeout_s", spec.timeoutSeconds());
             trace.record("run_start", start);
+            if (spec.fixtureSource() != null) {
+                var source = com.google.gson.JsonParser.parseString(spec.fixtureSource()).getAsJsonObject();
+                for (var key : List.of("peripherals", "timeline")) {
+                    if (source.has(key)) noteWideText(source.get(key), "$." + key, trace);
+                }
+            }
 
             var pacer = TickPacer.realTime(TPS);
             var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer);
@@ -435,6 +441,29 @@ public final class Runner {
             else out.append('\\').append(String.format("%03d", c));
         }
         return out.append('"').toString();
+    }
+
+    /**
+     * Fixture strings reach Lua through Java (event arguments, peripheral results), so characters above U+00FF arrive
+     * as '?', as they do in the game. Say so: a test that injects Chinese text otherwise fails without a clue.
+     * Files are not affected (they are written as UTF-8).
+     */
+    private static void noteWideText(JsonElement value, String path, Trace trace) {
+        if (value.isJsonObject()) {
+            for (var entry : value.getAsJsonObject().entrySet()) noteWideText(entry.getValue(), path + "." + entry.getKey(), trace);
+        } else if (value.isJsonArray()) {
+            var array = value.getAsJsonArray();
+            for (var i = 0; i < array.size(); i++) noteWideText(array.get(i), path + "[" + i + "]", trace);
+        } else if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+            var text = value.getAsString();
+            if (text.chars().noneMatch(c -> c > 0xFF)) return;
+            var data = new JsonObject();
+            data.addProperty("path", path);
+            data.addProperty("lua_sees", JsonValues.truncate(JsonValues.asLua(text)));
+            data.addProperty("hint", "characters above U+00FF reach Lua as '?', as Java strings do in the game; for UTF-8 bytes "
+                + "(e.g. the chat box's messageUtf8) write each byte as an escape up to U+00FF (guide section 4)");
+            trace.note("fixture_text", data);
+        }
     }
 
     private static void addFile(MemoryMount mount, String path, String contents) throws IOException {

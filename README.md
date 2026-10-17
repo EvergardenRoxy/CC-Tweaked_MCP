@@ -119,7 +119,7 @@ cct-run guide | version | help | mcp
 | 平台 / 项目 | 结果 |
 |---|---|
 | Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
-| Linux | 单元测试 53/53；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| Linux | 单元测试 54/54；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
 | macOS | 尚未测试 |
 | cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）六次 AI 实测：MPlayer 安装脚本排错 4 轮，联合测试 3（Create 工厂控制中心）2 次 |
 | AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次模拟器实测四步全部正确，DeepSeek Harness 等客户端实机实测 6 次可用。其他客户端的 MCP 接入结果待反馈 |

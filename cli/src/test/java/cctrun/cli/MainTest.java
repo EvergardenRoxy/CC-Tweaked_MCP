@@ -57,6 +57,21 @@ class MainTest {
         assertTrue(summary.get("duration").getAsJsonObject().get("ticks").getAsInt() < 60 * 20, "stopped by memory, not the timeout");
     }
 
+    /** Field test 4: an AI passed the run_id from the summary as the run and got "not a run directory". */
+    @Test
+    void traceAcceptsARunIdFromTheOutputDirectory() throws Exception {
+        var program = dir.resolve("hi.lua");
+        Files.writeString(program, "print('hi')");
+        var runs = dir.resolve("runs").toString();
+        var bytes = new ByteArrayOutputStream();
+        assertEquals(0, Main.dispatch(new String[]{ "run", program.toString(), "--out", runs }, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        var runId = JsonParser.parseString(bytes.toString(StandardCharsets.UTF_8)).getAsJsonObject().get("run_id").getAsString();
+
+        bytes.reset();
+        assertEquals(0, Main.dispatch(new String[]{ "trace", runId, "--out", runs, "--kind", "program_end" }, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        assertTrue(bytes.toString(StandardCharsets.UTF_8).contains("\"kind\":\"program_end\""));
+    }
+
     @Test
     void asciiEscapesEveryNonAsciiCharacter() {
         assertEquals("{\"a\":\"plain\"}", Main.ascii("{\"a\":\"plain\"}"));

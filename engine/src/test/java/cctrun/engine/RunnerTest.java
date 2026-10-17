@@ -72,6 +72,11 @@ class RunnerTest {
         assertEquals("5\t63\t3", screen(result).get(0));
         var chat = trace(result, "event", r -> r.get("name").getAsString().equals("chat")).get(0);
         assertEquals("!?? \u00e9", chat.getAsJsonArray("args").get(0).getAsString());
+        // Field test 4: an AI injected Chinese chat commands, got "?" and gave up on testing them; the summary now says why.
+        var notes = result.summary().getAsJsonArray("notes");
+        assertEquals(1, notes.size(), notes.toString());
+        assertEquals("fixture_text", notes.get(0).getAsJsonObject().get("kind").getAsString());
+        assertEquals("$.timeline[0].args[0]", notes.get(0).getAsJsonObject().get("path").getAsString());
     }
 
     @Test

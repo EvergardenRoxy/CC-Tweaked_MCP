@@ -279,6 +279,11 @@ public final class Main {
         var given = positional.get(0);
         if (!given.equals("latest")) {
             var dir = Path.of(given);
+            // A bare run_id names a run in the output directory.
+            if (!Files.isRegularFile(dir.resolve("trace.jsonl")) && !dir.isAbsolute()) {
+                var inOut = outDir.resolve(given);
+                if (Files.isRegularFile(inOut.resolve("trace.jsonl"))) return inOut;
+            }
             if (!Files.isRegularFile(dir.resolve("trace.jsonl"))) throw new InputException("not a run directory (no trace.jsonl): " + dir);
             return dir;
         }
