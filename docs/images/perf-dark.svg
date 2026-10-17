@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="356" viewBox="0 0 760 356" font-family='system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif' role="img" aria-label="cct-live 的性能开销">
+<title>cct-live 的性能开销</title>
+<rect width="760" height="356" rx="8" fill="#1a1a19"/>
+<text x="24.0" y="34.0" fill="#f0efec" font-size="17" text-anchor="start" font-weight="600">cct-live 的性能开销</text>
+<text x="24.0" y="56.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">30 台电脑一刻不停地跑循环（极端情况），相对“不装 mod”的循环次数变化</text>
+<rect x="24.0" y="75.0" width="10" height="10" rx="2" fill="#3987e5"/>
+<text x="40.0" y="84.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">事件循环</text>
+<rect x="112.0" y="75.0" width="10" height="10" rx="2" fill="#d95926"/>
+<text x="128.0" y="84.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">文件读写</text>
+<rect x="200.0" y="75.0" width="10" height="10" rx="2" fill="#199e70"/>
+<text x="216.0" y="84.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">写屏幕</text>
+<rect x="400.0" y="98" width="166.7" height="172" fill="#2a2a28"/>
+<line x1="150.0" y1="98" x2="150.0" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="150.0" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">-20%</text>
+<line x1="233.3" y1="98" x2="233.3" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="233.3" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">-15%</text>
+<line x1="316.7" y1="98" x2="316.7" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="316.7" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">-10%</text>
+<line x1="400.0" y1="98" x2="400.0" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="400.0" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">-5%</text>
+<line x1="483.3" y1="98" x2="483.3" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="483.3" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">0</text>
+<line x1="566.7" y1="98" x2="566.7" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="566.7" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">+5%</text>
+<line x1="650.0" y1="98" x2="650.0" y2="270" stroke="#2c2c2a" stroke-width="1"/>
+<text x="650.0" y="288.0" fill="#898781" font-size="11" text-anchor="middle" font-weight="normal">+10%</text>
+<line x1="483.3" y1="98" x2="483.3" y2="270" stroke="#383835" stroke-width="1.5"/>
+<text x="674.0" y="92.0" fill="#898781" font-size="11" text-anchor="start" font-weight="normal">tick 耗时</text>
+<text x="138.0" y="129.0" fill="#f0efec" font-size="12" text-anchor="end" font-weight="normal">没有接管（平时）</text>
+<text x="674.0" y="129.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">0.94 ms</text>
+<path d="M483.3,104.0 H470.7 Q466.7,104.0 466.7,108.0 V112.0 Q466.7,116.0 470.7,116.0 H483.3 Z" fill="#3987e5"/>
+<text x="460.7" y="114.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-1%</text>
+<path d="M483.3,118.0 H612.7 Q616.7,118.0 616.7,122.0 V126.0 Q616.7,130.0 612.7,130.0 H483.3 Z" fill="#d95926"/>
+<text x="622.7" y="128.0" fill="#c3c2b7" font-size="11" text-anchor="start" font-weight="normal">+8%</text>
+<text x="489.3" y="142.0" fill="#c3c2b7" font-size="11" text-anchor="start" font-weight="normal">0%</text>
+<text x="138.0" y="187.0" fill="#f0efec" font-size="12" text-anchor="end" font-weight="normal">打开记录模式</text>
+<text x="674.0" y="187.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">1.01 ms</text>
+<path d="M483.3,162.0 H370.7 Q366.7,162.0 366.7,166.0 V170.0 Q366.7,174.0 370.7,174.0 H483.3 Z" fill="#3987e5"/>
+<text x="360.7" y="172.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-7%</text>
+<path d="M483.3,176.0 H354.0 Q350.0,176.0 350.0,180.0 V184.0 Q350.0,188.0 354.0,188.0 H483.3 Z" fill="#d95926"/>
+<text x="344.0" y="186.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-8%</text>
+<path d="M483.3,190.0 H404.0 Q400.0,190.0 400.0,194.0 V198.0 Q400.0,202.0 404.0,202.0 H483.3 Z" fill="#199e70"/>
+<text x="394.0" y="200.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-5%</text>
+<text x="138.0" y="245.0" fill="#f0efec" font-size="12" text-anchor="end" font-weight="normal">30 台全部接管</text>
+<text x="674.0" y="245.0" fill="#c3c2b7" font-size="12" text-anchor="start" font-weight="normal">1.22 ms</text>
+<path d="M483.3,220.0 H187.3 Q183.3,220.0 183.3,224.0 V228.0 Q183.3,232.0 187.3,232.0 H483.3 Z" fill="#3987e5"/>
+<text x="177.3" y="230.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-18%</text>
+<path d="M483.3,234.0 H187.3 Q183.3,234.0 183.3,238.0 V242.0 Q183.3,246.0 187.3,246.0 H483.3 Z" fill="#d95926"/>
+<text x="177.3" y="244.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-18%</text>
+<path d="M483.3,248.0 H320.7 Q316.7,248.0 316.7,252.0 V256.0 Q316.7,260.0 320.7,260.0 H483.3 Z" fill="#199e70"/>
+<text x="310.7" y="258.0" fill="#c3c2b7" font-size="11" text-anchor="end" font-weight="normal">-10%</text>
+<text x="24.0" y="322.0" fill="#898781" font-size="11" text-anchor="start" font-weight="normal">灰色带：两轮“不装 mod”之间本身就有约 ±5% 的波动，带内的差别测不出来。不装 mod 时 tick 耗时 1.01 ms（预算 50 ms）。</text>
+<text x="24.0" y="340.0" fill="#898781" font-size="11" text-anchor="start" font-weight="normal">Forge 47.4.10 正式服务器，Java 17，4 核；每种配置两轮，每轮预热 20 秒后测 30 秒。</text>
+</svg>
