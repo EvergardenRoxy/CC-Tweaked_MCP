@@ -6,12 +6,16 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - 按真实时间运行，每秒 20 刻。
 - 每次运行都会输出 JSON 摘要（结果、错误和行号、最终屏幕），并把全过程记录到 trace 文件里。
 
-有两种接入方式，功能相同：
+模拟器测不到的内容（海龟、HTTP、真实的模组外设和真实世界），可以交给可选的 **cct-live mod**：它是一个 Forge 1.20.1 mod，在玩家同意后，让 AI 接管正在运行的游戏里的真实电脑，查看它的运行记录，也可以操作它。不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)。
 
-- **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），提供 `cct_run`、`cct_trace`、`cct_screen`、`cct_guide` 四个工具。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop 等）配置一次即可使用。
-- **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。
+有两种接入方式：
 
-> MCP 服务器目前是**测试版**：Linux 上用官方 MCP SDK 客户端验证通过，Windows 上冒烟测试和一次 AI 客户端实测通过；Claude Code、Codex 等各客户端分别的接入结果还在收集。
+- **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），一共 18 个工具：模拟器 4 个（`cct_run`、`cct_trace`、`cct_screen`、`cct_guide`），实机 14 个（`cct_live_*`，需要 cct-live mod）。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop、DeepSeek Harness 等）配置一次即可使用。
+- **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。命令行只有模拟器功能。
+
+配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill) 会告诉 AI 什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
+
+> 当前版本是 **0.1.0（首个测试版）**，更新内容见 [`docs/release-notes-0.1.0.md`](docs/release-notes-0.1.0.md)。cct-live 还是原型。
 
 ---
 
@@ -28,8 +32,9 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 | 回放屏幕 | 查询任意一刻电脑或显示器上显示的内容 |
 | 模拟外设和世界 | 用 fixture 文件布置箱子等容器、能量存储、流体存储、显示器、有线调制解调器网络、红石输入和预置文件 |
 | 按时间注入事件 | 在指定的刻改变红石输入、修改箱子内容、改能量、发送任意事件（如按键、触摸显示器），或者按下 Ctrl+T 终止程序 |
-| MCP 服务器 | `cct-run mcp`：本地 stdio MCP 服务器，四个工具和命令一一对应；可以直接传 Lua 代码和 fixture 对象，不必先写文件；每次运行都在独立的 Java 进程里，可以同时运行多个，也可以取消 |
-| AI 使用说明 | `cct-run guide` 打印一份写给 AI 的英文说明：使用流程、各字段含义、排查方法、常见陷阱，以及“测试通过”意味着什么 |
+| MCP 服务器 | `cct-run mcp`：本地 stdio MCP 服务器，模拟器的四个工具和命令一一对应；可以直接传 Lua 代码和 fixture 对象，不必先写文件；每次运行都在独立的 Java 进程里，可以同时运行多个，也可以取消 |
+| 接管游戏里的电脑（cct-live） | 装了 cct-live mod 后，AI 可以按需接管真实游戏里的电脑：查看屏幕和显示器、读取运行记录（事件、外设调用、HTTP 和文件读写、`printError` 打印的错误）、输入文字、点击、读写文件、运行一段 Lua、开关机。接管时聊天栏有提示，玩家随时可以收回 |
+| AI 使用说明 | `cct-run guide` 打印一份写给 AI 的英文说明：使用流程、各字段含义、排查方法、常见陷阱、“测试通过”意味着什么，以及实机工具的用法（第 7 节）；可以按章节读取 |
 
 ### 一个例子
 
@@ -73,7 +78,7 @@ java -version
 
 ### 2. 下载并解压
 
-解压发布包 `cct-run-<版本>.zip`（目前还没有公开发布，见“路线图”），例如解压到 `C:\cct-run`。目录结构：
+从 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 下载发布包 `cct-run-<版本>.zip` 并解压，例如解压到 `C:\cct-run`。还没有发布包时，按“从源码构建”一节自己构建。目录结构：
 
 ```
 cct-run\
@@ -156,6 +161,22 @@ tool_timeout_sec = 300          # 运行可能持续到 --timeout 秒，默认�
 - 服务器启动后，第一次调用前 AI 会看到提示：先调用 `cct_guide` 阅读说明。
 - 配置好后可以直接对 AI 说：“写一个……的 CC 程序，并用 cct_run 测试。”
 
+**（可选）接管游戏里的电脑**：先按 [`mod/README.md`](mod/README.md) 安装 cct-live mod，再在 MCP 配置里用环境变量 `CCT_LIVE_DIR` 告诉 cct-run 游戏目录（有 `mods/` 的那个文件夹；启动器开了版本隔离时是版本文件夹）。也可以在参数里加 `--live <游戏目录>`。例如：
+
+```json
+{
+  "mcpServers": {
+    "cct-run": {
+      "command": "cmd",
+      "args": ["/c", "C:\\cct-run\\bin\\cct-run.bat", "mcp"],
+      "env": { "CCT_LIVE_DIR": "C:\\.minecraft\\versions\\1.20.1-Forge" }
+    }
+  }
+}
+```
+
+Claude Code 可以用 `claude mcp add --scope user -e CCT_LIVE_DIR=<游戏目录> cct-run -- cmd /c C:\cct-run\bin\cct-run.bat mcp`；Codex 在 `config.toml` 里写 `env = { CCT_LIVE_DIR = "<游戏目录>" }`。路径里有空格或中文都可以，JSON 里的 `\` 要写成 `\\`。
+
 ### 4（另一种）. 用命令行方式接入
 
 在 AI 客户端的项目说明文件里（Claude Code 用 `CLAUDE.md`，Codex 用 `AGENTS.md`，其他客户端用各自的说明或提示词）加上一段，例如：
@@ -188,8 +209,8 @@ MCP 工具与命令的对应关系：
 | `cct_run` | `run` | `file`（路径）或 `code`（Lua 源码，可配 `name`）、`args`、`fixture`（JSON 对象）或 `fixture_file`、`timeout`、`term`、`computer`（`advanced`/`basic`） |
 | `cct_trace` | `trace` | `run`（默认 `latest`）、`kind`（数组）、`ticks`、`peripheral`、`source`、`offset`、`limit` |
 | `cct_screen` | `screen` | `run`、`tick`、`source` |
-| `cct_guide` | `guide` | 无 |
-| `cct_live_computers` / `cct_live_screen` / `cct_live_attach` / `cct_live_detach` / `cct_live_trace` / `cct_live_type` / `cct_live_event` / `cct_live_power` | — | 按需接管**真实游戏里**的电脑（接管时在聊天栏提示，有租约，玩家可用 `/cctlive detach` 收回），需要 cct-live mod（原型），见 [`mod/README.md`](mod/README.md)；用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录 |
+| `cct_guide` | `guide` | `section`（可选，1 到 7） |
+| `cct_live_*`（14 个） | — | 按需接管**真实游戏里**的电脑，需要 cct-live mod（原型）：`computers`、`attach` / `detach`、`status`、`wait`、`screen`、`trace`、`type`、`click`、`files`、`lua`、`body`、`event`、`power`。接管时聊天栏有提示，有租约，玩家可以用 `/cctlive detach` 收回。用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录。各工具的说明见 [`mod/README.md`](mod/README.md) |
 
 工具返回的 JSON 和命令行输出相同。程序本身出错（`status: "error"`）是正常的测试结果；只有参数错误、文件不存在等情况，工具调用才会标记为出错。
 
@@ -258,9 +279,10 @@ MCP 工具与命令的对应关系：
 | 平台 / 项目 | 结果 |
 |---|---|
 | Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
-| Linux | 单元测试 41/41；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| Linux | 单元测试 43/43；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
 | macOS | 尚未测试 |
-| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次实测四步全部正确。各客户端分别的 MCP 接入结果待反馈 |
+| cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）三轮 AI 实测（MPlayer 安装脚本排错）。性能数据见 [`mod/README.md`](mod/README.md#性能) |
+| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次模拟器实测四步全部正确，DeepSeek Harness 三轮实机实测可用。其他客户端的 MCP 接入结果待反馈 |
 
 每轮测试发现的问题和处理见 [`docs/test-results.md`](docs/test-results.md)；在自己的机器上测试的方法见 `docs/testing.md`。
 
@@ -286,10 +308,11 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 
 1. ~~命令行工具、全程记录、外设模拟~~（已完成）
 2. ~~旧 Java 自动切换、给 AI 的使用说明~~（已完成）
-3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（测试版）
+3. ~~**MCP 服务器**：本地 stdio 方式，工具和命令一一对应，每次运行启动一个独立进程（不做远程 MCP）~~（0.1.0 测试版）
 4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；trace 超过上限截断、`cct-run clean` 清理旧记录（待做）
 5. 按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
-6. **cct-live（原型）**：一个 Forge 1.20.1 mod，让 AI 按需接管真实游戏里的 CC 电脑：接管后从 Java 层记录事件、外设调用、http 和文件读写、带颜色的屏幕、红石，并允许输入和开关机；平时不记录；不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)
+6. ~~**cct-live**：一个 Forge 1.20.1 mod，让 AI 按需接管真实游戏里的 CC 电脑：接管后从 Java 层记录事件、外设调用、HTTP 和文件读写、带颜色的屏幕、显示器、红石，并允许输入、点击、读写文件、运行 Lua 和开关机；平时不记录；不需要在电脑里运行 Lua 脚本，也不需要转发服务器~~（0.1.0 原型，见 [`mod/README.md`](mod/README.md)）
+7. cct-live 后续：程序出错时的调用栈、有线网络连接的显示器、海龟的背包和燃料、海龟和口袋电脑的测试；和 Skill 一起做联合测试（[`docs/joint-test.md`](docs/joint-test.md)）
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。
 
