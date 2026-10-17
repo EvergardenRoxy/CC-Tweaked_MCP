@@ -4,6 +4,8 @@ For AI agents. `cct-run guide` and the MCP tool `cct_guide` return this text.
 
 cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s. It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
 
+Sections: 1-6 cover the simulation (`run`, `trace`, `screen`); 7 covers real computers in a running game (MCP `cct_live_*` tools). Through MCP, `cct_guide` with `section: N` returns one section.
+
 ## 1. Workflow
 
 1. Save the program to a file, e.g. `door.lua`.
@@ -163,3 +165,45 @@ A pass means the program works against this model, which is not guaranteed to ma
 - **Startup:** cct-run runs the program from `/startup.lua`, so `shell.getRunningProgram()` returns "startup.lua". A program named `startup.lua` is stored as `/main.lua`.
 
 Suggested wording: "Tested in cct-run (CC: Tweaked 1.120.2 simulation): <what passed>. Not covered by the simulation: <relevant items above>."
+
+## 7. Real computers in the game (cct_live_* tools, MCP only, prototype)
+
+With the cct-live mod (Forge 1.20.1, CC: Tweaked 1.120.2) these tools observe and control the computers in the user's running game: real world, real peripherals, real http. Nothing is recorded for a computer until you attach it, and only an attached computer accepts input.
+
+Save tokens: every tool result stays in your context. Check with `cct_live_status` (small), wait with `cct_live_wait` (one call, waits on the server side), and only then read details with `cct_live_trace` (filtered) or `cct_live_screen`. Never sleep and re-read the screen in a loop.
+
+Tools:
+
+- `cct_live_computers`: computers loaded now (id, label, family, on, position, attached).
+- `cct_live_attach {computer, lease_seconds}`: start recording and controlling. The player sees a chat message and can take control back with `/cctlive detach <id>`. Every request renews the lease; for a long test pass a longer `lease_seconds`. Returns `last_seq`, `monitors` (sides with a monitor) and `files_write`.
+- `cct_live_status {computer, after, source}`: tick, on, `last_seq`, lease left, monitors, `new_since_after` (record counts by kind after seq `after`), `last_printed_error`, the screen's text lines and `screen_hash`.
+- `cct_live_wait {computer, text | kind | idle_seconds, after, source, timeout}`: returns when the screen shows `text`, a record of a `kind` appears (e.g. `["printed_error","http_failure","vm_close"]`; returned as `match`), or the screen stays unchanged for `idle_seconds`; `met` says which, or `timeout` (default 30 s, max 120).
+- `cct_live_type {computer, text, enter}`: types text; each line is followed by Enter. Several lines run in order (shell commands, lines in the `lua` REPL).
+- `cct_live_click {computer, x, y, source}`: a click on the terminal (mouse_click + mouse_up) or a touch on a monitor (`source` = its side, monitor_touch).
+- `cct_live_screen {computer, source, colors, regions, tick}`: text lines of the terminal or a monitor. `regions: true` adds colour areas (`bg`, `from`, `to`, `center`, `text`, `labels`): GUI buttons are such areas even when their labels are pixel art. When a button shares its background with the card around it, the region is the whole card: then use its `labels` (blocks of drawn content inside, e.g. the button's label) and click the label's `center`. `colors: true` adds fg/bg rows. `tick: N` rebuilds the screen at tick N from the trace.
+- `cct_live_lua {computer, code, timeout}`: runs Lua on the computer in one call and returns `ok`, `output` (printed lines), `returns` (serialised), `error` and `phase` (compile or runtime, with traceback). It writes a temporary script under `/.cctlive`, runs it from the shell and deletes it. Use it for every diagnostic (sizes, `load()` a file to check its syntax, `peripheral.getMethods`, reading settings) instead of write/run/read/delete by hand. Needs the shell prompt on the screen and the player's `files_write`; the code has the computer's full rights, so keep it read-only unless the user agreed to changes.
+- `cct_live_body {computer, body, offset, length}`: the full body of an HTTP response read with `readAll` while attached (the `handle` record has `body: N`); trace data is cut to 200 characters.
+- `cct_live_files {computer, op, path, ...}`: the computer's own files without running anything on it: `list`, `stat`, `read` (up to 1 MB per call), and `write` (`text`, `append`) only when the player allowed it (`files_write`). A write is recorded as `file_write`. For diagnostics prefer `cct_live_lua`.
+- `cct_live_trace {computer, kind, exclude, after, ticks, summary, offset, limit}`: records of this game session (all attachments; seq keeps counting). Default limit 50; `screen` records are left out unless `kind` names them. Start with `summary: true` (counts and seq ranges per kind). Kinds:
+  - `printed_error`: text printed with `printError` and the running `program`; this is how the shell reports a program crash (e.g. `/startup.lua:911: module 'icons.User' not found ...`). Look here first. `vm_error` only covers VM-level failures such as "Too long without yielding";
+  - `api`: `http.request/checkURL/websocket` and `fs.open/delete/move/copy/makeDir` with args and result (`http.get` shows up as `http.request`);
+  - `handle`: each call on an open file, HTTP response or websocket (`readAll`, `write`, ...) with `path` or `url`, the data cut to 200 characters, `bytes` = the full length, and for HTTP `readAll` a `body` number (read it with `cct_live_body`);
+  - `event`, `peripheral_call`/`peripheral_return`, `screen` (`source` term or a monitor side), `monitor`, `redstone_output`, `power`, `label`, `moved`, `file_write`, `file_delete`, `vm_start`, `vm_close`, `attach`, `detach` (reason detach, revoked = a player took control back, expired, removed, closed), `truncated`. Files under /rom are not recorded.
+- `cct_live_event {computer, name, args}`: any event (key codes are GLFW: enter 257). `terminate` is the same as the player holding Ctrl+T: a program that catches it may clean up, one that does not ends with "Terminated", and code after its event loop runs (which can expose unguarded paths). `cct_live_power {computer, action}`: on, shutdown, reboot.
+- Every record has both `seq` (order in the trace) and `tick` (server time). `after` filters by seq, `ticks` by tick; `cct_live_status` and `cct_live_wait` return both the current `tick` and `last_seq`, so note both before an action.
+
+Workflow:
+
+1. `cct_live_computers`, then `cct_live_attach` (note `last_seq`).
+2. Act (`cct_live_type`, `cct_live_click`), then `cct_live_wait` for the expected text, an error kind, or `idle_seconds`.
+3. `cct_live_status {after: <last_seq>}` to see what happened; read only the kinds that matter with `cct_live_trace {kind, after}`; check facts on the computer with `cct_live_lua`.
+4. Explain from the records: e.g. an `api` http.request, then a `handle` readAll whose data starts with `<!DOCTYPE html>`, then a `handle` write of it to `/x.lua`, then a `printed_error` `unexpected symbol near '<'` means the download returned a web page, not Lua. Read the files involved with `cct_live_files`.
+5. `cct_live_detach` when done.
+
+Rules:
+
+- Attach only when the user asked you to work on their computer. Input, writes and power change the user's real world: only what the user asked for or agreed to; never delete or overwrite their files to "test". Do not send `terminate` to a program unless asked: it changes what the program does next.
+- If a tool reports `revoked`, the player took control back: stop and ask.
+- No call stack yet for program errors (only the printed text).
+- Monitors: only those attached directly to the computer, not over a wired network.
+- If a tool says cct-live is not running, the user must open a world with the mod; `game_dir` is the game directory (the version folder when the launcher isolates versions).

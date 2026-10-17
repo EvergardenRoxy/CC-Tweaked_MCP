@@ -1,0 +1,10 @@
+{
+  "cctlive.attached": "[cct-live] AI 已接管 %s 号电脑（租约 %s 秒，输入 /cctlive detach %s 可收回）",
+  "cctlive.detached": "[cct-live] AI 已释放 %s 号电脑",
+  "cctlive.expired": "[cct-live] AI 对 %s 号电脑的租约已到期，已自动释放",
+  "cctlive.removed": "[cct-live] %s 号电脑已被移除，接管结束",
+  "cctlive.revoked": "[cct-live] 已收回 AI 对 %s 号电脑的控制",
+  "cctlive.list.none": "[cct-live] 当前没有被 AI 接管的电脑",
+  "cctlive.list.entry": "[cct-live] %s 号电脑：AI 接管中，租约剩余 %s 秒",
+  "cctlive.detach.none": "[cct-live] %s 号电脑没有被 AI 接管"
+}

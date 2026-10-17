@@ -8,7 +8,7 @@
 |---|---|
 | Windows 冒烟测试 | **22/22 通过**（Windows 11、PowerShell 5.1、代码页 936、Zulu 21） |
 | Linux 冒烟测试 | bash 21/21；PowerShell 7 20 项通过、1 项跳过（Linux 上没有可用的 Java 8） |
-| 单元测试 | 39/39 |
+| 单元测试 | 41/41 |
 | MCP 服务器 | Windows 冒烟测试和一次 AI 客户端实测通过；Linux 上官方 MCP SDK 客户端验证通过 |
 | AI 实测 | 命令行方式和 MCP 方式的标准任务，AI 回答全部正确 |
 | macOS | 未测试 |
@@ -35,7 +35,7 @@
 
 ## Linux 验证（开发环境）
 
-- 单元测试 39 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽。
+- 单元测试 41 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
 - 官方 MCP TypeScript SDK 客户端连接发布包：四个工具、内联 fixture 与定时触摸显示器、两个运行并行、参数错误提示、内存耗尽结果；用 Java 8 启动同样可用。
 - Java 8 自动切换、找不到 Java 17+ 时退出码 69 的提示、`JAVA_OPTS=-Xmx256m` 覆盖内存上限，均已验证。
 

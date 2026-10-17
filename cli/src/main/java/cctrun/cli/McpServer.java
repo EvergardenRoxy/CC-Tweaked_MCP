@@ -58,15 +58,24 @@ final class McpServer {
         return thread;
     });
     private final Map<String, Call> active = new ConcurrentHashMap<>();
+    private final Path liveDir;
+    private final LiveTools live;
 
     McpServer(InputStream in, OutputStream out, Path outDir, Path workDir) {
+        this(in, out, outDir, workDir, null);
+    }
+
+    /** @param liveDir game directory for the cct_live_* tools (--live / CCT_LIVE_DIR); may be null. */
+    McpServer(InputStream in, OutputStream out, Path outDir, Path workDir, Path liveDir) {
         this.in = in;
         this.out = out;
         this.outDir = outDir.toAbsolutePath().normalize();
         this.workDir = workDir.toAbsolutePath().normalize();
+        this.liveDir = liveDir == null ? null : this.workDir.resolve(liveDir).normalize();
+        this.live = new LiveTools(this.liveDir, this.workDir);
     }
 
-    /** {@code cct-run mcp [--out DIR]}. */
+    /** {@code cct-run mcp [--out DIR] [--live GAME_DIR]}. */
     static int main(Main.Args args, PrintStream stdout) throws Exception {
         if (!args.positional().isEmpty()) throw new Main.UsageException("mcp: takes no arguments");
         // stdout belongs to the protocol from here on; anything else that prints goes to stderr.
@@ -77,8 +86,15 @@ final class McpServer {
         if (outOption != null) outDir = workDir.resolve(outOption);
         else if (Files.isWritable(workDir)) outDir = workDir.resolve(".cct-runs");
         else outDir = Path.of(System.getProperty("user.home"), ".cct-run", "runs");
-        System.err.println("cct-run mcp " + Versions.TOOL + ": ready; runs go to " + outDir.normalize() + "; working directory " + workDir);
-        return new McpServer(System.in, stdout, outDir, workDir).serve();
+        var liveOption = args.option("--live");
+        if (liveOption == null) {
+            var env = System.getenv("CCT_LIVE_DIR");
+            if (env != null && !env.isBlank()) liveOption = env;
+        }
+        Path liveDir = liveOption == null ? null : workDir.resolve(liveOption);
+        System.err.println("cct-run mcp " + Versions.TOOL + ": ready; runs go to " + outDir.normalize() + "; working directory " + workDir
+            + (liveDir == null ? "" : "; live game directory " + liveDir.normalize()));
+        return new McpServer(System.in, stdout, outDir, workDir, liveDir).serve();
     }
 
     int serve() throws IOException, InterruptedException {
@@ -121,7 +137,9 @@ final class McpServer {
             case "ping" -> reply(id, new JsonObject());
             case "tools/list" -> {
                 var result = new JsonObject();
-                result.add("tools", McpTools.definitions());
+                var tools = McpTools.definitions();
+                tools.addAll(LiveTools.definitions());
+                result.add("tools", tools);
                 reply(id, result);
             }
             case "tools/call" -> {
@@ -174,8 +192,13 @@ final class McpServer {
             (20 ticks/s) and records everything that happens. Use it to test a program before giving it to the user, and \
             to debug it from the recorded evidence. Call cct_guide once before the first run: it explains the result \
             fields, the trace, fixtures (simulated peripherals, redstone, timed events) and what a passing run does and \
-            does not prove. Runs are stored in %s. Relative paths resolve against %s; prefer absolute paths."""
-            .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir));
+            does not prove. Runs are stored in %s. Relative paths resolve against %s; prefer absolute paths. \
+            The cct_live_* tools work on real computers in a running Minecraft game with the cct-live mod (screen, \
+            trace of events, peripheral calls, http and file access, printed errors, files, input, clicks, power); read \
+            cct_guide with section 7 for them; attach a computer (cct_live_attach) before recording or controlling it, \
+            and detach it when done; %s"""
+            .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir,
+                liveDir == null ? "no game directory is configured, so pass game_dir to them." : "the game directory is " + liveDir + "."));
         return result;
     }
 
@@ -187,8 +210,9 @@ final class McpServer {
                 case McpTools.RUN -> run(arguments, call);
                 case McpTools.TRACE -> inProcess(McpTools.traceArgs(arguments, outDir), McpTools.traceLimit(arguments));
                 case McpTools.SCREEN -> inProcess(McpTools.screenArgs(arguments, outDir), -1);
-                case McpTools.GUIDE -> inProcess(List.of("guide"), -1);
+                case McpTools.GUIDE -> guide(arguments);
                 default -> {
+                    if (LiveTools.NAMES.contains(name)) yield live.call(name, arguments);
                     var unknown = new JsonObject();
                     unknown.addProperty("jsonrpcError", "Unknown tool: " + name);
                     yield unknown;
@@ -266,6 +290,21 @@ final class McpServer {
     }
 
     // --- read-only tools: CLI code in this process ---------------------------------------------------------------
+
+    /** cct_guide: the whole guide, or one section (some clients cut long tool results). */
+    private JsonObject guide(JsonObject arguments) throws McpTools.ToolError {
+        var section = McpTools.guideSection(arguments);
+        var whole = inProcess(List.of("guide"), -1);
+        if (section == null || whole.get("isError").getAsBoolean()) return whole;
+        var text = whole.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+        var parts = text.split("\n(?=## )");
+        for (var part : parts) {
+            if (part.startsWith("## " + section + ".")) return toolResult(part.strip(), false);
+        }
+        var headings = new StringBuilder("No section " + section + ". Sections:");
+        for (var part : parts) if (part.startsWith("## ")) headings.append("\n").append(part.lines().findFirst().orElse(""));
+        return toolResult(headings.toString(), true);
+    }
 
     private JsonObject inProcess(List<String> argv, int limit) {
         var buffer = new ByteArrayOutputStream();
