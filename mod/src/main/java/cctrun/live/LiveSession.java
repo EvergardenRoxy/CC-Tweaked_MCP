@@ -85,6 +85,16 @@ final class LiveSession {
         return server;
     }
 
+    /** cct-live's own directory (token, endpoint, sessions, snapshots). */
+    Path home() {
+        return home;
+    }
+
+    /** Where CC keeps this computer's files (saves/<world>/computercraft/computer/<id>). */
+    Path computerDir(int id) {
+        return ServerContext.get(server).storageDir().resolve("computer").resolve(Integer.toString(id)).toAbsolutePath().normalize();
+    }
+
     Path dir() {
         return dir;
     }

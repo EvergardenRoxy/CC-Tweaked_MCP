@@ -35,10 +35,12 @@ final class LiveTools {
     static final String COMPUTERS = "cct_live_computers", STATUS = "cct_live_status", WAIT = "cct_live_wait",
         SCREEN = "cct_live_screen", ATTACH = "cct_live_attach", DETACH = "cct_live_detach", TRACE = "cct_live_trace",
         EVENT = "cct_live_event", TYPE = "cct_live_type", CLICK = "cct_live_click", FILES = "cct_live_files",
-        POWER = "cct_live_power", LUA = "cct_live_lua", BODY = "cct_live_body";
-    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY);
+        POWER = "cct_live_power", LUA = "cct_live_lua", BODY = "cct_live_body", SNAPSHOT = "cct_live_snapshot";
+    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY, SNAPSHOT);
     static final int DEFAULT_LUA_TIMEOUT = 15;
     private static final java.util.concurrent.atomic.AtomicInteger LUA_RUNS = new java.util.concurrent.atomic.AtomicInteger();
+    /** cct_live_lua runs that timed out, by "<computer>/<name>": their output may still arrive and be collected. */
+    private final Set<String> pendingLua = java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** GLFW key codes, as CC: Tweaked 1.120.2 on Minecraft 1.20.1 reports them in key events. */
     static final int KEY_ENTER = 257;
     static final int DEFAULT_TRACE_LIMIT = 50;
@@ -121,7 +123,7 @@ final class LiveTools {
           {
             "name": "cct_live_trace",
             "title": "Trace of a computer in the game",
-            "description": "Records of a computer for this game session (all attachments, seq counts on), oldest first: {tick, matched, records, next_offset?}. Default limit 50; screen records are left out unless kind names 'screen'. summary: true returns only counts and seq/tick ranges per kind (use it first). Kinds: printed_error (how a program crash is reported; check it first), event, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir), handle (reads/writes on files, HTTP responses, websockets; data cut to 200 characters, bytes = full length), peripheral_call/peripheral_return, screen, monitor, redstone_output, power, label, moved, file_write, vm_start/vm_close/vm_error, attach/detach, truncated. Files under /rom are not recorded.",
+            "description": "Records of a computer for this game session (all attachments, seq counts on), oldest first: {tick, matched, records, next_offset?}. Default limit 50; screen records are left out unless kind names 'screen'. summary: true returns only counts and seq/tick ranges per kind (use it first). Kinds: printed_error (how a program crash is reported; check it first), event, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir), handle (reads/writes on files, HTTP responses, websockets; data cut to 200 characters, bytes = full length), peripheral_call/peripheral_return, screen, monitor, redstone_output, power, label, moved, file_write, vm_start/vm_close/vm_error, attach/detach, snapshot, truncated. Files under /rom are not recorded. contains: only records whose url, path, program, text or call arguments contain this text (case-insensitive), e.g. a file name to follow one download.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -130,6 +132,7 @@ final class LiveTools {
                 "exclude": { "type": "array", "items": { "type": "string" } },
                 "after": { "type": "integer", "minimum": 0, "description": "Only records with seq greater than this." },
                 "ticks": { "type": "string", "description": "N, A-B, A- or -B." },
+                "contains": { "type": "string" },
                 "summary": { "type": "boolean" },
                 "offset": { "type": "integer", "minimum": 0 },
                 "limit": { "type": "integer", "minimum": 1, "maximum": 5000 }
@@ -177,8 +180,8 @@ final class LiveTools {
           {
             "name": "cct_live_lua",
             "title": "Run Lua on a computer and get the result",
-            "description": "Runs Lua code on an attached computer in one call and returns {ok, output (lines it printed), returns (serialised return values), error, phase, seconds}: writes a temporary script under /.cctlive, runs it from the shell, waits for the result and deletes its files. Use it for diagnostics (fs.getSize, load() a file to check its syntax, peripheral.getMethods ...) instead of writing, running, reading and deleting scripts yourself. Needs the shell prompt on the screen (not while a program runs; force: true skips that check) and the player's files_write permission. The code runs with the computer's full rights: only read-only diagnostics unless the user agreed to changes.",
-            "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "code": { "type": "string" }, "timeout": { "type": "integer", "minimum": 1, "maximum": 120, "description": "Seconds to wait for the result. Default 15." }, "force": { "type": "boolean" } }, "required": ["computer", "code"], "additionalProperties": false },
+            "description": "Runs Lua code on an attached computer in one call and returns {ok, output (lines it printed), returns (serialised return values), error, phase, seconds}: writes a temporary script under /.cctlive, runs it from the shell, waits for the result and deletes its files. Use it for diagnostics (fs.getSize, load() a file to check its syntax, peripheral.getMethods ...) instead of writing, running, reading and deleting scripts yourself. Needs the shell prompt on the screen (not while a program runs; force: true skips that check) and the player's files_write permission. If it times out, the result has pending: <name>; call again later with result: <name> (no code) to collect it. Leftover files of earlier runs are removed on each call and on cct_live_detach. The code runs with the computer's full rights: only read-only diagnostics unless the user agreed to changes.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "code": { "type": "string" }, "timeout": { "type": "integer", "minimum": 1, "maximum": 120, "description": "Seconds to wait for the result. Default 15." }, "force": { "type": "boolean" }, "result": { "type": "string", "description": "Collect a timed-out run: the 'pending' name it returned." } }, "required": ["computer"], "additionalProperties": false },
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
           },
           {
@@ -193,6 +196,13 @@ final class LiveTools {
             "title": "Send an event to a computer in the game",
             "description": "Queues any event on an attached computer, e.g. {name:'char', args:['y']}, {name:'key', args:[257,false]} (GLFW codes: enter 257, backspace 259, tab 258, right 262, left 263, down 264, up 265, left ctrl 341), {name:'terminate'}. Prefer cct_live_type / cct_live_click. Acts on the user's real world.",
             "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "name": { "type": "string" }, "args": { "type": "array" } }, "required": ["computer", "name"], "additionalProperties": false },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
+          },
+          {
+            "name": "cct_live_snapshot",
+            "title": "Save, compare or restore a computer's files",
+            "description": "Snapshots of an attached computer's own files (all of /, except /.cctlive), kept on the game side under cct-live/snapshots/. op save: copy every file now (name default 'before'; saving again replaces it); diff: {identical, added, removed, changed, dirs_added, dirs_removed} compared with the snapshot; restore: write back changed and removed files and delete files and directories the snapshot does not have, then check (identical); needs the player's files_write permission; list: saved snapshots. Save before you change anything, diff at the end to see what changed, restore to put the computer back. Restore deletes files: only on a computer the user let you change.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "op": { "type": "string", "enum": ["save", "diff", "restore", "list"] }, "name": { "type": "string", "description": "1-40 letters, digits, '_' or '-'. Default 'before'." } }, "required": ["computer", "op"], "additionalProperties": false },
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
           },
           {
@@ -320,10 +330,29 @@ final class LiveTools {
             }
             case DETACH -> {
                 allowOnly(a, "game_dir", "computer");
-                yield result(post(endpoint(a), "computers/" + computer(a) + "/detach", new JsonObject()));
+                var endpoint = endpoint(a);
+                var id = computer(a);
+                // cct_live_lua's leftovers go before control does (deleting needs the attachment).
+                var cleaned = cleanTemp(endpoint, id, Set.of());
+                pendingLua.removeIf(k -> k.startsWith(id + "/"));
+                var out = JsonParser.parseString(post(endpoint, "computers/" + id + "/detach", new JsonObject())).getAsJsonObject();
+                if (cleaned > 0) out.addProperty("temp_files_removed", cleaned);
+                yield McpServer.toolResult(Main.ascii(out.toString()), false);
+            }
+            case SNAPSHOT -> {
+                allowOnly(a, "game_dir", "computer", "op", "name");
+                var op = string(a, "op");
+                if (op == null || !Set.of("save", "diff", "restore", "list").contains(op)) {
+                    throw new McpTools.ToolError("'op' must be save, diff, restore or list");
+                }
+                var body = new JsonObject();
+                body.addProperty("op", op);
+                var snapshotName = string(a, "name");
+                if (snapshotName != null) body.addProperty("name", snapshotName);
+                yield result(post(endpoint(a), "computers/" + computer(a) + "/snapshot", body));
             }
             case TRACE -> {
-                allowOnly(a, "game_dir", "computer", "kind", "exclude", "after", "ticks", "summary", "offset", "limit");
+                allowOnly(a, "game_dir", "computer", "kind", "exclude", "after", "ticks", "contains", "summary", "offset", "limit");
                 var query = new ArrayList<String>();
                 var kinds = kinds(a, "kind");
                 if (!kinds.isEmpty()) query.add("kind=" + encode(String.join(",", kinds)));
@@ -336,6 +365,7 @@ final class LiveTools {
                 var limit = integer(a, "limit");
                 query.add("limit=" + (limit == null ? DEFAULT_TRACE_LIMIT : limit));
                 addString(query, a, "ticks");
+                addString(query, a, "contains");
                 if (bool(a, "summary", false)) query.add("summary=1");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/trace" + join(query)));
             }
@@ -401,8 +431,13 @@ final class LiveTools {
         var id = computer(a);
         var source = string(a, "source");
 
-        var start = System.nanoTime();
         Long after = integer(a, "after") == null ? null : (long) integer(a, "after");
+        if (after == null && !kinds.isEmpty()) {
+            // Records count from where the wait starts: without this the first status would match an old record.
+            var first = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
+            after = first.has("last_seq") ? first.get("last_seq").getAsLong() : 0L;
+        }
+        var start = System.nanoTime();
         String lastHash = null;
         var hashSince = start;
         while (true) {
@@ -411,7 +446,6 @@ final class LiveTools {
             if (after != null) query.add("after=" + after);
             if (!kinds.isEmpty()) query.add("kinds=" + encode(String.join(",", kinds)));
             var status = JsonParser.parseString(get(endpoint, "computers/" + id + "/status" + join(query))).getAsJsonObject();
-            // Without 'after', records count from where the wait started.
             if (after == null) after = status.has("last_seq") ? status.get("last_seq").getAsLong() : 0L;
 
             var now = System.nanoTime();
@@ -446,24 +480,33 @@ final class LiveTools {
 
     /** cct_live_lua: temporary script under /.cctlive, run from the shell, result read back, files deleted. */
     private JsonObject lua(JsonObject a) throws McpTools.ToolError {
-        allowOnly(a, "game_dir", "computer", "code", "timeout", "force");
+        allowOnly(a, "game_dir", "computer", "code", "timeout", "force", "result");
         var code = string(a, "code");
-        if (code == null || code.isBlank()) throw new McpTools.ToolError("'code' is required");
+        var pending = string(a, "result");
+        if (pending == null && (code == null || code.isBlank())) throw new McpTools.ToolError("'code' is required (or 'result' to collect a timed-out run)");
+        if (pending != null && code != null) throw new McpTools.ToolError("give either 'code' or 'result', not both");
         var timeout = integer(a, "timeout");
-        if (timeout == null) timeout = DEFAULT_LUA_TIMEOUT;
+        if (timeout == null) timeout = pending != null ? 1 : DEFAULT_LUA_TIMEOUT;
         if (timeout < 1 || timeout > MAX_WAIT) throw new McpTools.ToolError("'timeout' must be 1.." + MAX_WAIT + " seconds");
         var endpoint = endpoint(a);
         var id = computer(a);
+
+        if (pending != null) {
+            if (!pending.matches("lua_[0-9_]+")) throw new McpTools.ToolError("'result' must be a pending name from an earlier cct_live_lua, e.g. lua_1792213873910_3");
+            return collect(endpoint, id, pending, timeout, System.nanoTime());
+        }
 
         if (!bool(a, "force", false)) {
             var status = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
             var lines = status.getAsJsonArray("lines");
             var last = lines.isEmpty() ? "" : lines.get(lines.size() - 1).getAsString().strip();
             if (!last.endsWith(">")) {
-                throw new McpTools.ToolError("the shell prompt is not on the screen (last line: '" + last + "'). cct_live_lua runs from the shell; "
-                    + "inside a running program use cct_live_type, or pass force: true if the prompt is just scrolled away.");
+                throw new McpTools.ToolError("the shell prompt is not on the screen (last line: '" + last + "'). cct_live_lua runs from the shell, "
+                    + "so it needs the program to have ended: if it stopped at a 'press any key' screen, send a char event; inside a running program "
+                    + "use cct_live_type (e.g. in the lua REPL) or cct_live_files for reads. Pass force: true only if the prompt is just scrolled away.");
             }
         }
+        cleanTemp(endpoint, id, pendingOutputs(id));
 
         var name = "lua_" + System.currentTimeMillis() + "_" + LUA_RUNS.incrementAndGet();
         var script = ".cctlive/" + name + ".lua";
@@ -477,7 +520,13 @@ final class LiveTools {
         post(endpoint, "computers/" + id + "/event", event("paste", "/" + script.substring(0, script.length() - 4)));
         post(endpoint, "computers/" + id + "/event", event("key", KEY_ENTER, false));
         post(endpoint, "computers/" + id + "/event", event("key_up", KEY_ENTER));
+        return collect(endpoint, id, name, timeout, start);
+    }
 
+    /** Waits for a run's output file, reads it and deletes the run's files; on timeout the run stays pending. */
+    private JsonObject collect(Endpoint endpoint, int id, String name, int timeout, long start) throws McpTools.ToolError {
+        var script = ".cctlive/" + name + ".lua";
+        var output = ".cctlive/" + name + ".out";
         JsonObject result = null;
         while ((System.nanoTime() - start) / 1e9 < timeout) {
             try {
@@ -498,13 +547,17 @@ final class LiveTools {
         }
         var seconds = Math.round((System.nanoTime() - start) / 1e8) / 10.0;
         if (result == null) {
+            pendingLua.add(id + "/" + name);
             var out = new JsonObject();
             out.addProperty("ok", false);
             out.addProperty("timeout", true);
+            out.addProperty("pending", name);
             out.addProperty("seconds", seconds);
-            out.addProperty("note", "no result after " + timeout + " s; the code may still be running (check cct_live_status). Its files are under /.cctlive.");
+            out.addProperty("note", "no result after " + timeout + " s; the code may still be running (check cct_live_status). "
+                + "Collect it later with cct_live_lua {result: \"" + name + "\"}; its files are removed then, or on cct_live_detach.");
             return McpServer.toolResult(Main.ascii(out.toString()), false);
         }
+        pendingLua.remove(id + "/" + name);
         for (var path : List.of(output, script)) {
             var delete = new JsonObject();
             delete.addProperty("op", "delete");
@@ -521,6 +574,40 @@ final class LiveTools {
         }
         result.addProperty("seconds", seconds);
         return McpServer.toolResult(Main.ascii(result.toString()), false);
+    }
+
+    private Set<String> pendingOutputs(int id) {
+        var keep = new java.util.HashSet<String>();
+        for (var k : pendingLua) if (k.startsWith(id + "/")) keep.add(k.substring(k.indexOf('/') + 1) + ".out");
+        return keep;
+    }
+
+    /** Deletes files left in /.cctlive by earlier runs (except outputs still to be collected); best effort. */
+    private int cleanTemp(Endpoint endpoint, int id, Set<String> keep) {
+        var removed = 0;
+        try {
+            var stat = JsonParser.parseString(get(endpoint, "computers/" + id + "/files?op=stat&path=.cctlive")).getAsJsonObject();
+            if (!stat.get("exists").getAsBoolean()) return 0;
+            var list = JsonParser.parseString(get(endpoint, "computers/" + id + "/files?op=list&path=.cctlive")).getAsJsonObject();
+            for (var e : list.getAsJsonArray("entries")) {
+                var entry = e.getAsJsonObject().get("name").getAsString();
+                if (keep.contains(entry)) continue;
+                var delete = new JsonObject();
+                delete.addProperty("op", "delete");
+                delete.addProperty("path", ".cctlive/" + entry);
+                post(endpoint, "computers/" + id + "/files", delete);
+                removed++;
+            }
+            if (keep.isEmpty()) {
+                var delete = new JsonObject();
+                delete.addProperty("op", "delete");
+                delete.addProperty("path", ".cctlive");
+                post(endpoint, "computers/" + id + "/files", delete);
+            }
+        } catch (McpTools.ToolError | RuntimeException ignored) {
+            // Not attached, writing off, or nothing there: leave it.
+        }
+        return removed;
     }
 
     /** The script cct_live_lua runs: the user's code in its own environment with print/write captured. */
