@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "cctrun"
-version = "0.1.0-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
 
 val mcVersion = "1.20.1"
 val forgeBuild = "47.4.10"
