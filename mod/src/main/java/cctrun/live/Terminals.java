@@ -37,7 +37,31 @@ final class Terminals {
     }
 
     static Snapshot snapshot(ServerComputer computer) {
-        var terminal = of(computer);
+        return snapshot(of(computer));
+    }
+
+    /** Monitors attached directly to the computer, by side name (wired-network monitors are not included). */
+    static java.util.Map<String, Terminal> monitors(ServerComputer computer) {
+        var out = new java.util.TreeMap<String, Terminal>();
+        for (var side : dan200.computercraft.core.computer.ComputerSide.values()) {
+            if (!(computer.getPeripheral(side) instanceof dan200.computercraft.shared.peripheral.monitor.MonitorPeripheral monitor)) continue;
+            try {
+                var terminal = monitor.getTerminal();
+                if (terminal != null) out.put(side.getName(), terminal);
+            } catch (dan200.computercraft.api.lua.LuaException e) {
+                // Monitor not formed yet (just placed or being rebuilt).
+            }
+        }
+        return out;
+    }
+
+    /** "term" for the computer's own terminal, else a side with a monitor; null if there is none there. */
+    static Terminal source(ServerComputer computer, String source) {
+        if (source == null || source.equals("term")) return of(computer);
+        return monitors(computer).get(source);
+    }
+
+    static Snapshot snapshot(Terminal terminal) {
         // Terminal's writers are synchronised on the terminal, so this sees a consistent screen.
         synchronized (terminal) {
             var w = terminal.getWidth();

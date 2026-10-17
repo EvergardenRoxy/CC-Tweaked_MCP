@@ -141,11 +141,12 @@ final class LiveSession {
         return traceById.get(id);
     }
 
-    /** Attach, or renew an existing attachment. */
-    Attachment attach(ServerComputer computer) throws IOException {
+    /** Attach, or renew an existing attachment; leaseSeconds null = the configured lease. */
+    Attachment attach(ServerComputer computer, Long leaseSeconds) throws IOException {
         var existing = attached.get(computer.getMetrics());
         if (existing != null) {
-            existing.renew();
+            if (leaseSeconds != null) existing.lease(leaseSeconds);
+            else existing.renew();
             return existing;
         }
         var id = computer.getID();
@@ -158,10 +159,10 @@ final class LiveSession {
             trace = new ComputerTrace(this, file, LiveConfig.TRACE_MAX_MB.get() * 1024L * 1024L);
             traces.put(computer.getMetrics(), trace);
         }
-        var attachment = new Attachment(computer, trace, leaseMillis);
+        var attachment = new Attachment(computer, trace, leaseSeconds != null ? leaseSeconds * 1000L : leaseMillis);
 
         var start = new JsonObject();
-        start.addProperty("lease_seconds", leaseSeconds());
+        start.addProperty("lease_seconds", attachment.leaseSeconds());
         start.addProperty("recording_mode", recording);
         Ring.Entry[] history = new Ring.Entry[0];
         long[] dropped = {0};
@@ -189,7 +190,7 @@ final class LiveSession {
             trace.record("computer_seen", Attachment.describe(computer));
         }
         traceById.put(id, trace);
-        CctLive.announce(server, "cctlive.attached", "[cct-live] AI 已接管 %s 号电脑（租约 %s 秒，输入 /cctlive detach %s 可收回）", id, leaseSeconds(), id);
+        CctLive.announce(server, "cctlive.attached", "[cct-live] AI 已接管 %s 号电脑（租约 %s 秒，输入 /cctlive detach %s 可收回）", id, attachment.leaseSeconds(), id);
         return attachment;
     }
 

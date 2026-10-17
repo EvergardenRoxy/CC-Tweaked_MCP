@@ -139,7 +139,12 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
             var handle = recorder.handles().describe(owner);
             for (var entry : handle.entrySet()) data.add(entry.getKey(), entry.getValue());
             data.addProperty("method", name);
-            if (args.count() > 0) data.add("args", JsonValues.array(args.getAll(), recorder.handles()));
+            if (args.count() > 0) {
+                var all = args.getAll();
+                data.add("args", JsonValues.array(all, recorder.handles()));
+                var bytes = dataLength(all.length > 0 ? all[0] : null);
+                if (bytes >= 0) data.addProperty("bytes", bytes);
+            }
             MethodResult result;
             try {
                 result = inner.apply(target, context, args);
@@ -151,11 +156,24 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
             }
             data.addProperty("ok", true);
             // websocket.receive yields; its result arrives as an event, so only immediate results are shown.
-            if (result.getCallback() == null) data.add("result", JsonValues.array(result.getResult(), recorder.handles()));
+            if (result.getCallback() == null) {
+                var values = result.getResult();
+                data.add("result", JsonValues.array(values, recorder.handles()));
+                var bytes = dataLength(values != null && values.length > 0 ? values[0] : null);
+                if (bytes >= 0 && !data.has("bytes")) data.addProperty("bytes", bytes);
+            }
             else data.addProperty("pending", true);
             recorder.record("handle", data);
             return result;
         }
+    }
+
+    /** Full length of a string-like value (the record keeps only the first characters), or -1. */
+    private static long dataLength(Object value) {
+        if (value instanceof java.nio.ByteBuffer b) return b.remaining();
+        if (value instanceof byte[] b) return b.length;
+        if (value instanceof String s) return s.length();
+        return -1;
     }
 
     /** {@code peripheral_call} / {@code peripheral_return}. */

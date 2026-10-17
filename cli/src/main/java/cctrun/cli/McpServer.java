@@ -211,9 +211,8 @@ final class McpServer {
                 case McpTools.TRACE -> inProcess(McpTools.traceArgs(arguments, outDir), McpTools.traceLimit(arguments));
                 case McpTools.SCREEN -> inProcess(McpTools.screenArgs(arguments, outDir), -1);
                 case McpTools.GUIDE -> guide(arguments);
-                case LiveTools.COMPUTERS, LiveTools.SCREEN, LiveTools.ATTACH, LiveTools.DETACH, LiveTools.TRACE, LiveTools.EVENT, LiveTools.TYPE,
-                     LiveTools.CLICK, LiveTools.FILES, LiveTools.POWER -> live.call(name, arguments);
                 default -> {
+                    if (LiveTools.NAMES.contains(name)) yield live.call(name, arguments);
                     var unknown = new JsonObject();
                     unknown.addProperty("jsonrpcError", "Unknown tool: " + name);
                     yield unknown;

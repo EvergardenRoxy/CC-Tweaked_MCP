@@ -109,6 +109,31 @@ final class ComputerFiles {
         return out;
     }
 
+    /** Writes text to a file (parent directories are created); the mount enforces the computer's disk space. */
+    static JsonObject write(ServerComputer computer, String rawPath, String text, String encoding, boolean append) throws IOException {
+        var path = sanitise(rawPath);
+        if (path.isEmpty()) throw new IllegalArgumentException("path must name a file");
+        if (path.equals("rom") || path.startsWith("rom/")) throw new IllegalArgumentException("/rom is read-only");
+        var bytes = text.getBytes(encoding.equals("utf-8") ? StandardCharsets.UTF_8 : StandardCharsets.ISO_8859_1);
+        if (bytes.length > MAX_READ) throw new IllegalArgumentException("at most " + MAX_READ + " bytes per write");
+        var mount = computer.createRootMount();
+        if (mount.exists(path) && mount.isDirectory(path)) throw new IllegalArgumentException("/" + path + ": is a directory");
+        var slash = path.lastIndexOf('/');
+        if (slash > 0) mount.makeDirectory(path.substring(0, slash));
+        var options = append
+            ? java.util.Set.<java.nio.file.OpenOption>of(java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND)
+            : java.util.Set.<java.nio.file.OpenOption>of(java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+        try (var channel = mount.openFile(path, options)) {
+            var buffer = ByteBuffer.wrap(bytes);
+            while (buffer.hasRemaining()) channel.write(buffer);
+        }
+        var out = base(computer, mount, path);
+        out.addProperty("written", bytes.length);
+        out.addProperty("size", mount.getSize(path));
+        out.addProperty("append", append);
+        return out;
+    }
+
     private static JsonObject base(ServerComputer computer, WritableMount mount, String path) throws IOException {
         var out = new JsonObject();
         out.addProperty("id", computer.getID());

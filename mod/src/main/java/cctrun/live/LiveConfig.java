@@ -16,6 +16,7 @@ final class LiveConfig {
     static final ForgeConfigSpec.IntValue RECORDER_SIZE;
     static final ForgeConfigSpec.IntValue LEASE_SECONDS;
     static final ForgeConfigSpec.BooleanValue CHAT;
+    static final ForgeConfigSpec.BooleanValue FILES_WRITE;
 
     static {
         var b = new ForgeConfigSpec.Builder();
@@ -50,6 +51,17 @@ final class LiveConfig {
             .defineInRange("lease_seconds", 1800, 30, 86400);
         CHAT = b.comment("Announce in chat when an AI attaches to or releases a computer.")
             .define("chat", true);
+        b.pop();
+
+        b.push("files");
+        FILES_WRITE = b.comment(
+                "Let an attached AI WRITE files on the computer (create, overwrite or append; cct_live_files op=write).",
+                "Off by default. When on, the AI can change any file of a computer it has attached, including startup.lua,",
+                "within the computer's disk space. Every write is recorded in the trace as a 'file_write' record.",
+                "Reading files is always possible for an attached computer and is not affected by this switch.",
+                "允许已接管电脑的 AI 写入文件（新建、覆盖或追加）。默认关闭。打开后 AI 可以修改该电脑上的任何文件（包括 startup.lua），",
+                "每次写入都会在 trace 里留下 file_write 记录。读取文件不受此开关影响。")
+            .define("allow_write", false);
         b.pop();
         SPEC = b.build();
     }

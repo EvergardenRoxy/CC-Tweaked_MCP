@@ -21,7 +21,7 @@ final class Screens {
     }
 
     /** The terminal as it was at {@code tick}: applies the trace's screen records (rows, fg, bg, size) in order. */
-    static Terminals.Snapshot replay(Path trace, long tick) throws IOException {
+    static Terminals.Snapshot replay(Path trace, long tick, String source) throws IOException {
         int width = 0, height = 0, cursorX = 1, cursorY = 1;
         String[] text = new String[0], fg = new String[0], bg = new String[0];
         var seen = false;
@@ -32,6 +32,7 @@ final class Screens {
                 var record = JsonParser.parseString(line).getAsJsonObject();
                 if (!"screen".equals(record.get("kind").getAsString())) continue;
                 if (record.get("tick").getAsLong() > tick) break;
+                if (!source.equals(record.has("source") ? record.get("source").getAsString() : "term")) continue;
                 if (record.has("size")) {
                     var size = record.getAsJsonArray("size");
                     width = size.get(0).getAsInt();
@@ -70,7 +71,7 @@ final class Screens {
 
     /**
      * Connected areas (4-neighbour) of one background colour that differs from the screen's most common background:
-     * buttons, panels and bars of a GUI, also when their labels are drawn as pixel art. Largest first.
+     * buttons, panels and bars of a GUI, also when their labels are drawn as pixel art. Largest first (by cells).
      */
     static JsonArray regions(Terminals.Snapshot s) {
         var counts = new HashMap<Character, Integer>();
@@ -113,8 +114,6 @@ final class Screens {
                 region.add("from", pair(minX + 1, minY + 1));
                 region.add("to", pair(maxX + 1, maxY + 1));
                 region.add("center", pair((minX + maxX) / 2 + 1, (minY + maxY) / 2 + 1));
-                region.addProperty("cells", cells);
-                region.addProperty("rectangle", cells == (maxX - minX + 1) * (maxY - minY + 1));
                 var label = new StringBuilder();
                 for (var yy = minY; yy <= maxY; yy++) {
                     var part = s.text()[yy].substring(minX, maxX + 1).strip();
@@ -124,9 +123,24 @@ final class Screens {
                 found.add(region);
             }
         }
-        found.sort((a, b) -> Integer.compare(b.get("cells").getAsInt(), a.get("cells").getAsInt()));
+        found.sort((a, b) -> Integer.compare(area(b), area(a)));
         var out = new JsonArray();
         for (var i = 0; i < Math.min(found.size(), MAX_REGIONS); i++) out.add(found.get(i));
+        return out;
+    }
+
+    private static int area(JsonObject region) {
+        var from = region.getAsJsonArray("from");
+        var to = region.getAsJsonArray("to");
+        return (to.get(0).getAsInt() - from.get(0).getAsInt() + 1) * (to.get(1).getAsInt() - from.get(1).getAsInt() + 1);
+    }
+
+    /** Text rows without trailing spaces, and without trailing empty rows (row numbers stay as indexes + 1). */
+    static JsonArray compactLines(String[] rows) {
+        var last = rows.length - 1;
+        while (last >= 0 && rows[last].isBlank()) last--;
+        var out = new JsonArray();
+        for (var i = 0; i <= last; i++) out.add(rows[i].stripTrailing());
         return out;
     }
 

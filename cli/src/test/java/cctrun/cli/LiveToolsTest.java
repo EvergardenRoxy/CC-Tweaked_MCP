@@ -46,6 +46,11 @@ class LiveToolsTest {
             if (!"Bearer secret".equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
                 status = 401;
                 reply = "{\"error\":\"missing or wrong token\"}";
+            } else if (uri.getPath().endsWith("/status")) {
+                status = 200;
+                var match = uri.getRawQuery() != null && uri.getRawQuery().contains("kinds=printed_error")
+                    ? ",\"match\":{\"seq\":6,\"kind\":\"printed_error\",\"text\":\"boom\"}" : "";
+                reply = "{\"last_seq\":5,\"lines\":[\"hello\",\"Ready.\"],\"screen_hash\":\"ab\"" + match + "}";
             } else if (uri.getPath().equals("/computers/9/screen")) {
                 status = 404;
                 reply = "{\"error\":\"no computer with id 9 is loaded\"}";
@@ -107,8 +112,14 @@ class LiveToolsTest {
             "cct_live_detach {\"computer\": 1}",
             "cct_live_screen {\"computer\": 2, \"regions\": true, \"tick\": 300}",
             "cct_live_click {\"computer\": 3, \"x\": 12, \"y\": 16}",
-            "cct_live_files {\"computer\": 4, \"op\": \"read\", \"path\": \"icons/User.lua\", \"length\": 100}");
-        for (var i = 1; i <= 11; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
+            "cct_live_files {\"computer\": 4, \"op\": \"read\", \"path\": \"icons/User.lua\", \"length\": 100}",
+            "cct_live_click {\"computer\": 5, \"source\": \"right\", \"x\": 3, \"y\": 2}",
+            "cct_live_files {\"computer\": 5, \"op\": \"write\", \"path\": \"a.lua\", \"text\": \"print(1)\"}",
+            "cct_live_attach {\"computer\": 5, \"lease_seconds\": 3600}",
+            "cct_live_type {\"computer\": 6, \"text\": \"a\\nb\", \"enter\": false}",
+            "cct_live_trace {\"computer\": 7, \"summary\": true}",
+            "cct_live_status {\"computer\": 7, \"source\": \"right\", \"after\": 3}");
+        for (var i = 1; i <= 17; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
         assertTrue(text(r.get("1")).contains("/computers"));
         // Calls run concurrently, so compare as a set; the three requests of cct_live_type are sent in order.
         var expected = List.of(
@@ -125,10 +136,37 @@ class LiveToolsTest {
             "GET /computers/2/screen?regions=1&tick=300",
             "POST /computers/3/event {\"name\":\"mouse_click\",\"args\":[1,12,16]}",
             "POST /computers/3/event {\"name\":\"mouse_up\",\"args\":[1,12,16]}",
-            "GET /computers/4/files?op=read&path=icons%2FUser.lua&length=100");
+            "GET /computers/4/files?op=read&path=icons%2FUser.lua&length=100",
+            "POST /computers/5/event {\"name\":\"monitor_touch\",\"args\":[\"right\",3,2]}",
+            "POST /computers/5/files {\"path\":\"a.lua\",\"text\":\"print(1)\",\"append\":false}",
+            "POST /computers/5/attach {\"lease_seconds\":3600}",
+            "POST /computers/6/event {\"name\":\"paste\",\"args\":[\"a\"]}",
+            "POST /computers/6/event {\"name\":\"key\",\"args\":[257,false]}",
+            "POST /computers/6/event {\"name\":\"key_up\",\"args\":[257]}",
+            "POST /computers/6/event {\"name\":\"paste\",\"args\":[\"b\"]}",
+            "GET /computers/7/trace?exclude=screen&limit=50&summary=1",
+            "GET /computers/7/status?source=right&after=3");
         assertEquals(expected.stream().sorted().toList(), requests.stream().sorted().toList());
-        var typed = requests.stream().filter(q -> q.contains("paste") || q.contains("\"key")).toList();
+        var typed = requests.stream().filter(q -> q.startsWith("POST /computers/1/event") && (q.contains("paste") || q.contains("\"key"))).toList();
         assertEquals(List.of(expected.get(4), expected.get(5), expected.get(6)), typed);
+        var multi = requests.stream().filter(q -> q.startsWith("POST /computers/6/")).toList();
+        assertEquals(expected.stream().filter(q -> q.startsWith("POST /computers/6/")).toList(), multi);
+    }
+
+    @Test
+    void waitsOnTheServerSide() throws Exception {
+        var game = game();
+        var r = session(game,
+            "cct_live_wait {\"computer\": 0, \"text\": \"Ready\"}",
+            "cct_live_wait {\"computer\": 0, \"kind\": [\"printed_error\"]}",
+            "cct_live_wait {\"computer\": 0, \"text\": \"never\", \"timeout\": 1}",
+            "cct_live_wait {\"computer\": 0, \"idle_seconds\": 0.5, \"timeout\": 5}",
+            "cct_live_wait {\"computer\": 0}");
+        assertTrue(text(r.get("1")).contains("\"met\":\"text\""), text(r.get("1")));
+        assertTrue(text(r.get("2")).contains("\"met\":\"kind\"") && text(r.get("2")).contains("boom"), text(r.get("2")));
+        assertTrue(text(r.get("3")).contains("\"met\":\"timeout\""), text(r.get("3")));
+        assertTrue(text(r.get("4")).contains("\"met\":\"idle\""), text(r.get("4")));
+        assertTrue(r.get("5").get("isError").getAsBoolean());
     }
 
     @Test
@@ -144,13 +182,13 @@ class LiveToolsTest {
         r = session(game,
             "cct_live_screen {\"computer\": 9}",
             "cct_live_screen {}",
-            "cct_live_type {\"computer\": 1, \"text\": \"a\\nb\"}",
+            "cct_live_wait {\"computer\": 1}",
             "cct_live_power {\"computer\": 1, \"action\": \"explode\"}",
             "cct_live_screen {\"computer\": 0, \"bogus\": 1}",
             "cct_live_computers {\"game_dir\": \"" + game.toString().replace("\\", "\\\\") + "\"}");
         assertEquals("cct-live: no computer with id 9 is loaded (HTTP 404)", text(r.get("1")));
         assertTrue(text(r.get("2")).contains("'computer'"));
-        assertTrue(text(r.get("3")).contains("single line"));
+        assertTrue(text(r.get("3")).contains("at least one of"));
         assertTrue(text(r.get("4")).contains("on, shutdown or reboot"));
         assertTrue(text(r.get("5")).contains("unknown argument 'bogus'"));
         assertFalse(r.get("6").get("isError").getAsBoolean());

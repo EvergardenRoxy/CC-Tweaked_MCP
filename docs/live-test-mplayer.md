@@ -13,7 +13,8 @@
 
 ```text
 你可以通过 MCP 服务器 cct-run 的 cct_live_* 工具，操作我正在运行的 Minecraft 游戏里的一台真实 CC: Tweaked 电脑
-（Minecraft 1.20.1，CC: Tweaked 1.120.2，cct-live mod）。第一次调用前，先调用 cct_guide 阅读第 7 节。
+（Minecraft 1.20.1，CC: Tweaked 1.120.2，cct-live mod）。第一次调用前，先调用 cct_guide（参数 section: 7）阅读第 7 节。
+注意节省 token：日常检查用 cct_live_status，等待用 cct_live_wait（不要自己 sleep 再反复看屏幕），需要细节时再用 cct_live_trace（先用 summary: true）或 cct_live_screen。
 
 ## 任务
 在 <ID> 号电脑上测试这个自动安装脚本，它可能有问题：
@@ -27,7 +28,7 @@
 
 ## 操作步骤
 1. 用 cct_live_computers 确认 <ID> 号电脑存在并且已开机；用 cct_live_screen 看它当前的屏幕，确认处在 shell 提示符下。
-2. 用 cct_live_attach 接管 <ID> 号电脑，并记下返回的 tick。
+2. 用 cct_live_attach 接管 <ID> 号电脑（可以传 lease_seconds: 3600），并记下返回的 last_seq。
 3. 用 cct_live_type 在 shell 里输入上面那条 wget run 命令（一行，会自动回车）。
 4. 用 cct_live_screen 和 cct_live_trace 观察进度。trace 记录很多，请按类型筛选，并用 ticks="<上次的 tick>-" 或 after=<seq> 只看新增的记录：
    - 网络：kind=["api","event"]，看 http.request 请求了哪些 URL，以及对应的 http_success / http_failure 事件；
@@ -35,8 +36,9 @@
    - 文件操作：kind=["api"]，看 fs.open / fs.makeDir 的路径和结果；
    - 出错：kind=["vm_error"]，以及屏幕上的错误信息。
 5. 这个安装程序是 Basalt 图形界面，要用鼠标操作：
-   - 点击方法：用 cct_live_event 依次发 {name:"mouse_click", args:[1, x, y]} 和 {name:"mouse_up", args:[1, x, y]}。坐标从 1 开始，x 是列，y 是行。
-   - 按钮和标题上的中文是画成像素图的，在屏幕的 lines 里读不出来。请用 cct_live_screen 返回的 bg（每格的背景色，0-9a-f）找出按钮所在的色块，点它的中心。按钮在屏幕下方，左右各一个。
+   - 点击方法：用 cct_live_screen（regions: true）找到按钮所在的颜色区域，再用 cct_live_click 点它的 center。坐标从 1 开始，x 是列，y 是行。
+   - 按钮和标题上的中文是画成像素图的，在屏幕的 lines 里读不出来，只能靠颜色区域定位。按钮在屏幕下方，左右各一个。
+   - 如果电脑旁边有显示器，程序的主界面可能显示在显示器上：用 cct_live_screen / cct_live_status 的 source 参数（显示器所在的面，见 cct_live_attach 返回的 monitors）查看，用 cct_live_click 的 source 参数触摸。
    - 屏幕中间那行英文状态是普通文字，可以直接读到（例如 "Click Start."、"x/y 文件名"、"All files written."），用它来判断进度。
    - 预期流程：开始安装 → 下载 → 写入 → 完成后选择重启或稍后。每点一次按钮，都要先确认屏幕或 trace 有变化，再进行下一步；没有变化时先查原因，不要连续乱点。
 6. 安装完成后（或失败时），用 cct_live_type 输入 ls（必要时加上目录名）检查写入了哪些文件。如果流程成功，可以重启电脑，看安装的程序能否正常启动。

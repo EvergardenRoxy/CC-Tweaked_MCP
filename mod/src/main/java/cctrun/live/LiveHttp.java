@@ -31,9 +31,15 @@ import java.util.function.Supplier;
  * {@code cct-live/token.txt}); the Host header must name the loopback address (DNS rebinding guard).
  * <pre>
  * GET  /computers                                    computers on the server now (and which are attached)
- * GET  /computers/{id}/screen?regions=1&tick=N       text, colours, cursor (no attachment needed); regions = colour
- *                                                    areas (buttons ...); tick = rebuilt from the trace at that tick
+ * GET  /computers/{id}/screen?source=&colors=1&regions=1&tick=N
+ *                                                    text (no attachment needed); source = term (default) or the side of
+ *                                                    an attached monitor; colors = fg/bg rows; regions = colour areas
+ *                                                    (buttons ...); tick = rebuilt from the trace at that tick
+ * GET  /computers/{id}/status?after=&kinds=&source=  small summary for polling: tick, last seq, new records by kind,
+ *                                                    first record of kinds after seq, screen text and hash, monitors
  * GET  /computers/{id}/files?op=list|stat|read&path=&offset=&length=   the computer's files (needs an attachment)
+ * POST /computers/{id}/files  {"path", "text", "encoding"?, "append"?}  write a file (needs an attachment and
+ *                                                    config files.allow_write = true)
  * POST /computers/{id}/attach                        start (or renew) an attachment: observe and control
  * POST /computers/{id}/detach                        end it
  * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&offset=&limit=
@@ -46,7 +52,7 @@ import java.util.function.Supplier;
  * Anything touching computers runs on the server thread.
  */
 final class LiveHttp {
-    private static final int DEFAULT_LIMIT = 200;
+    private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 5000;
     private static final Set<String> POWER = Set.of("on", "shutdown", "reboot");
 
@@ -118,6 +124,12 @@ final class LiveHttp {
                 } else if (action.equals("files") && method.equals("GET")) {
                     var query = query(exchange);
                     send(exchange, 200, onServer(() -> files(id, query)));
+                } else if (action.equals("files") && method.equals("POST")) {
+                    var body = body(exchange);
+                    send(exchange, 200, onServer(() -> writeFile(id, body)));
+                } else if (action.equals("status") && method.equals("GET")) {
+                    var query = query(exchange);
+                    send(exchange, 200, status(id, query));
                 } else if (action.equals("trace") && method.equals("GET")) {
                     send(exchange, 200, trace(id, query(exchange)));
                 } else if (action.equals("event") && method.equals("POST")) {
@@ -127,7 +139,8 @@ final class LiveHttp {
                     var body = body(exchange);
                     send(exchange, 200, onServer(() -> power(id, body)));
                 } else if (action.equals("attach") && method.equals("POST")) {
-                    send(exchange, 200, onServer(() -> attach(id)));
+                    var body = body(exchange);
+                    send(exchange, 200, onServer(() -> attach(id, body)));
                 } else if (action.equals("detach") && method.equals("POST")) {
                     send(exchange, 200, onServer(() -> detach(id)));
                 } else {
@@ -166,11 +179,16 @@ final class LiveHttp {
         return out;
     }
 
-    private JsonObject attach(int id) {
+    private JsonObject attach(int id, JsonObject body) {
         var computer = find(id);
+        Long lease = null;
+        if (body.has("lease_seconds") && !body.get("lease_seconds").isJsonNull()) {
+            lease = body.get("lease_seconds").getAsLong();
+            if (lease < 30 || lease > 86400) throw new BadRequest(400, "lease_seconds must be 30..86400");
+        }
         Attachment attachment;
         try {
-            attachment = session.attach(computer);
+            attachment = session.attach(computer, lease);
         } catch (IOException e) {
             throw new IllegalStateException("cannot write the trace: " + e.getMessage(), e);
         }
@@ -178,9 +196,11 @@ final class LiveHttp {
         out.addProperty("id", id);
         out.addProperty("attached", true);
         out.addProperty("tick", session.tickCount());
-        out.addProperty("lease_seconds", session.leaseSeconds());
+        out.addProperty("lease_seconds", attachment.leaseSeconds());
         out.addProperty("recording_mode", session.recording());
-        out.addProperty("trace", attachment.trace().file().toString());
+        out.addProperty("last_seq", attachment.trace().lastSeq());
+        out.add("monitors", strings(Terminals.monitors(computer).keySet().toArray(String[]::new)));
+        out.addProperty("files_write", LiveConfig.FILES_WRITE.get());
         return out;
     }
 
@@ -205,14 +225,77 @@ final class LiveHttp {
 
     private JsonObject screen(int id, Map<String, String> query) {
         var computer = find(id);
-        var s = Terminals.snapshot(computer);
+        var source = query.getOrDefault("source", "term");
+        var terminal = Terminals.source(computer, source);
+        if (terminal == null) {
+            throw new BadRequest(404, "no monitor on side '" + source + "' of computer " + id + "; monitors: " + Terminals.monitors(computer).keySet());
+        }
+        var s = Terminals.snapshot(terminal);
         var out = new JsonObject();
         out.addProperty("id", id);
+        out.addProperty("source", source);
         out.addProperty("tick", session.tickCount());
         out.addProperty("on", computer.isOn());
         out.addProperty("attached", session.attachmentOf(computer) != null);
-        describeScreen(out, s, flag(query, "regions"));
+        describeScreen(out, s, flag(query, "regions"), flag(query, "colors"));
         return out;
+    }
+
+    /** Small enough to poll: what happened since seq {@code after}, and what the screen says now. */
+    private JsonObject status(int id, Map<String, String> query) throws IOException {
+        var source = query.getOrDefault("source", "term");
+        var after = intParam(query, "after", 0, 0, Integer.MAX_VALUE);
+        var wanted = new HashSet<String>();
+        if (query.containsKey("kinds")) for (var k : query.get("kinds").split(",")) if (!k.isBlank()) wanted.add(k.trim());
+
+        var out = onServer(() -> {
+            var computer = find(id);
+            var terminal = Terminals.source(computer, source);
+            if (terminal == null) {
+                throw new BadRequest(404, "no monitor on side '" + source + "' of computer " + id + "; monitors: " + Terminals.monitors(computer).keySet());
+            }
+            var s = Terminals.snapshot(terminal);
+            var attachment = session.attachmentOf(computer);
+            var o = new JsonObject();
+            o.addProperty("id", id);
+            o.addProperty("tick", session.tickCount());
+            o.addProperty("on", computer.isOn());
+            o.addProperty("attached", attachment != null);
+            if (attachment != null) o.addProperty("lease_seconds_left", attachment.secondsLeft());
+            o.add("monitors", strings(Terminals.monitors(computer).keySet().toArray(String[]::new)));
+            o.addProperty("source", source);
+            o.add("lines", Screens.compactLines(s.text()));
+            o.addProperty("screen_hash", Integer.toHexString(java.util.Arrays.hashCode(s.text()) * 31 + java.util.Arrays.hashCode(s.bg())));
+            return o;
+        });
+        var trace = session.traceOf(id);
+        if (trace != null) {
+            out.addProperty("last_seq", trace.lastSeq());
+            var counts = new JsonObject();
+            for (var e : trace.countsAfter(after).entrySet()) counts.addProperty(e.getKey(), e.getValue());
+            out.add("new_since_after", counts);
+            var printed = trace.latest("printed_error");
+            if (printed != null) out.add("last_printed_error", printed);
+            if (!wanted.isEmpty()) {
+                var seq = trace.firstAfter(after, wanted);
+                if (seq > 0) {
+                    trace.flush();
+                    out.add("match", recordAt(trace.file(), seq));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static JsonObject recordAt(java.nio.file.Path file, long seq) throws IOException {
+        var prefix = "{\"seq\":" + seq + ",";
+        try (var lines = Files.lines(file, StandardCharsets.UTF_8)) {
+            for (var it = lines.iterator(); it.hasNext(); ) {
+                var line = it.next();
+                if (line.startsWith(prefix)) return JsonParser.parseString(line).getAsJsonObject();
+            }
+        }
+        return null;
     }
 
     /** The screen at a past tick, rebuilt from the computer's trace (only ticks while it was attached). */
@@ -228,23 +311,28 @@ final class LiveHttp {
         });
         if (trace == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet: POST /computers/" + id + "/attach starts recording");
         trace.flush();
-        var s = Screens.replay(trace.file(), tick);
+        var source = query.getOrDefault("source", "term");
+        var s = Screens.replay(trace.file(), tick, source);
         if (s == null) throw new BadRequest(404, "no screen recorded for computer " + id + " up to tick " + tick);
         var out = new JsonObject();
         out.addProperty("id", id);
         out.addProperty("tick", tick);
+        out.addProperty("source", source);
         out.addProperty("rebuilt_from_trace", true);
-        describeScreen(out, s, flag(query, "regions"));
+        describeScreen(out, s, flag(query, "regions"), flag(query, "colors"));
         return out;
     }
 
-    private static void describeScreen(JsonObject out, Terminals.Snapshot s, boolean regions) {
+    /** Text rows always (trailing spaces and empty rows dropped); colours and regions only on request. */
+    private static void describeScreen(JsonObject out, Terminals.Snapshot s, boolean regions, boolean colors) {
         out.add("size", pair(s.width(), s.height()));
         out.add("cursor", pair(s.cursorX(), s.cursorY()));
         out.addProperty("cursor_blink", s.blink());
-        out.add("lines", strings(s.text()));
-        out.add("fg", strings(s.fg()));
-        out.add("bg", strings(s.bg()));
+        out.add("lines", Screens.compactLines(s.text()));
+        if (colors) {
+            out.add("fg", strings(s.fg()));
+            out.add("bg", strings(s.bg()));
+        }
         if (regions) out.add("regions", Screens.regions(s));
     }
 
@@ -265,6 +353,32 @@ final class LiveHttp {
             throw new BadRequest(400, e.getMessage());
         } catch (IOException e) {
             throw new BadRequest(500, "cannot read the computer's files: " + e.getMessage());
+        }
+    }
+
+    private JsonObject writeFile(int id, JsonObject body) {
+        if (!LiveConfig.FILES_WRITE.get()) {
+            throw new BadRequest(403, "writing files is off: the player can turn it on with files.allow_write = true in config/cctlive-common.toml");
+        }
+        var computer = controlled(id);
+        if (!body.has("path") || !body.has("text")) throw new BadRequest(400, "body needs \"path\" and \"text\"");
+        var encoding = body.has("encoding") ? body.get("encoding").getAsString() : "utf-8";
+        if (!encoding.equals("utf-8") && !encoding.equals("iso-8859-1")) throw new BadRequest(400, "encoding must be utf-8 or iso-8859-1");
+        var append = body.has("append") && body.get("append").getAsBoolean();
+        try {
+            var out = ComputerFiles.write(computer, body.get("path").getAsString(), body.get("text").getAsString(), encoding, append);
+            var attachment = session.attachmentOf(computer);
+            var record = new JsonObject();
+            record.addProperty("path", out.get("path").getAsString());
+            record.addProperty("bytes", out.get("written").getAsLong());
+            record.addProperty("append", append);
+            record.addProperty("by", "ai");
+            attachment.trace().record("file_write", record);
+            return out;
+        } catch (IllegalArgumentException e) {
+            throw new BadRequest(400, e.getMessage());
+        } catch (IOException e) {
+            throw new BadRequest(500, "cannot write the file: " + e.getMessage());
         }
     }
 
@@ -338,6 +452,10 @@ final class LiveHttp {
         }
         var offset = intParam(query, "offset", 0, 0, Integer.MAX_VALUE);
         var limit = intParam(query, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT);
+        var excluded = new HashSet<String>();
+        if (query.containsKey("exclude")) for (var k : query.get("exclude").split(",")) if (!k.isBlank()) excluded.add(k.trim());
+        var summary = flag(query, "summary");
+        var byKind = new java.util.TreeMap<String, long[]>();
 
         computerTrace.flush();
         var records = new JsonArray();
@@ -347,10 +465,22 @@ final class LiveHttp {
                 var line = it.next();
                 if (line.isBlank()) continue;
                 var record = JsonParser.parseString(line).getAsJsonObject();
-                if (!kinds.isEmpty() && !kinds.contains(record.get("kind").getAsString())) continue;
+                var kind = record.get("kind").getAsString();
+                if (!kinds.isEmpty() && !kinds.contains(kind)) continue;
+                if (excluded.contains(kind)) continue;
                 if (record.get("seq").getAsLong() <= after) continue;
                 var tick = record.get("tick").getAsLong();
                 if (tick < fromTick || tick > toTick) continue;
+                if (summary) {
+                    // count, first seq, last seq, first tick, last tick
+                    var seq = record.get("seq").getAsLong();
+                    var entry = byKind.computeIfAbsent(kind, k -> new long[]{0, seq, seq, tick, tick});
+                    entry[0]++;
+                    entry[2] = seq;
+                    entry[4] = tick;
+                    matched++;
+                    continue;
+                }
                 if (matched++ < offset) continue;
                 if (records.size() < limit) records.add(record);
             }
@@ -361,6 +491,20 @@ final class LiveHttp {
         out.addProperty("attached", attachment != null);
         out.addProperty("tick", session.tickCount());
         out.addProperty("matched", matched);
+        if (summary) {
+            var kindsOut = new JsonObject();
+            for (var e : byKind.entrySet()) {
+                var v = e.getValue();
+                var k = new JsonObject();
+                k.addProperty("count", v[0]);
+                k.add("seq", pair((int) v[1], (int) v[2]));
+                k.add("ticks", pair((int) v[3], (int) v[4]));
+                kindsOut.add(e.getKey(), k);
+            }
+            out.add("kinds", kindsOut);
+            out.addProperty("last_seq", computerTrace.lastSeq());
+            return out;
+        }
         out.addProperty("offset", offset);
         out.add("records", records);
         if (offset + records.size() < matched) out.addProperty("next_offset", offset + records.size());

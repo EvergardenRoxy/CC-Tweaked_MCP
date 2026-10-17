@@ -15,14 +15,15 @@ import java.util.Objects;
  * <p>
  * Records written here: {@code attach}, {@code computer_seen}, {@code power} (on/off changes), {@code moved}
  * (turtles; position or dimension changes), {@code label}, {@code redstone_output} (as in cct-run), {@code screen}
- * (as in cct-run, plus {@code fg}/{@code bg} colour rows), {@code detach}.
+ * (as in cct-run, plus {@code fg}/{@code bg} colour rows; source "term" or the side of a directly attached monitor),
+ * {@code monitor} (a monitor appeared or went away), {@code detach}.
  */
 final class Attachment {
     private static final ComputerSide[] SIDES = ComputerSide.values();
 
     private final ServerComputer computer;
     private final ComputerTrace trace;
-    private final long leaseMillis;
+    private volatile long leaseMillis;
     private volatile long expiresAt;
 
     private boolean on;
@@ -30,7 +31,8 @@ final class Attachment {
     private String label;
     private final int[] redstone = new int[SIDES.length];
     private final int[] bundled = new int[SIDES.length];
-    private Terminals.Snapshot screen;
+    /** Last screen per source: "term" and the sides with a monitor. */
+    private final java.util.Map<String, Terminals.Snapshot> screens = new java.util.HashMap<>();
 
     Attachment(ServerComputer computer, ComputerTrace trace, long leaseMillis) {
         this.computer = computer;
@@ -49,6 +51,16 @@ final class Attachment {
 
     ComputerTrace trace() {
         return trace;
+    }
+
+    long leaseSeconds() {
+        return leaseMillis / 1000;
+    }
+
+    /** A different lease length for this attachment (cct_live_attach lease_seconds), then renew. */
+    void lease(long seconds) {
+        leaseMillis = seconds * 1000L;
+        renew();
     }
 
     void renew() {
@@ -124,12 +136,30 @@ final class Attachment {
             trace.record("redstone_output", data);
         }
 
-        if (screens) pollScreen();
+        if (screens) {
+            pollScreen("term", Terminals.snapshot(computer));
+            var monitors = Terminals.monitors(computer);
+            for (var entry : monitors.entrySet()) pollScreen(entry.getKey(), Terminals.snapshot(entry.getValue()));
+            for (var it = this.screens.keySet().iterator(); it.hasNext(); ) {
+                var source = it.next();
+                if (source.equals("term") || monitors.containsKey(source)) continue;
+                it.remove();
+                var data = new JsonObject();
+                data.addProperty("source", source);
+                data.addProperty("present", false);
+                trace.record("monitor", data);
+            }
+        }
     }
 
-    private void pollScreen() {
-        var now = Terminals.snapshot(computer);
-        var before = screen;
+    private void pollScreen(String source, Terminals.Snapshot now) {
+        var before = screens.get(source);
+        if (before == null && !source.equals("term")) {
+            var data = new JsonObject();
+            data.addProperty("source", source);
+            data.addProperty("present", true);
+            trace.record("monitor", data);
+        }
         var resized = before == null || before.width() != now.width() || before.height() != now.height();
         var lines = new JsonObject();
         var fg = new JsonObject();
@@ -141,11 +171,11 @@ final class Attachment {
             if (resized || !now.bg()[y].equals(before.bg()[y])) bg.addProperty(row, now.bg()[y]);
         }
         var cursorMoved = before != null && (before.cursorX() != now.cursorX() || before.cursorY() != now.cursorY());
-        screen = now;
+        screens.put(source, now);
         if (lines.size() == 0 && fg.size() == 0 && bg.size() == 0 && !cursorMoved && !resized) return;
 
         var data = new JsonObject();
-        data.addProperty("source", "term");
+        data.addProperty("source", source);
         data.add("lines", lines);
         if (fg.size() > 0) data.add("fg", fg);
         if (bg.size() > 0) data.add("bg", bg);

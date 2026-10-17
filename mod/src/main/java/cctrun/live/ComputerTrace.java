@@ -31,6 +31,11 @@ final class ComputerTrace {
     private final long maxBytes;
     private final AtomicLong callIds = new AtomicLong();
     private long seq;
+    /** kinds.get(n - 1) is the kind of record seq n: lets status and wait answer without reading the file. */
+    private final java.util.ArrayList<String> kinds = new java.util.ArrayList<>();
+    /** The latest record of a few kinds an agent asks about all the time. */
+    private final java.util.Map<String, JsonObject> latest = new java.util.HashMap<>();
+    private static final java.util.Set<String> KEEP_LATEST = java.util.Set.of("printed_error", "vm_error", "detach", "attach");
     private long bytes;
     private boolean truncated;
     private boolean closed;
@@ -66,12 +71,15 @@ final class ComputerTrace {
         line.addProperty("ms", ms);
         line.addProperty("kind", kind);
         for (var entry : data.entrySet()) line.add(entry.getKey(), entry.getValue());
+        kinds.add(kind.intern());
+        if (KEEP_LATEST.contains(kind)) latest.put(kind, line);
         var text = GSON.toJson(line);
         try {
             if (bytes + text.length() + 1 > maxBytes) {
                 truncated = true;
                 var cut = new JsonObject();
                 cut.addProperty("seq", ++seq);
+                kinds.add("truncated");
                 cut.addProperty("tick", tick);
                 cut.addProperty("ms", ms);
                 cut.addProperty("kind", "truncated");
@@ -88,6 +96,28 @@ final class ComputerTrace {
             CctLive.LOG.warn("Could not write {}; tracing for this computer stops", file, e);
             closed = true;
         }
+    }
+
+    synchronized long lastSeq() {
+        return seq;
+    }
+
+    /** Records after seq {@code after}, counted by kind. */
+    synchronized java.util.Map<String, Integer> countsAfter(long after) {
+        var out = new java.util.TreeMap<String, Integer>();
+        for (var i = (int) Math.max(0, after); i < kinds.size(); i++) out.merge(kinds.get(i), 1, Integer::sum);
+        return out;
+    }
+
+    /** seq of the first record after {@code after} whose kind is one of {@code wanted}, or -1. */
+    synchronized long firstAfter(long after, java.util.Set<String> wanted) {
+        for (var i = (int) Math.max(0, after); i < kinds.size(); i++) if (wanted.contains(kinds.get(i))) return i + 1;
+        return -1;
+    }
+
+    synchronized JsonObject latest(String kind) {
+        var record = latest.get(kind);
+        return record == null ? null : record.deepCopy();
     }
 
     synchronized void flush() {
