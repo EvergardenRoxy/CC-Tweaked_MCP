@@ -81,20 +81,21 @@ cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以
 
 ## 通过 MCP 让 AI 使用
 
-`cct-run mcp` 提供 14 个 `cct_live_*` 工具。每次工具返回的内容都会留在 AI 的上下文里，所以工具默认只返回很少的数据：日常检查用 `status`，等待用 `wait`，需要细节时再查 trace 或屏幕。
+`cct-run mcp` 提供 15 个 `cct_live_*` 工具。每次工具返回的内容都会留在 AI 的上下文里，所以工具默认只返回很少的数据：日常检查用 `status`，等待用 `wait`，需要细节时再查 trace 或屏幕。
 
 | 工具 | 作用 | 需要先接管 |
 |---|---|---|
 | `cct_live_computers` | 列出已加载的电脑，以及是否被接管 | 否 |
-| `cct_live_attach` / `cct_live_detach` | 接管（可以用 `lease_seconds` 指定租约）/ 释放 | — |
+| `cct_live_attach` / `cct_live_detach` | 接管（可以用 `lease_seconds` 指定租约；返回里的 `computer_dir` 是这台电脑的文件在存档里的位置）/ 释放（释放前会清理 `/.cctlive` 里的临时文件） | — |
 | `cct_live_status` | 简短状态：tick、最新 seq、某个 seq 之后各类记录新增了多少条、最近一条 `printed_error`、屏幕上的文字 | 否 |
-| `cct_live_wait` | **在服务端等待**，直到屏幕出现某段文字、出现某类记录（比如 `printed_error`），或者屏幕连续若干秒没有变化，最长 120 秒。AI 不用再反复轮询 | 否 |
+| `cct_live_wait` | **在服务端等待**，直到屏幕出现某段文字、出现某类记录（比如 `printed_error`；不传 `after` 时只算等待开始之后的新记录），或者屏幕连续若干秒没有变化，最长 120 秒。AI 不用再反复轮询 | 否 |
 | `cct_live_screen` | 电脑或显示器（`source`）当前的文字；`colors` 附带颜色，`regions` 列出颜色区域（按钮），`tick` 还原某一刻 | 否（`tick` 要有过接管记录） |
-| `cct_live_trace` | 查询 trace：默认最多 50 条，不含 `screen` 记录；`summary: true` 只返回各类记录的数量 | 读取之前的记录时不需要 |
+| `cct_live_trace` | 查询 trace：默认最多 50 条，不含 `screen` 记录；`summary: true` 只返回各类记录的数量；`contains` 只要 URL、路径、程序名、文字或参数里含有某段文字的记录（不区分大小写），比如跟踪某一个文件的下载 | 读取之前的记录时不需要 |
 | `cct_live_type` | 输入文字，每行后面按一次回车，可以一次输入多行 | 是 |
 | `cct_live_click` | 点击电脑屏幕（mouse_click + mouse_up），或触摸显示器（`source` 是显示器所在的面，发送 monitor_touch） | 是 |
 | `cct_live_files` | 读电脑上的文件（list / stat / read）；如果 config 里打开了 `files.allow_write`，还可以写入（write） | 是 |
-| `cct_live_lua` | 一次调用完成：在电脑上运行一段 Lua，返回打印内容、返回值和错误（含调用栈）。临时文件放在 `/.cctlive`，用完自动删除。需要 shell 停在提示符下，并且打开了 `files.allow_write` | 是 |
+| `cct_live_lua` | 一次调用完成：在电脑上运行一段 Lua，返回打印内容、返回值和错误（含调用栈）。临时文件放在 `/.cctlive`，用完自动删除。超时后返回 `pending` 名字，之后用 `result` 取回结果；遗留的临时文件在下一次调用和释放时清理。需要 shell 停在提示符下，并且打开了 `files.allow_write` | 是 |
+| `cct_live_snapshot` | 电脑文件的快照：`save` 保存全部文件（`/.cctlive` 除外），`diff` 列出之后新增、删除、改动的文件，`restore` 把电脑恢复成快照时的样子（会删除快照里没有的文件，需要打开 `files.allow_write`），`list` 列出已保存的快照。快照保存在 `cct-live/snapshots/` 下，重开游戏后仍然可用 | 是 |
 | `cct_live_body` | 读取接管期间某个 HTTP 响应的完整正文（`handle` 记录里的 `body` 编号；每个正文最多保存 4 MB） | 否 |
 | `cct_live_event` | 发送任意事件 | 是 |
 | `cct_live_power` | 开机、关机、重启 | 是 |
@@ -133,7 +134,8 @@ Claude Code 的 `.mcp.json` 示例：
 | `POST /computers/{id}/files` `{"path", "text", "append"?, "encoding"?}` | 写文件（需要已接管，并且 config 里 `files.allow_write = true`），会记一条 `file_write`；`{"op": "delete", "path"}` 只能删除 `/.cctlive` 下的文件（`cct_live_lua` 的临时文件），会记一条 `file_delete` |
 | `POST /computers/{id}/attach` `{"lease_seconds"?}` | 接管；如果已经接管，则续约（或改成新的租约时长） |
 | `POST /computers/{id}/detach` | 释放 |
-| `GET /computers/{id}/trace?kind=&exclude=&after=&ticks=&summary=1&offset=&limit=` | 这台电脑本次游戏的 trace：`kind` / `exclude` 按类型筛选，`after` 只要 seq 大于 N 的记录，`ticks` 按 tick 范围筛选，`summary=1` 只返回各类记录的数量和范围（limit 默认 50，最大 5000） |
+| `GET /computers/{id}/trace?kind=&exclude=&after=&ticks=&contains=&summary=1&offset=&limit=` | 这台电脑本次游戏的 trace：`kind` / `exclude` 按类型筛选，`after` 只要 seq 大于 N 的记录，`ticks` 按 tick 范围筛选，`contains` 只要 url、path、program、text 或参数里含有这段文字的记录（不区分大小写），`summary=1` 只返回各类记录的数量和范围（limit 默认 50，最大 5000） |
+| `POST /computers/{id}/snapshot` `{"op": "save"\|"diff"\|"restore"\|"list", "name"?}` | 电脑文件的快照（需要已接管；`restore` 还需要 `files.allow_write = true`）。`save` 把 `/` 下全部文件（`/.cctlive` 除外）复制到 `cct-live/snapshots/computer-<id>/<name>/`（名字默认 `before`）；`diff` 返回 `added` / `removed` / `changed` / `dirs_added` / `dirs_removed` 和 `identical`；`restore` 写回改动和删除的文件、删除快照里没有的文件和目录，再检查一遍；`save` 和 `restore` 记一条 `snapshot` |
 | `POST /computers/{id}/event` `{"name": "...", "args": [...]}` | 向电脑的事件队列加入一个事件（需要已接管） |
 | `POST /computers/{id}/power` `{"action": "on"\|"shutdown"\|"reboot"}` | 开机、关机、重启（需要已接管） |
 
@@ -173,7 +175,8 @@ Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
 | `vm_start` / `vm_close` / `vm_error` | VM 的创建和关闭（开机、重启）；VM 级错误，例如 Too long without yielding |
 | `screen` | 每个 tick 中变化的行，含 `fg` / `bg` 颜色、光标和尺寸；`source` 是 `term` 或直接贴在电脑上的显示器所在的面 |
 | `monitor` | 显示器接上或拆掉 |
-| `file_write` | AI 通过 `cct_live_files` 写入的文件（路径和字节数） |
+| `file_write` / `file_delete` | AI 通过 `cct_live_files` 写入的文件（路径和字节数）/ cct-run 删除的 `/.cctlive` 临时文件 |
+| `snapshot` | AI 保存或恢复了快照（恢复时带 `written` 和 `deleted` 列表） |
 | `redstone_output`、`power`、`label`、`moved` | 红石输出变化、开关机、标签变化、位置或维度变化（海龟移动） |
 | `computer_seen` | 接管时这台电脑的信息 |
 | `truncated` | 文件达到大小上限后停止写入 |
@@ -209,4 +212,4 @@ Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
 - 没有 `output` 记录：滚出屏幕的行看不到。
 - 只支持直接贴在电脑上的显示器，不支持通过有线网络连接的显示器；海龟的背包和燃料还没有接口。
 - 海龟、口袋电脑和命令电脑都还没有测试过。
-- 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，做过三轮 AI 实测；`cct_live_lua`、`cct_live_body` 和 `labels` 还没有经过实测）。
+- 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，做过四轮 AI 实测；`cct_live_snapshot`、trace 的 `contains` 和 `cct_live_lua` 的 `result` 还没有经过实测）。

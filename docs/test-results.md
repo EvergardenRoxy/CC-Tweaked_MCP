@@ -33,9 +33,26 @@
 | MCP | 第 4 轮（客户端未注明） | 先读说明，再运行文件、查询 trace、直接运行代码，全部正确；提示中的路径不存在时，AI 自行改用了实际安装目录 |
 | MCP | Claude Code、Codex、DeepSeek Harness、Autoclaw 分别的结果 | **待反馈**（`docs/testing.md` 第 4b 步） |
 
+## cct-live 实机 AI 测试（MPlayer 安装脚本）
+
+都在维护者的 Windows 单人游戏（PCL2 启动器）里进行，提示词见 [`live-test-mplayer.md`](live-test-mplayer.md)。
+
+| 轮次 | 电脑 | token | 结论 | 根据报告做的改进 |
+|---|---|---|---|---|
+| 1 | 2 | 未记录 | 找到根因：`git.liulikeji.cn` 的 WAF 对 URL 里带 `user` 的请求返回 4130 字节的滑动验证网页（状态码 200），安装器把它写成了 `icons/User.lua` | `printed_error`、读文件、颜色区域、分节读说明 |
+| 2 | — | 1530 万（DeepSeek Harness） | 结论同上 | `status`、`wait`、更紧凑的输出、显示器、写文件（默认关闭） |
+| 3 | 4 | 1945 万（deepseek-v4.1-flash） | 结论同上，并做了对照实验、恢复了电脑 | `cct_live_lua`、`cct_live_body`、区域里的 `labels` |
+| 4 | 5 | 未记录 | 结论同上，并用 `loadfile()` 确认 47 个文件里只有这 1 个坏；另外找到两个问题：引导 Basalt 时 `load(..., _G)` 的环境里没有 `require`；字体只缓存在内存里，站点不可用时程序开不了机 | `cct_live_wait` 不再返回旧记录；`cct_live_lua` 超时可取回结果、自动清理临时文件；`cct_live_snapshot`（保存 / 比较 / 恢复）；trace 的 `contains`；`computer_dir` |
+
+第 4 轮报告里提到但**没有改**的：
+- `cct_live_lua` 在程序运行时无法使用：它要从 shell 运行；要在程序运行时执行代码，就得改动程序收发事件的方式，会影响被测程序本身。
+- 区域的 `labels` 不带文字：像素图按钮本来就没有文字可读。
+- `cct_live_files stat` 不报告文件的来源：可以用 trace 的 `contains` 查到这个文件是哪次下载写入的。
+- 去掉 URL 里易变参数的“归一化 URL”：用 `contains` 按文件名过滤就够了。
+
 ## Linux 验证（开发环境）
 
-- 单元测试 41 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
+- 单元测试 46 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
 - 官方 MCP TypeScript SDK 客户端连接发布包：四个工具、内联 fixture 与定时触摸显示器、两个运行并行、参数错误提示、内存耗尽结果；用 Java 8 启动同样可用。
 - Java 8 自动切换、找不到 Java 17+ 时退出码 69 的提示、`JAVA_OPTS=-Xmx256m` 覆盖内存上限，均已验证。
 

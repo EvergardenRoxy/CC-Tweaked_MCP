@@ -51,6 +51,9 @@ class LiveToolsTest {
                 var match = uri.getRawQuery() != null && uri.getRawQuery().contains("kinds=printed_error")
                     ? ",\"match\":{\"seq\":6,\"kind\":\"printed_error\",\"text\":\"boom\"}" : "";
                 reply = "{\"last_seq\":5,\"lines\":[\"hello\",\"Ready.\"],\"screen_hash\":\"ab\"" + match + "}";
+            } else if (uri.getPath().endsWith("/files") && uri.getRawQuery() != null && uri.getRawQuery().startsWith("op=stat")) {
+                status = 200;
+                reply = "{\"exists\":false}";
             } else if (uri.getPath().equals("/computers/9/screen")) {
                 status = 404;
                 reply = "{\"error\":\"no computer with id 9 is loaded\"}";
@@ -133,6 +136,7 @@ class LiveToolsTest {
             "POST /computers/1/event {\"name\":\"key_up\",\"args\":[257]}",
             "POST /computers/1/power {\"action\":\"reboot\"}",
             "POST /computers/1/attach {}",
+            "GET /computers/1/files?op=stat&path=.cctlive",
             "POST /computers/1/detach {}",
             "GET /computers/2/screen?regions=1&tick=300",
             "POST /computers/3/event {\"name\":\"mouse_click\",\"args\":[1,12,16]}",
@@ -169,6 +173,45 @@ class LiveToolsTest {
         assertTrue(text(r.get("3")).contains("\"met\":\"timeout\""), text(r.get("3")));
         assertTrue(text(r.get("4")).contains("\"met\":\"idle\""), text(r.get("4")));
         assertTrue(r.get("5").get("isError").getAsBoolean());
+    }
+
+    @Test
+    void waitForAKindStartsAfterTheCurrentRecords() throws Exception {
+        session(game(), "cct_live_wait {\"computer\": 0, \"kind\": [\"printed_error\"]}");
+        // Without 'after' the first status (no kinds) fixes the starting seq, so an old record cannot match.
+        assertEquals("GET /computers/0/status", requests.get(0));
+        assertEquals("GET /computers/0/status?after=5&kinds=printed_error", requests.get(1));
+    }
+
+    @Test
+    void snapshotsAndTraceFilters() throws Exception {
+        var r = session(game(),
+            "cct_live_snapshot {\"computer\": 2, \"op\": \"save\"}",
+            "cct_live_snapshot {\"computer\": 2, \"op\": \"restore\", \"name\": \"clean-1\"}",
+            "cct_live_snapshot {\"computer\": 2, \"op\": \"undo\"}",
+            "cct_live_trace {\"computer\": 2, \"kind\": [\"handle\"], \"contains\": \"User.lua\"}");
+        assertFalse(r.get("1").get("isError").getAsBoolean());
+        assertFalse(r.get("2").get("isError").getAsBoolean());
+        assertTrue(r.get("3").get("isError").getAsBoolean());
+        assertFalse(r.get("4").get("isError").getAsBoolean());
+        assertEquals(List.of(
+                "GET /computers/2/trace?kind=handle&limit=50&contains=User.lua",
+                "POST /computers/2/snapshot {\"op\":\"restore\",\"name\":\"clean-1\"}",
+                "POST /computers/2/snapshot {\"op\":\"save\"}"),
+            requests.stream().sorted().toList());
+    }
+
+    @Test
+    void luaTimeoutStaysPendingAndCanBeCollected() throws Exception {
+        var r = session(game(),
+            "cct_live_lua {\"computer\": 0, \"result\": \"lua_1_2\", \"timeout\": 1}",
+            "cct_live_lua {\"computer\": 0, \"result\": \"../x\"}",
+            "cct_live_lua {\"computer\": 0}");
+        assertFalse(r.get("1").get("isError").getAsBoolean(), text(r.get("1")));
+        assertTrue(text(r.get("1")).contains("\"pending\":\"lua_1_2\""), text(r.get("1")));
+        assertTrue(r.get("2").get("isError").getAsBoolean());
+        assertTrue(r.get("3").get("isError").getAsBoolean());
+        assertTrue(requests.stream().allMatch(q -> q.startsWith("GET /computers/0/files?op=stat&path=.cctlive%2Flua_1_2.out")), requests.toString());
     }
 
     @Test

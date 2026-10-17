@@ -76,7 +76,7 @@ class McpServerTest {
         assertEquals(McpServer.PROTOCOL_VERSIONS.get(0), r.get("\"s\"").getAsJsonObject("result").get("protocolVersion").getAsString());
 
         var tools = r.get("2").getAsJsonObject("result").getAsJsonArray("tools");
-        assertEquals(18, tools.size());
+        assertEquals(19, tools.size());
         for (var tool : tools) assertEquals("object", tool.getAsJsonObject().getAsJsonObject("inputSchema").get("type").getAsString());
 
         assertTrue(r.get("3").has("result"));

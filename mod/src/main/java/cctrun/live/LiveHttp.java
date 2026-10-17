@@ -44,9 +44,12 @@ import java.util.function.Supplier;
  * GET  /computers/{id}/body?n=&offset=&length=      a saved HTTP response body (handle record field "body")
  * POST /computers/{id}/attach                        start (or renew) an attachment: observe and control
  * POST /computers/{id}/detach                        end it
- * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&offset=&limit=
+ * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&contains=&offset=&limit=
  *                                                    this session's trace records; after = only seq > N,
- *                                                    ticks = N, A-B, A- or -B; offset counts matches
+ *                                                    ticks = N, A-B, A- or -B; contains = the record's url, path or
+ *                                                    text has this substring (case-insensitive); offset counts matches
+ * POST /computers/{id}/snapshot {"op": "save"|"diff"|"restore"|"list", "name"?}   needs an attachment; restore also
+ *                                                    needs files.allow_write (it deletes files the snapshot lacks)
  * POST /computers/{id}/event   {"name": "...", "args": [...]}      needs an attachment
  * POST /computers/{id}/power   {"action": "on" | "shutdown" | "reboot"}   needs an attachment
  * </pre>
@@ -145,6 +148,9 @@ final class LiveHttp {
                 } else if (action.equals("attach") && method.equals("POST")) {
                     var body = body(exchange);
                     send(exchange, 200, onServer(() -> attach(id, body)));
+                } else if (action.equals("snapshot") && method.equals("POST")) {
+                    var body = body(exchange);
+                    send(exchange, 200, onServer(() -> snapshot(id, body)));
                 } else if (action.equals("detach") && method.equals("POST")) {
                     send(exchange, 200, onServer(() -> detach(id)));
                 } else {
@@ -205,7 +211,44 @@ final class LiveHttp {
         out.addProperty("last_seq", attachment.trace().lastSeq());
         out.add("monitors", strings(Terminals.monitors(computer).keySet().toArray(String[]::new)));
         out.addProperty("files_write", LiveConfig.FILES_WRITE.get());
+        out.addProperty("computer_dir", session.computerDir(id).toString());
         return out;
+    }
+
+    /** Save, compare with or restore a snapshot of the computer's files (D46). */
+    private JsonObject snapshot(int id, JsonObject body) {
+        var computer = controlled(id);
+        var op = body.has("op") ? body.get("op").getAsString() : "";
+        var name = body.has("name") ? body.get("name").getAsString() : null;
+        if (!ComputerSnapshots.ops().contains(op)) throw new BadRequest(400, "\"op\" must be one of " + ComputerSnapshots.ops());
+        if (op.equals("restore") && !LiveConfig.FILES_WRITE.get()) {
+            throw new BadRequest(403, "restoring writes and deletes files, and writing files is off: the player can turn it on with files.allow_write = true in config/cctlive-common.toml");
+        }
+        try {
+            var out = switch (op) {
+                case "save" -> ComputerSnapshots.save(computer, session.home(), name);
+                case "diff" -> ComputerSnapshots.diff(computer, session.home(), name);
+                case "restore" -> ComputerSnapshots.restore(computer, session.home(), name);
+                default -> ComputerSnapshots.list(session.home(), id);
+            };
+            if (!op.equals("list") && !op.equals("diff")) {
+                var record = new JsonObject();
+                record.addProperty("op", op);
+                record.addProperty("name", out.get("name").getAsString());
+                if (op.equals("save")) record.addProperty("files", out.get("files").getAsInt());
+                else {
+                    record.add("written", out.get("written"));
+                    record.add("deleted", out.get("deleted"));
+                }
+                record.addProperty("by", "ai");
+                session.attachmentOf(computer).trace().record("snapshot", record);
+            }
+            return out;
+        } catch (IllegalArgumentException e) {
+            throw new BadRequest(400, e.getMessage());
+        } catch (IOException e) {
+            throw new BadRequest(500, "snapshot " + op + " failed: " + e.getMessage());
+        }
     }
 
     private JsonObject detach(int id) {
@@ -513,6 +556,7 @@ final class LiveHttp {
         var excluded = new HashSet<String>();
         if (query.containsKey("exclude")) for (var k : query.get("exclude").split(",")) if (!k.isBlank()) excluded.add(k.trim());
         var summary = flag(query, "summary");
+        var contains = query.containsKey("contains") ? query.get("contains").toLowerCase(java.util.Locale.ROOT) : null;
         var byKind = new java.util.TreeMap<String, long[]>();
 
         computerTrace.flush();
@@ -529,6 +573,7 @@ final class LiveHttp {
                 if (record.get("seq").getAsLong() <= after) continue;
                 var tick = record.get("tick").getAsLong();
                 if (tick < fromTick || tick > toTick) continue;
+                if (contains != null && !mentions(record, contains)) continue;
                 if (summary) {
                     // count, first seq, last seq, first tick, last tick
                     var seq = record.get("seq").getAsLong();
@@ -570,6 +615,27 @@ final class LiveHttp {
     }
 
     // Helpers
+
+    /** True if the record's url, path, program or text (lower case) contains the needle. */
+    private static boolean mentions(JsonObject record, String needle) {
+        for (var key : new String[]{"url", "path", "program", "text"}) {
+            var v = record.get(key);
+            if (v != null && v.isJsonPrimitive() && v.getAsString().toLowerCase(java.util.Locale.ROOT).contains(needle)) return true;
+        }
+        return mentions(record.get("args"), needle);
+    }
+
+    /** Strings anywhere in call arguments (http.request takes a URL or a table with url = ...). */
+    private static boolean mentions(JsonElement value, String needle) {
+        if (value == null || value.isJsonNull()) return false;
+        if (value.isJsonPrimitive()) return value.getAsString().toLowerCase(java.util.Locale.ROOT).contains(needle);
+        if (value.isJsonArray()) {
+            for (var v : value.getAsJsonArray()) if (mentions(v, needle)) return true;
+            return false;
+        }
+        for (var e : value.getAsJsonObject().entrySet()) if (mentions(e.getValue(), needle)) return true;
+        return false;
+    }
 
     /** Server thread. Any request for an attached computer renews its lease. */
     private ServerComputer find(int id) {
