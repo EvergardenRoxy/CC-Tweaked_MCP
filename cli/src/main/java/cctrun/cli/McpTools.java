@@ -55,7 +55,7 @@ final class McpTools {
             "inputSchema": {
               "type": "object",
               "properties": {
-                "run": { "type": "string", "description": "Run directory (run_dir from cct_run) or 'latest' (default)." },
+                "run": { "type": "string", "description": "Run directory (run_dir from cct_run), its run_id, or 'latest' (default)." },
                 "kind": { "type": "array", "items": { "type": "string" }, "description": "Only these kinds, e.g. [\\"peripheral_call\\", \\"peripheral_return\\"]." },
                 "ticks": { "type": "string", "description": "Tick range: N, A-B, A- or -B." },
                 "peripheral": { "type": "string", "description": "Only records of this peripheral (side or network name)." },
@@ -75,7 +75,7 @@ final class McpTools {
             "inputSchema": {
               "type": "object",
               "properties": {
-                "run": { "type": "string", "description": "Run directory (run_dir from cct_run) or 'latest' (default)." },
+                "run": { "type": "string", "description": "Run directory (run_dir from cct_run), its run_id, or 'latest' (default)." },
                 "tick": { "type": "integer", "minimum": 0, "description": "Show the screen as it was at this tick." },
                 "source": { "type": "string", "description": "'term' (default) or a monitor's peripheral name." }
               },

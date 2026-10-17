@@ -14,7 +14,7 @@ class FixtureTest {
     }
 
     @Test
-    void reportsPathsOfMistakes() {
+    void reportsPathsOfMistakes() throws Exception {
         assertEquals("$: not valid JSON: java.io.EOFException: End of input at line 1 column 2 path $.", error("{"));
         assertEquals("$.peripherals: expected an object", error("{\"peripherals\": []}"));
         assertEquals("$.peripherals.up: not a side (use one of [bottom, top, back, front, right, left])", error("{\"peripherals\": {\"up\": {}}}"));
@@ -29,6 +29,10 @@ class FixtureTest {
             error("{\"timeline\": [{\"tick\": 1, \"do\": \"energy\", \"peripheral\": \"right\", \"energy\": 1}]}"));
         assertEquals("$.timeline[0].do: unknown action \"explode\" (supported: event, terminate, redstone, energy, item, method)",
             error("{\"timeline\": [{\"tick\": 1, \"do\": \"explode\"}]}"));
+        // A full-size Create item vault has 1620 slots.
+        assertEquals("$.peripherals.left.size: must be between 1 and 4096",
+            error("{\"peripherals\": {\"left\": {\"type\": \"inventory\", \"size\": 4097}}}"));
+        Fixture.parse("{\"peripherals\": {\"left\": {\"type\": \"inventory\", \"size\": 1620}}}");
         assertEquals("$.computer.term: expected WIDTHxHEIGHT, e.g. 51x19", error("{\"computer\": {\"term\": \"big\"}}"));
         assertEquals("$.colour: unknown key (allowed: [schema, computer, files, peripherals, redstone, timeline])",
             error("{\"colour\": true}").replaceAll("\\[.*]", "[schema, computer, files, peripherals, redstone, timeline]"));

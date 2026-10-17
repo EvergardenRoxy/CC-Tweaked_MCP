@@ -30,6 +30,8 @@ import java.util.Set;
  * Parsing validates everything up front so a bad fixture fails before the computer starts.
  */
 public final class Fixture {
+    /** Largest inventory: a full-size Create item vault has 1620 slots; larger modded storage fits too. */
+    static final int MAX_SLOTS = 4096;
     private static final Set<String> TOP_KEYS = Set.of("schema", "computer", "files", "peripherals", "redstone", "timeline");
 
     final JsonObject raw;
@@ -164,7 +166,7 @@ public final class Fixture {
         switch (type) {
             case "inventory" -> {
                 allowOnly(spec, path, "type", "block", "size", "items");
-                var size = spec.has("size") ? integer(spec.get("size"), path + ".size", 1, 1024) : 27;
+                var size = spec.has("size") ? integer(spec.get("size"), path + ".size", 1, MAX_SLOTS) : 27;
                 if (spec.has("block")) string(spec.get("block"), path + ".block");
                 if (spec.has("items")) {
                     var items = object(spec.get("items"), path + ".items");
@@ -296,7 +298,7 @@ public final class Fixture {
             case "item" -> {
                 allowOnly(spec, path, "tick", "do", "peripheral", "slot", "item");
                 requirePeripheral(spec, path, peripherals, "inventory");
-                integer(require(spec, "slot", path), path + ".slot", 1, 1024);
+                integer(require(spec, "slot", path), path + ".slot", 1, MAX_SLOTS);
                 var item = require(spec, "item", path);
                 if (!item.isJsonNull()) item(item, path + ".item");
             }
