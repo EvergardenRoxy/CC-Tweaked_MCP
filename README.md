@@ -17,9 +17,11 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），一共 20 个工具：模拟器 4 个（`cct_run`、`cct_trace`、`cct_screen`、`cct_guide`），实机 16 个（`cct_live_*`，需要 cct-live mod）。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop、DeepSeek Harness 等）配置一次即可使用。
 - **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。命令行只有模拟器功能。
 
-配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill) 会告诉 AI 什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
+配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)（建议用 1.2.2）会告诉 AI 怎么写 CC 程序、什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
 
-> 当前版本是 **0.2.0**，更新内容见 [`docs/release-notes-0.2.0.md`](docs/release-notes-0.2.0.md)（上一版：[0.1.0](docs/release-notes-0.1.0.md)）。cct-live 还是原型。
+> 当前版本是 **0.2.2**（2026-10），更新内容见 [`docs/release-notes-0.2.2.md`](docs/release-notes-0.2.2.md)；历史版本：[0.2.0](docs/release-notes-0.2.0.md)、[0.1.0](docs/release-notes-0.1.0.md)。cct-live 还是原型。
+>
+> 0.2.2 的主要变化：fixture 里写了中文（程序会收到 `?`）时在 `notes` 里提醒；`cct_trace` / `cct_screen` 可以直接用 `run_id`；fixture 容器最多 4096 格；说明里补充了向外设发中文的写法。
 
 ---
 
@@ -119,10 +121,10 @@ cct-run guide | version | help | mcp
 | 平台 / 项目 | 结果 |
 |---|---|
 | Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
-| Linux | 单元测试 54/54；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| Linux | 单元测试 54/54（0.2.2）；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
 | macOS | 尚未测试 |
-| cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）六次 AI 实测：MPlayer 安装脚本排错 4 轮，联合测试 3（Create 工厂控制中心）2 次 |
-| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次模拟器实测四步全部正确，DeepSeek Harness 等客户端实机实测 6 次可用。其他客户端的 MCP 接入结果待反馈 |
+| cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）七次 AI 实测：MPlayer 安装脚本排错 4 轮，联合测试 3（Create 工厂控制中心）2 次，联合测试 4（Create 订单产线）1 次 |
+| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次模拟器实测四步全部正确，DeepSeek Harness 等客户端实机实测 7 次可用。其他客户端的 MCP 接入结果待反馈 |
 
 ### 性能：cct-live 平时几乎没有开销
 
@@ -140,24 +142,30 @@ cct-run guide | version | help | mcp
 
 这是 30 台电脑一刻不停地跑循环的极端情况；普通程序大部分时间都在等待事件，实际影响会小得多。测量方法见 [`mod/README.md`](mod/README.md#性能)。
 
-### 联合测试 3：同一个任务，两个模型
+### AI 实测：联合测试 3 与 4
+
+联合测试让一个 AI 用 Create 和 Advanced Peripherals 的外设写完整的工厂控制程序，先在模拟器里测，再到游戏里验收。联合测试 3 做了两次（工厂控制中心）；联合测试 4（订单产线：聊天下单、订单队列、过载保护、断电续跑）用和联合测试 3 第 2 次相同的模型，换上了 cct-run 0.2.0 和 Skill 1.2.0，**这也是 Skill 第一次参与的大型任务**。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/joint-test-dark.svg">
-  <img alt="联合测试 3 两次运行的对比：会话时长 117 / 60 分钟，工具调用 576 / 268 次，总 token 9293 万 / 7064 万，输出 token 75.1 万 / 24.5 万，上下文压缩 46 / 0 次，请玩家配合 0 / 17 次" src="docs/images/joint-test-light.svg" width="760">
+  <img alt="三次 AI 实测的对比：任务时长 117 / 60 / 38 分钟，工具调用 576 / 268 / 187 次，总 token 9293 万 / 7064 万 / 4382 万，输出 token 75.1 万 / 24.5 万 / 19.9 万，上下文压缩 46 / 0 / 0 次，请玩家配合 0 / 17 / 5 次" src="docs/images/joint-test-light.svg" width="760">
 </picture>
 
-| 指标 | 第 1 次：开源 DeepSeek（算力中心部署） | 第 2 次：deepseek-v4.1-flash（官方 API） |
-|---|---|---|
-| 会话时长 | 117 分钟 | 60 分钟 |
-| 工具调用 | 576 次 | 268 次 |
-| 总 token | 9293 万 | 7064 万 |
-| 输出 token | 75.1 万 | 24.5 万 |
-| 上下文压缩 | 46 次 | 0 次 |
-| 请玩家配合 | 0 次 | 17 次 |
-| 结果 | 看板和按钮在实机可用；聊天指令、过载保护只在模拟器里测过；没有完成收尾 | 真实聊天指令、过载保护、拆装外设、开机自启都在游戏里验证；收尾完整 |
+| 指标 | 联合测试 3 第 1 次 | 联合测试 3 第 2 次 | 联合测试 4 |
+|---|---|---|---|
+| 模型 | 开源 DeepSeek（算力中心部署） | deepseek-v4.1-flash（官方 API） | deepseek-v4.1-flash（官方 API） |
+| 工具 | cct-run 0.1.0 | cct-run 0.1.0 | cct-run 0.2.0 + Skill 1.2.0 |
+| 任务时长 | 117 分钟 | 60 分钟 | 38 分钟 |
+| 工具调用 | 576 次 | 268 次 | 187 次 |
+| 总 token | 9293 万 | 7064 万 | 4382 万 |
+| 输出 token | 75.1 万 | 24.5 万 | 19.9 万 |
+| 上下文压缩 | 46 次 | 0 次 | 0 次 |
+| 请玩家配合 | 0 次 | 17 次 | 5 项 |
+| 卡在“外设调用期间丢事件”上的时间 | 看板冻结 18 分钟、聊天指令 27 分钟 | 约 34 分钟，交付的程序仍会丢指令 | **0**：第一版就是 Skill 里的三协程结构 |
+| 模组外设怎么在模拟器里测 | 没有办法 | 自己写 Lua 替身 | fixture 的 `scripted`，数值取自实机 |
+| 结果 | 看板和按钮在实机可用；聊天指令、过载保护只在模拟器里测过；没有完成收尾 | 聊天指令、过载保护、拆装外设、开机自启都在游戏里验证；收尾完整 | 下单、计数、过载保护、重启续跑、触摸、拔插外设、中文收发在游戏里验证；中文回复由玩家发现乱码后修正 |
 
-两次用的都是 0.1.0 加快照功能的版本；测试暴露的问题已在 0.2.0 处理。分析见 [`docs/joint-test-factory-report.md`](docs/joint-test-factory-report.md)。
+联合测试 3 和 4 的任务不同，只能粗略比较；联合测试 4 的时长只算任务部分，token 是整个会话。分析见 [`docs/joint-test-factory-report.md`](docs/joint-test-factory-report.md)、[`docs/joint-test-orders-report.md`](docs/joint-test-orders-report.md)，测试暴露的问题已在 0.2.0 和 0.2.2 处理。
 
 每轮测试发现的问题和处理见 [`docs/test-results.md`](docs/test-results.md)；在自己的机器上测试的方法见 [`docs/testing.md`](docs/testing.md)。
 
@@ -177,7 +185,8 @@ cct-run guide | version | help | mcp
 4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；cct-live 的 trace 超过上限后轮换、保留最新记录（0.2.0）；模拟器 trace 的大小上限、`cct-run clean` 清理旧记录（待做）
 5. ~~模组外设（`scripted`）~~（0.2.0）；按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
 6. ~~**cct-live**：一个 Forge 1.20.1 mod，让 AI 按需接管真实游戏里的 CC 电脑：接管后从 Java 层记录事件、外设调用、HTTP 和文件读写、带颜色的屏幕、显示器、红石，并允许输入、点击、读写文件、运行 Lua 和开关机；平时不记录；不需要在电脑里运行 Lua 脚本，也不需要转发服务器~~（0.1.0 原型，见 [`mod/README.md`](mod/README.md)）
-7. cct-live 后续：程序出错时的调用栈、有线网络连接的显示器、海龟的背包和燃料、海龟和口袋电脑的测试；~~和 Skill 一起做联合测试~~（[`docs/joint-test.md`](docs/joint-test.md)、[联合测试 3](docs/joint-test-factory.md)）
+7. ~~和 Skill 一起做联合测试~~（[`docs/joint-test.md`](docs/joint-test.md)、[联合测试 3](docs/joint-test-factory.md)、[联合测试 4](docs/joint-test-orders.md)）
+8. cct-live 后续：程序出错时的调用栈、有线网络连接的显示器、海龟的背包和燃料、海龟和口袋电脑的测试；trace 标出程序传给外设的 UTF-8 中文（联合测试 4 的建议，待定）
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。
 
