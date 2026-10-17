@@ -35,8 +35,10 @@ final class LiveTools {
     static final String COMPUTERS = "cct_live_computers", STATUS = "cct_live_status", WAIT = "cct_live_wait",
         SCREEN = "cct_live_screen", ATTACH = "cct_live_attach", DETACH = "cct_live_detach", TRACE = "cct_live_trace",
         EVENT = "cct_live_event", TYPE = "cct_live_type", CLICK = "cct_live_click", FILES = "cct_live_files",
-        POWER = "cct_live_power";
-    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER);
+        POWER = "cct_live_power", LUA = "cct_live_lua", BODY = "cct_live_body";
+    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY);
+    static final int DEFAULT_LUA_TIMEOUT = 15;
+    private static final java.util.concurrent.atomic.AtomicInteger LUA_RUNS = new java.util.concurrent.atomic.AtomicInteger();
     /** GLFW key codes, as CC: Tweaked 1.120.2 on Minecraft 1.20.1 reports them in key events. */
     static final int KEY_ENTER = 257;
     static final int DEFAULT_TRACE_LIMIT = 50;
@@ -173,6 +175,20 @@ final class LiveTools {
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
           },
           {
+            "name": "cct_live_lua",
+            "title": "Run Lua on a computer and get the result",
+            "description": "Runs Lua code on an attached computer in one call and returns {ok, output (lines it printed), returns (serialised return values), error, phase, seconds}: writes a temporary script under /.cctlive, runs it from the shell, waits for the result and deletes its files. Use it for diagnostics (fs.getSize, load() a file to check its syntax, peripheral.getMethods ...) instead of writing, running, reading and deleting scripts yourself. Needs the shell prompt on the screen (not while a program runs; force: true skips that check) and the player's files_write permission. The code runs with the computer's full rights: only read-only diagnostics unless the user agreed to changes.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "code": { "type": "string" }, "timeout": { "type": "integer", "minimum": 1, "maximum": 120, "description": "Seconds to wait for the result. Default 15." }, "force": { "type": "boolean" } }, "required": ["computer", "code"], "additionalProperties": false },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
+          },
+          {
+            "name": "cct_live_body",
+            "title": "Full body of an HTTP response",
+            "description": "Reads the full body of an HTTP response the computer read with readAll while attached (handle records with a 'body' number; trace data is cut to 200 characters): {size, offset, length, eof, encoding, text}. offset/length in bytes (default 0 / 65536, max 1048576). Bodies are kept up to 4 MB each.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "body": { "type": "integer", "minimum": 1 }, "offset": { "type": "integer", "minimum": 0 }, "length": { "type": "integer", "minimum": 0, "maximum": 1048576 } }, "required": ["computer", "body"], "additionalProperties": false },
+            "annotations": { "readOnlyHint": true, "openWorldHint": true }
+          },
+          {
             "name": "cct_live_event",
             "title": "Send an event to a computer in the game",
             "description": "Queues any event on an attached computer, e.g. {name:'char', args:['y']}, {name:'key', args:[257,false]} (GLFW codes: enter 257, backspace 259, tab 258, right 262, left 263, down 264, up 265, left ctrl 341), {name:'terminate'}. Prefer cct_live_type / cct_live_click. Acts on the user's real world.",
@@ -214,6 +230,17 @@ final class LiveTools {
             case COMPUTERS -> {
                 allowOnly(a, "game_dir");
                 yield result(get(endpoint(a), "computers"));
+            }
+            case LUA -> lua(a);
+            case BODY -> {
+                allowOnly(a, "game_dir", "computer", "body", "offset", "length");
+                var n = integer(a, "body");
+                if (n == null || n < 1) throw new McpTools.ToolError("'body' (the body number of a handle record) is required");
+                var query = new ArrayList<String>();
+                query.add("n=" + n);
+                addInteger(query, a, "offset");
+                addInteger(query, a, "length");
+                yield result(get(endpoint(a), "computers/" + computer(a) + "/body" + join(query)));
             }
             case STATUS -> {
                 allowOnly(a, "game_dir", "computer", "source", "after");
@@ -415,6 +442,132 @@ final class LiveTools {
                 throw new McpTools.ToolError("cancelled");
             }
         }
+    }
+
+    /** cct_live_lua: temporary script under /.cctlive, run from the shell, result read back, files deleted. */
+    private JsonObject lua(JsonObject a) throws McpTools.ToolError {
+        allowOnly(a, "game_dir", "computer", "code", "timeout", "force");
+        var code = string(a, "code");
+        if (code == null || code.isBlank()) throw new McpTools.ToolError("'code' is required");
+        var timeout = integer(a, "timeout");
+        if (timeout == null) timeout = DEFAULT_LUA_TIMEOUT;
+        if (timeout < 1 || timeout > MAX_WAIT) throw new McpTools.ToolError("'timeout' must be 1.." + MAX_WAIT + " seconds");
+        var endpoint = endpoint(a);
+        var id = computer(a);
+
+        if (!bool(a, "force", false)) {
+            var status = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
+            var lines = status.getAsJsonArray("lines");
+            var last = lines.isEmpty() ? "" : lines.get(lines.size() - 1).getAsString().strip();
+            if (!last.endsWith(">")) {
+                throw new McpTools.ToolError("the shell prompt is not on the screen (last line: '" + last + "'). cct_live_lua runs from the shell; "
+                    + "inside a running program use cct_live_type, or pass force: true if the prompt is just scrolled away.");
+            }
+        }
+
+        var name = "lua_" + System.currentTimeMillis() + "_" + LUA_RUNS.incrementAndGet();
+        var script = ".cctlive/" + name + ".lua";
+        var output = ".cctlive/" + name + ".out";
+        var write = new JsonObject();
+        write.addProperty("path", script);
+        write.addProperty("text", wrapper(code, "/" + output, "/" + script));
+        post(endpoint, "computers/" + id + "/files", write);
+
+        var start = System.nanoTime();
+        post(endpoint, "computers/" + id + "/event", event("paste", "/" + script.substring(0, script.length() - 4)));
+        post(endpoint, "computers/" + id + "/event", event("key", KEY_ENTER, false));
+        post(endpoint, "computers/" + id + "/event", event("key_up", KEY_ENTER));
+
+        JsonObject result = null;
+        while ((System.nanoTime() - start) / 1e9 < timeout) {
+            try {
+                Thread.sleep(POLL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new McpTools.ToolError("cancelled");
+            }
+            var stat = JsonParser.parseString(get(endpoint, "computers/" + id + "/files?op=stat&path=" + encode(output))).getAsJsonObject();
+            if (!stat.get("exists").getAsBoolean() || stat.get("size").getAsLong() == 0) continue;
+            var read = JsonParser.parseString(get(endpoint, "computers/" + id + "/files?op=read&path=" + encode(output))).getAsJsonObject();
+            try {
+                result = JsonParser.parseString(read.get("text").getAsString()).getAsJsonObject();
+            } catch (RuntimeException e) {
+                continue; // still being written
+            }
+            break;
+        }
+        var seconds = Math.round((System.nanoTime() - start) / 1e8) / 10.0;
+        if (result == null) {
+            var out = new JsonObject();
+            out.addProperty("ok", false);
+            out.addProperty("timeout", true);
+            out.addProperty("seconds", seconds);
+            out.addProperty("note", "no result after " + timeout + " s; the code may still be running (check cct_live_status). Its files are under /.cctlive.");
+            return McpServer.toolResult(Main.ascii(out.toString()), false);
+        }
+        for (var path : List.of(output, script)) {
+            var delete = new JsonObject();
+            delete.addProperty("op", "delete");
+            delete.addProperty("path", path);
+            try {
+                post(endpoint, "computers/" + id + "/files", delete);
+            } catch (McpTools.ToolError ignored) {
+                // The script deletes itself; a missing file is fine.
+            }
+        }
+        // CC serialises empty tables as {}: show them as lists.
+        for (var key : List.of("output", "returns")) {
+            if (result.has(key) && result.get(key).isJsonObject() && result.getAsJsonObject(key).isEmpty()) result.add(key, new JsonArray());
+        }
+        result.addProperty("seconds", seconds);
+        return McpServer.toolResult(Main.ascii(result.toString()), false);
+    }
+
+    /** The script cct_live_lua runs: the user's code in its own environment with print/write captured. */
+    static String wrapper(String code, String outputPath, String scriptPath) {
+        var level = 0;
+        while (code.contains("]" + "=".repeat(level) + "]")) level++;
+        var eq = "=".repeat(level);
+        return """
+            -- Written by cct-run (cct_live_lua); deletes itself when done.
+            local out, outPath, scriptPath = {}, %s, %s
+            local env = setmetatable({}, { __index = _ENV })
+            local function capture(...)
+              local t = table.pack(...)
+              for i = 1, t.n do t[i] = tostring(t[i]) end
+              out[#out + 1] = table.concat(t, "\t", 1, t.n)
+              return t.n
+            end
+            env.print = capture
+            env.printError = capture
+            env.write = function(s) out[#out + 1] = tostring(s) end
+            local fn, err = load([%s[%s]%s], "=cct_live_lua", "t", env)
+            local res
+            if not fn then
+              res = { ok = false, phase = "compile", error = tostring(err) }
+            else
+              local r = table.pack(xpcall(fn, debug.traceback))
+              if r[1] then
+                local rets = {}
+                for i = 2, r.n do
+                  local ok, s = pcall(textutils.serialise, r[i], { compact = true })
+                  rets[#rets + 1] = ok and s or tostring(r[i])
+                end
+                res = { ok = true, returns = rets }
+              else
+                res = { ok = false, phase = "runtime", error = tostring(r[2]) }
+              end
+            end
+            res.output = out
+            local h = fs.open(outPath, "w")
+            h.write(textutils.serialiseJSON(res))
+            h.close()
+            fs.delete(scriptPath)
+            """.formatted(luaString(outputPath), luaString(scriptPath), eq, "\n" + code + "\n", eq);
+    }
+
+    private static String luaString(String s) {
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static boolean screenContains(JsonObject status, String text) {

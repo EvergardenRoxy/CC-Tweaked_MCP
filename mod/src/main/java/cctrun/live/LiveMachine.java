@@ -112,6 +112,26 @@ final class LiveMachine implements ILuaMachine {
             return callIds.incrementAndGet();
         }
 
+        /** While attached (not in recording mode): saves an HTTP response body in full; returns its number or -1. */
+        int saveBody(Object value) {
+            var session = LiveSession.current();
+            var attachment = session == null ? null : session.attachedTo(metrics);
+            if (attachment == null) return -1;
+            byte[] bytes;
+            if (value instanceof java.nio.ByteBuffer b) {
+                var copy = b.duplicate();
+                bytes = new byte[copy.remaining()];
+                copy.get(bytes);
+            } else if (value instanceof byte[] b) {
+                bytes = b;
+            } else if (value instanceof String s) {
+                bytes = s.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            } else {
+                return -1;
+            }
+            return attachment.trace().saveBody(bytes);
+        }
+
         void record(String kind, JsonObject data) {
             var session = LiveSession.current();
             if (session == null) return;

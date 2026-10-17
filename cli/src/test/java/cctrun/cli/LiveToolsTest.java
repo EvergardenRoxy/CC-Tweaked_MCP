@@ -118,8 +118,9 @@ class LiveToolsTest {
             "cct_live_attach {\"computer\": 5, \"lease_seconds\": 3600}",
             "cct_live_type {\"computer\": 6, \"text\": \"a\\nb\", \"enter\": false}",
             "cct_live_trace {\"computer\": 7, \"summary\": true}",
-            "cct_live_status {\"computer\": 7, \"source\": \"right\", \"after\": 3}");
-        for (var i = 1; i <= 17; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
+            "cct_live_status {\"computer\": 7, \"source\": \"right\", \"after\": 3}",
+            "cct_live_body {\"computer\": 7, \"body\": 2, \"length\": 10}");
+        for (var i = 1; i <= 18; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
         assertTrue(text(r.get("1")).contains("/computers"));
         // Calls run concurrently, so compare as a set; the three requests of cct_live_type are sent in order.
         var expected = List.of(
@@ -145,7 +146,8 @@ class LiveToolsTest {
             "POST /computers/6/event {\"name\":\"key_up\",\"args\":[257]}",
             "POST /computers/6/event {\"name\":\"paste\",\"args\":[\"b\"]}",
             "GET /computers/7/trace?exclude=screen&limit=50&summary=1",
-            "GET /computers/7/status?source=right&after=3");
+            "GET /computers/7/status?source=right&after=3",
+            "GET /computers/7/body?n=2&length=10");
         assertEquals(expected.stream().sorted().toList(), requests.stream().sorted().toList());
         var typed = requests.stream().filter(q -> q.startsWith("POST /computers/1/event") && (q.contains("paste") || q.contains("\"key"))).toList();
         assertEquals(List.of(expected.get(4), expected.get(5), expected.get(6)), typed);
@@ -167,6 +169,19 @@ class LiveToolsTest {
         assertTrue(text(r.get("3")).contains("\"met\":\"timeout\""), text(r.get("3")));
         assertTrue(text(r.get("4")).contains("\"met\":\"idle\""), text(r.get("4")));
         assertTrue(r.get("5").get("isError").getAsBoolean());
+    }
+
+    @Test
+    void luaNeedsTheShellPromptAndQuotesTheCode() throws Exception {
+        var r = session(game(), "cct_live_lua {\"computer\": 0, \"code\": \"return 1\"}");
+        assertTrue(r.get("1").get("isError").getAsBoolean());
+        assertTrue(text(r.get("1")).contains("shell prompt"), text(r.get("1")));
+        assertTrue(requests.stream().noneMatch(q -> q.contains("/files")), "nothing written when the prompt is missing");
+
+        var plain = LiveTools.wrapper("return 1", "/.cctlive/a.out", "/.cctlive/a.lua");
+        assertTrue(plain.contains("load([[\nreturn 1\n]]"), plain);
+        var nested = LiveTools.wrapper("local s = [[x]] .. [=[y]=]", "/o", "/s");
+        assertTrue(nested.contains("load([==[\n"), nested);
     }
 
     @Test

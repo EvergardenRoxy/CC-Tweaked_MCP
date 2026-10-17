@@ -98,6 +98,33 @@ final class ComputerTrace {
         }
     }
 
+    static final int MAX_BODY = 4 * 1024 * 1024;
+    static final long MAX_BODIES = 64L * 1024 * 1024;
+    private int bodies;
+    private long bodyBytes;
+
+    /**
+     * Keeps a full HTTP response body next to the trace ({@code <trace>-body-<n>.bin}, at most 4 MB each and 64 MB
+     * per trace) so it can be read back later; returns n, or -1 if the budget is used up.
+     */
+    synchronized int saveBody(byte[] data) {
+        if (closed || bodyBytes + Math.min(data.length, MAX_BODY) > MAX_BODIES) return -1;
+        var n = ++bodies;
+        try {
+            Files.write(bodyFile(n), data.length <= MAX_BODY ? data : java.util.Arrays.copyOf(data, MAX_BODY));
+            bodyBytes += Math.min(data.length, MAX_BODY);
+            return n;
+        } catch (IOException e) {
+            CctLive.LOG.warn("Could not save a response body next to {}", file, e);
+            return -1;
+        }
+    }
+
+    Path bodyFile(int n) {
+        var name = file.getFileName().toString().replaceFirst("\\.jsonl$", "");
+        return file.resolveSibling(name + "-body-" + n + ".bin");
+    }
+
     synchronized long lastSeq() {
         return seq;
     }

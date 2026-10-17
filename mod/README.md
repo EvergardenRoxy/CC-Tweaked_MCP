@@ -81,7 +81,7 @@ cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以
 
 ## 通过 MCP 让 AI 使用
 
-`cct-run mcp` 提供 12 个 `cct_live_*` 工具。每次工具返回的内容都会留在 AI 的上下文里，所以工具默认只返回很少的数据：日常检查用 `status`，等待用 `wait`，需要细节时再查 trace 或屏幕。
+`cct-run mcp` 提供 14 个 `cct_live_*` 工具。每次工具返回的内容都会留在 AI 的上下文里，所以工具默认只返回很少的数据：日常检查用 `status`，等待用 `wait`，需要细节时再查 trace 或屏幕。
 
 | 工具 | 作用 | 需要先接管 |
 |---|---|---|
@@ -94,6 +94,8 @@ cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以
 | `cct_live_type` | 输入文字，每行后面按一次回车，可以一次输入多行 | 是 |
 | `cct_live_click` | 点击电脑屏幕（mouse_click + mouse_up），或触摸显示器（`source` 是显示器所在的面，发送 monitor_touch） | 是 |
 | `cct_live_files` | 读电脑上的文件（list / stat / read）；如果 config 里打开了 `files.allow_write`，还可以写入（write） | 是 |
+| `cct_live_lua` | 一次调用完成：在电脑上运行一段 Lua，返回打印内容、返回值和错误（含调用栈）。临时文件放在 `/.cctlive`，用完自动删除。需要 shell 停在提示符下，并且打开了 `files.allow_write` | 是 |
+| `cct_live_body` | 读取接管期间某个 HTTP 响应的完整正文（`handle` 记录里的 `body` 编号；每个正文最多保存 4 MB） | 否 |
 | `cct_live_event` | 发送任意事件 | 是 |
 | `cct_live_power` | 开机、关机、重启 | 是 |
 
@@ -125,9 +127,10 @@ Claude Code 的 `.mcp.json` 示例：
 |---|---|
 | `GET /computers` | 已加载的电脑：id、标签、类型、是否开机、维度、坐标、是否被接管、剩余租约；以及 `recording_mode`、`lease_seconds` |
 | `GET /computers/{id}/screen?source=&colors=1&regions=1&tick=N` | 屏幕上的文字（去掉行尾空格）、光标、尺寸；`source` 是 `term`（默认）或显示器所在的面；`colors=1` 附带前景色和背景色；`regions=1` 附带颜色区域；`tick=N` 从 trace 还原那一刻的屏幕 |
+| `GET /computers/{id}/body?n=&offset=&length=` | 已保存的 HTTP 响应正文（`handle` 记录里的 `body` 编号），保存在 trace 文件旁边，每个最多 4 MB，每台电脑合计最多 64 MB |
 | `GET /computers/{id}/status?after=&kinds=&source=` | 简短状态，适合轮询：tick、最新 seq、`after` 之后各类记录的数量、`after` 之后第一条属于 `kinds` 的记录（`match`）、屏幕文字和 `screen_hash`、显示器列表 |
 | `GET /computers/{id}/files?op=list\|stat\|read&path=&offset=&length=` | 电脑上的文件（需要已接管）：`/` 下的文件，不包括 `/rom` 和磁盘 |
-| `POST /computers/{id}/files` `{"path", "text", "append"?, "encoding"?}` | 写文件（需要已接管，并且 config 里 `files.allow_write = true`），会记一条 `file_write` |
+| `POST /computers/{id}/files` `{"path", "text", "append"?, "encoding"?}` | 写文件（需要已接管，并且 config 里 `files.allow_write = true`），会记一条 `file_write`；`{"op": "delete", "path"}` 只能删除 `/.cctlive` 下的文件（`cct_live_lua` 的临时文件），会记一条 `file_delete` |
 | `POST /computers/{id}/attach` `{"lease_seconds"?}` | 接管；如果已经接管，则续约（或改成新的租约时长） |
 | `POST /computers/{id}/detach` | 释放 |
 | `GET /computers/{id}/trace?kind=&exclude=&after=&ticks=&summary=1&offset=&limit=` | 这台电脑本次游戏的 trace：`kind` / `exclude` 按类型筛选，`after` 只要 seq 大于 N 的记录，`ticks` 按 tick 范围筛选，`summary=1` 只返回各类记录的数量和范围（limit 默认 50，最大 5000） |
@@ -165,7 +168,7 @@ Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
 | `event` | 交给 Lua VM 的每个事件（包括 timer、task_complete、按键、http_success 等） |
 | `peripheral_call` / `peripheral_return` | 所有外设调用（`peripheral.wrap`/`find` 最终也走 `peripheral.call`）；主线程方法在之后的 tick 返回；出错时带错误信息 |
 | `api` | `http.request` / `checkURL` / `websocket`（`http.get`、`http.post` 最终都调用 `http.request`），以及 `fs.open` / `delete` / `move` / `copy` / `makeDir`，含参数和结果 |
-| `handle` | 对已打开的文件、HTTP 响应、websocket 的每次调用（`readAll`、`readLine`、`write`、`close` 等），带 `path` 或 `url`，读写的数据（默认前 200 个字符），以及 `bytes`（数据的完整长度）。`/rom` 下的文件不记录 |
+| `handle` | 对已打开的文件、HTTP 响应、websocket 的每次调用（`readAll`、`readLine`、`write`、`close` 等），带 `path` 或 `url`，读写的数据（默认前 200 个字符），`bytes`（数据的完整长度），HTTP 的 `readAll` 还会带 `body`（完整正文的编号）。`/rom` 下的文件不记录 |
 | `printed_error` | 电脑用 `printError` 打印的文字，以及当时运行的程序。shell 就是这样报告程序崩溃的（例如 `/startup.lua:911: module 'icons.User' not found`），所以程序出错时先看这一类。由 mod 自带的 ROM 脚本 `rom/autorun/cctlive.lua` 提供 |
 | `vm_start` / `vm_close` / `vm_error` | VM 的创建和关闭（开机、重启）；VM 级错误，例如 Too long without yielding |
 | `screen` | 每个 tick 中变化的行，含 `fg` / `bg` 颜色、光标和尺寸；`source` 是 `term` 或直接贴在电脑上的显示器所在的面 |

@@ -120,12 +120,60 @@ final class Screens {
                     if (!part.isEmpty()) label.append(label.length() > 0 ? " | " : "").append(part);
                 }
                 region.addProperty("text", label.toString());
+                var labels = labels(s, minX, minY, maxX, maxY);
+                if (labels.size() > 0) region.add("labels", labels);
                 found.add(region);
             }
         }
         found.sort((a, b) -> Integer.compare(area(b), area(a)));
         var out = new JsonArray();
         for (var i = 0; i < Math.min(found.size(), MAX_REGIONS); i++) out.add(found.get(i));
+        return out;
+    }
+
+    /**
+     * Blocks of drawn content inside a region (any non-space character, including pixel-art glyphs), joined across
+     * rows when they overlap: the label of a button sits inside its card even when both share one background.
+     */
+    private static JsonArray labels(Terminals.Snapshot s, int minX, int minY, int maxX, int maxY) {
+        var boxes = new java.util.ArrayList<int[]>(); // x1, y1, x2, y2
+        for (var y = minY; y <= maxY; y++) {
+            var row = s.text()[y];
+            var x = minX;
+            while (x <= maxX) {
+                if (row.charAt(x) == ' ') {
+                    x++;
+                    continue;
+                }
+                var start = x;
+                // A run allows single spaces inside (words, glyph gaps).
+                while (x <= maxX && (row.charAt(x) != ' ' || (x + 1 <= maxX && row.charAt(x + 1) != ' '))) x++;
+                var end = x - 1;
+                int[] merged = null;
+                for (var box : boxes) {
+                    if (box[3] == y - 1 && start <= box[2] + 1 && end >= box[0] - 1) {
+                        merged = box;
+                        break;
+                    }
+                }
+                if (merged != null) {
+                    merged[0] = Math.min(merged[0], start);
+                    merged[2] = Math.max(merged[2], end);
+                    merged[3] = y;
+                } else {
+                    boxes.add(new int[]{start, y, end, y});
+                }
+            }
+        }
+        var out = new JsonArray();
+        for (var box : boxes) {
+            if (out.size() >= 12) break;
+            var label = new JsonObject();
+            label.add("from", pair(box[0] + 1, box[1] + 1));
+            label.add("to", pair(box[2] + 1, box[3] + 1));
+            label.add("center", pair((box[0] + box[2]) / 2 + 1, (box[1] + box[3]) / 2 + 1));
+            out.add(label);
+        }
         return out;
     }
 

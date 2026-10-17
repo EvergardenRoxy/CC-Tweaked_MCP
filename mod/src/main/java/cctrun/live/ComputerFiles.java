@@ -109,6 +109,37 @@ final class ComputerFiles {
         return out;
     }
 
+    /** The directory cct-run uses for its own temporary files on the computer (cct_live_lua). */
+    static final String TEMP_DIR = ".cctlive";
+
+    /** Deletes a file or directory, only inside {@link #TEMP_DIR}: other deletions stay with the player. */
+    static JsonObject delete(ServerComputer computer, String rawPath) throws IOException {
+        var path = sanitise(rawPath);
+        if (!path.equals(TEMP_DIR) && !path.startsWith(TEMP_DIR + "/")) {
+            throw new IllegalArgumentException("only files under /" + TEMP_DIR + " can be deleted through cct-live");
+        }
+        var mount = computer.createRootMount();
+        var existed = mount.exists(path);
+        if (existed) mount.delete(path);
+        var out = base(computer, mount, path);
+        out.addProperty("deleted", existed);
+        return out;
+    }
+
+    /** Text if the bytes are valid UTF-8, else ISO-8859-1, as in read. */
+    static void putText(JsonObject out, byte[] bytes) {
+        try {
+            var text = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes)).toString();
+            out.addProperty("encoding", "utf-8");
+            out.addProperty("text", text);
+        } catch (CharacterCodingException e) {
+            out.addProperty("encoding", "iso-8859-1");
+            out.addProperty("text", new String(bytes, StandardCharsets.ISO_8859_1));
+        }
+    }
+
     /** Writes text to a file (parent directories are created); the mount enforces the computer's disk space. */
     static JsonObject write(ServerComputer computer, String rawPath, String text, String encoding, boolean append) throws IOException {
         var path = sanitise(rawPath);

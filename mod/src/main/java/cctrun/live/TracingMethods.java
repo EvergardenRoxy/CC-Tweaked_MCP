@@ -159,8 +159,14 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
             if (result.getCallback() == null) {
                 var values = result.getResult();
                 data.add("result", JsonValues.array(values, recorder.handles()));
-                var bytes = dataLength(values != null && values.length > 0 ? values[0] : null);
+                var first = values != null && values.length > 0 ? values[0] : null;
+                var bytes = dataLength(first);
                 if (bytes >= 0 && !data.has("bytes")) data.addProperty("bytes", bytes);
+                // The whole body of an HTTP response read, so "what did the server send" can be answered later.
+                if (owner instanceof dan200.computercraft.core.apis.http.request.HttpResponseHandle && name.equals("readAll") && bytes > 0) {
+                    var body = recorder.saveBody(first);
+                    if (body > 0) data.addProperty("body", body);
+                }
             }
             else data.addProperty("pending", true);
             recorder.record("handle", data);

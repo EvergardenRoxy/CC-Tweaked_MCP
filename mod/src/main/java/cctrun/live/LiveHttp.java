@@ -39,7 +39,9 @@ import java.util.function.Supplier;
  *                                                    first record of kinds after seq, screen text and hash, monitors
  * GET  /computers/{id}/files?op=list|stat|read&path=&offset=&length=   the computer's files (needs an attachment)
  * POST /computers/{id}/files  {"path", "text", "encoding"?, "append"?}  write a file (needs an attachment and
- *                                                    config files.allow_write = true)
+ *                                                    config files.allow_write = true); {"op":"delete","path"} deletes,
+ *                                                    only under /.cctlive (cct_live_lua's temporary files)
+ * GET  /computers/{id}/body?n=&offset=&length=      a saved HTTP response body (handle record field "body")
  * POST /computers/{id}/attach                        start (or renew) an attachment: observe and control
  * POST /computers/{id}/detach                        end it
  * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&offset=&limit=
@@ -127,6 +129,8 @@ final class LiveHttp {
                 } else if (action.equals("files") && method.equals("POST")) {
                     var body = body(exchange);
                     send(exchange, 200, onServer(() -> writeFile(id, body)));
+                } else if (action.equals("body") && method.equals("GET")) {
+                    send(exchange, 200, body(id, query(exchange)));
                 } else if (action.equals("status") && method.equals("GET")) {
                     var query = query(exchange);
                     send(exchange, 200, status(id, query));
@@ -361,6 +365,22 @@ final class LiveHttp {
             throw new BadRequest(403, "writing files is off: the player can turn it on with files.allow_write = true in config/cctlive-common.toml");
         }
         var computer = controlled(id);
+        if (body.has("op") && body.get("op").getAsString().equals("delete")) {
+            if (!body.has("path")) throw new BadRequest(400, "delete needs \"path\"");
+            try {
+                var out = ComputerFiles.delete(computer, body.get("path").getAsString());
+                var record = new JsonObject();
+                record.addProperty("path", out.get("path").getAsString());
+                record.addProperty("deleted", out.get("deleted").getAsBoolean());
+                record.addProperty("by", "ai");
+                session.attachmentOf(computer).trace().record("file_delete", record);
+                return out;
+            } catch (IllegalArgumentException e) {
+                throw new BadRequest(400, e.getMessage());
+            } catch (IOException e) {
+                throw new BadRequest(500, "cannot delete: " + e.getMessage());
+            }
+        }
         if (!body.has("path") || !body.has("text")) throw new BadRequest(400, "body needs \"path\" and \"text\"");
         var encoding = body.has("encoding") ? body.get("encoding").getAsString() : "utf-8";
         if (!encoding.equals("utf-8") && !encoding.equals("iso-8859-1")) throw new BadRequest(400, "encoding must be utf-8 or iso-8859-1");
@@ -380,6 +400,44 @@ final class LiveHttp {
         } catch (IOException e) {
             throw new BadRequest(500, "cannot write the file: " + e.getMessage());
         }
+    }
+
+    /** A saved HTTP response body, read like a file. */
+    private JsonObject body(int id, Map<String, String> query) throws IOException {
+        var n = intParam(query, "n", 0, 1, Integer.MAX_VALUE);
+        if (n == 0) throw new BadRequest(400, "n (the 'body' number of a handle record) is required");
+        var offset = intParam(query, "offset", 0, 0, Integer.MAX_VALUE);
+        var length = intParam(query, "length", ComputerFiles.DEFAULT_READ, 0, ComputerFiles.MAX_READ);
+        var trace = onServer(() -> {
+            var computer = session.find(id);
+            if (computer != null) {
+                var a = session.attachmentOf(computer);
+                if (a != null) a.renew();
+            }
+            return session.traceOf(id);
+        });
+        if (trace == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet");
+        var file = trace.bodyFile(n);
+        if (!Files.exists(file)) throw new BadRequest(404, "no saved body " + n + " for computer " + id);
+        var size = Files.size(file);
+        byte[] bytes;
+        try (var channel = Files.newByteChannel(file)) {
+            channel.position(Math.min(offset, size));
+            var buffer = java.nio.ByteBuffer.allocate((int) Math.max(0, Math.min(length, size - Math.min(offset, size))));
+            while (buffer.hasRemaining() && channel.read(buffer) > 0) {
+                // keep reading
+            }
+            bytes = java.util.Arrays.copyOf(buffer.array(), buffer.position());
+        }
+        var out = new JsonObject();
+        out.addProperty("id", id);
+        out.addProperty("body", n);
+        out.addProperty("size", size);
+        out.addProperty("offset", offset);
+        out.addProperty("length", bytes.length);
+        out.addProperty("eof", offset + bytes.length >= size);
+        ComputerFiles.putText(out, bytes);
+        return out;
     }
 
     private static boolean flag(Map<String, String> query, String name) {
