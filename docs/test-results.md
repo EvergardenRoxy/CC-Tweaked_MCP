@@ -8,7 +8,7 @@
 |---|---|
 | Windows 冒烟测试 | **22/22 通过**（Windows 11、PowerShell 5.1、代码页 936、Zulu 21） |
 | Linux 冒烟测试 | bash 21/21；PowerShell 7 20 项通过、1 项跳过（Linux 上没有可用的 Java 8） |
-| 单元测试 | 53/53 |
+| 单元测试 | 54/54 |
 | MCP 服务器 | Windows 冒烟测试和一次 AI 客户端实测通过；Linux 上官方 MCP SDK 客户端验证通过 |
 | AI 实测 | 命令行方式和 MCP 方式的标准任务，AI 回答全部正确 |
 | macOS | 未测试 |
