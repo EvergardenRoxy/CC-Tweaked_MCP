@@ -93,7 +93,7 @@ cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以
 | `cct_live_trace` | 查询 trace：默认最多 50 条，不含 `screen` 记录；`summary: true` 只返回各类记录的数量；`contains` 只要 URL、路径、程序名、文字或参数里含有某段文字的记录（不区分大小写），比如跟踪某一个文件的下载；`peripheral` / `method` 只要某个外设或某个方法的调用。有线网络上的外设按网络名记录（`via` 是调制解调器所在的面） | 读取之前的记录时不需要 |
 | `cct_live_type` | 输入文字，每行后面按一次回车，可以一次输入多行 | 是 |
 | `cct_live_click` | 点击电脑屏幕（mouse_click + mouse_up），或触摸显示器（`source` 是显示器所在的面，发送 monitor_touch） | 是 |
-| `cct_live_files` | 读电脑上的文件（list / stat / read）；如果 config 里打开了 `files.allow_write`，还可以写入（write） | 是 |
+| `cct_live_files` | 读电脑上的文件（list / stat / read），也可以只读地查看 `/rom`（这台电脑实际运行的 ROM，例如 `rom/apis/peripheral.lua`）；如果 config 里打开了 `files.allow_write`，还可以写入（write），`/rom` 不能写 | 是 |
 | `cct_live_lua` | 一次调用完成：在电脑上运行一段 Lua，返回打印内容、返回值和错误（含调用栈）。临时文件放在 `/.cctlive`，用完自动删除。超时后返回 `pending` 名字，之后用 `result` 取回结果；遗留的临时文件在下一次调用和释放时清理。需要 shell 停在提示符下，并且打开了 `files.allow_write` | 是 |
 | `cct_live_snapshot` | 电脑文件的快照：`save` 保存全部文件（`/.cctlive` 除外），`diff` 列出之后新增、删除、改动的文件，`restore` 把电脑恢复成快照时的样子（会删除快照里没有的文件，需要打开 `files.allow_write`），`list` 列出已保存的快照。快照保存在 `cct-live/snapshots/` 下，重开游戏后仍然可用 | 是 |
 | `cct_live_peripheral` | 在游戏这一侧直接调用外设的读取方法（`get...`、`is...`、`has...`、`list`、`size` 等），不经过电脑的 Lua：程序运行时也能用，不产生事件，不影响程序；不给方法名时列出外设的类型和方法。会记一条 `peripheral_query` | 是 |
@@ -131,7 +131,7 @@ Claude Code 的 `.mcp.json` 示例：
 | `GET /computers/{id}/screen?source=&colors=1&regions=1&tick=N` | 屏幕上的文字（去掉行尾空格）、光标、尺寸；`source` 是 `term`（默认）或显示器所在的面；`colors=1` 附带前景色和背景色；`regions=1` 附带颜色区域；`tick=N` 从 trace 还原那一刻的屏幕 |
 | `GET /computers/{id}/body?n=&offset=&length=` | 已保存的 HTTP 响应正文（`handle` 记录里的 `body` 编号），保存在 trace 文件旁边，每个最多 4 MB，每台电脑合计最多 64 MB |
 | `GET /computers/{id}/status?after=&kinds=&source=` | 简短状态，适合轮询：tick、最新 seq、`after` 之后各类记录的数量、`after` 之后第一条属于 `kinds` 的记录（`match`）、屏幕文字和 `screen_hash`、显示器列表 |
-| `GET /computers/{id}/files?op=list\|stat\|read&path=&offset=&length=` | 电脑上的文件（需要已接管）：`/` 下的文件，不包括 `/rom` 和磁盘 |
+| `GET /computers/{id}/files?op=list\|stat\|read&path=&offset=&length=` | 电脑上的文件（需要已接管）：`/` 下的文件，不包括磁盘；`/rom` 只读（CC: Tweaked 的 ROM，含数据包的修改，与电脑看到的相同） |
 | `POST /computers/{id}/files` `{"path", "text", "append"?, "encoding"?}` | 写文件（需要已接管，并且 config 里 `files.allow_write = true`），会记一条 `file_write`；`{"op": "delete", "path"}` 只能删除 `/.cctlive` 下的文件（`cct_live_lua` 的临时文件），会记一条 `file_delete` |
 | `POST /computers/{id}/attach` `{"lease_seconds"?}` | 接管；如果已经接管，则续约（或改成新的租约时长） |
 | `POST /computers/{id}/detach` | 释放 |

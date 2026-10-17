@@ -15,8 +15,14 @@ import java.util.Set;
 
 /** Reads a run directory back: filtered trace records and the screen at a given tick. */
 public final class TraceQuery {
-    /** Filter for {@link #records}. Null fields match everything. */
-    public record Filter(Set<String> kinds, Integer fromTick, Integer toTick, String peripheral, String source, int offset, int limit) {
+    /**
+     * Filter for {@link #records}. Null fields match everything. {@code contains}: case-insensitive text in a record's
+     * url, path, program, text, event name, peripheral, method or arguments (as cct-live's trace filter).
+     */
+    public record Filter(Set<String> kinds, Integer fromTick, Integer toTick, String peripheral, String source, String contains, int offset, int limit) {
+        public Filter(Set<String> kinds, Integer fromTick, Integer toTick, String peripheral, String source, int offset, int limit) {
+            this(kinds, fromTick, toTick, peripheral, source, null, offset, limit);
+        }
     }
 
     private TraceQuery() {
@@ -43,7 +49,28 @@ public final class TraceQuery {
         if (filter.kinds() != null && !filter.kinds().contains(record.get("kind").getAsString())) return false;
         if (filter.peripheral() != null && !(record.has("peripheral") && filter.peripheral().equals(record.get("peripheral").getAsString()))) return false;
         if (filter.source() != null && !(record.has("source") && filter.source().equals(record.get("source").getAsString()))) return false;
+        if (filter.contains() != null && !mentions(record, filter.contains().toLowerCase(java.util.Locale.ROOT))) return false;
         return true;
+    }
+
+    private static boolean mentions(JsonObject record, String needle) {
+        for (var key : new String[]{"url", "path", "program", "text", "name", "peripheral", "method", "message"}) {
+            var v = record.get(key);
+            if (v != null && v.isJsonPrimitive() && v.getAsString().toLowerCase(java.util.Locale.ROOT).contains(needle)) return true;
+        }
+        return mentions(record.get("args"), needle) || mentions(record.get("result"), needle) || mentions(record.get("lines"), needle);
+    }
+
+    /** Strings anywhere in arguments, results or screen rows. */
+    private static boolean mentions(com.google.gson.JsonElement value, String needle) {
+        if (value == null || value.isJsonNull()) return false;
+        if (value.isJsonPrimitive()) return value.getAsString().toLowerCase(java.util.Locale.ROOT).contains(needle);
+        if (value.isJsonArray()) {
+            for (var v : value.getAsJsonArray()) if (mentions(v, needle)) return true;
+            return false;
+        }
+        for (var e : value.getAsJsonObject().entrySet()) if (mentions(e.getValue(), needle)) return true;
+        return false;
     }
 
     /** The screen of {@code source} ("term" or a monitor name) as it was at the end of {@code tick} (null: last). */

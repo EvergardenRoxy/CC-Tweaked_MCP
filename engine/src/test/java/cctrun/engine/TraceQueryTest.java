@@ -37,6 +37,18 @@ class TraceQueryTest {
         assertEquals(List.of(all.get(1)), limited);
     }
 
+    @Test
+    void containsMatchesTextNamesAndArguments() throws Exception {
+        var result = run(out, "os.queueEvent('chat', 'Steve', '!Factory Start') os.pullEvent('chat') print('done')", null, 10);
+        var byArgument = TraceQuery.records(result.runDir(), new TraceQuery.Filter(null, null, null, null, null, "factory start", 0, 100));
+        assertEquals(1, byArgument.size(), byArgument.toString());
+        assertEquals("chat", byArgument.get(0).get("name").getAsString());
+        var byName = TraceQuery.records(result.runDir(), new TraceQuery.Filter(Set.of("event"), null, null, null, null, "CHAT", 0, 100));
+        assertEquals(byArgument, byName);
+        var onScreen = TraceQuery.records(result.runDir(), new TraceQuery.Filter(Set.of("screen"), null, null, null, null, "done", 0, 100));
+        assertEquals(1, onScreen.size());
+    }
+
     private static int firstPrintTick(RunResult result) throws Exception {
         return RunHelper.trace(result, "screen").stream().filter(r -> r.toString().contains("first")).findFirst().orElseThrow().get("tick").getAsInt();
     }

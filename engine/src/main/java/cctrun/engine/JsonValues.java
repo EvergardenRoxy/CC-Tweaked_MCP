@@ -102,4 +102,24 @@ public final class JsonValues {
     static String truncate(String s) {
         return s.length() <= MAX_STRING ? s : s.substring(0, MAX_STRING) + "...(" + s.length() + " chars)";
     }
+
+    /** A fixture's JSON value as a Lua value: numbers are doubles, arrays are 1-based tables, objects tables. */
+    public static Object toLua(JsonElement value) {
+        if (value == null || value.isJsonNull()) return null;
+        if (value.isJsonPrimitive()) {
+            var p = value.getAsJsonPrimitive();
+            if (p.isBoolean()) return p.getAsBoolean();
+            if (p.isNumber()) return p.getAsDouble();
+            return p.getAsString();
+        }
+        if (value.isJsonArray()) {
+            var out = new java.util.HashMap<Object, Object>();
+            var array = value.getAsJsonArray();
+            for (var i = 0; i < array.size(); i++) out.put((double) (i + 1), toLua(array.get(i)));
+            return out;
+        }
+        var out = new java.util.HashMap<Object, Object>();
+        for (var entry : value.getAsJsonObject().entrySet()) out.put(entry.getKey(), toLua(entry.getValue()));
+        return out;
+    }
 }

@@ -59,6 +59,7 @@ final class McpTools {
                 "kind": { "type": "array", "items": { "type": "string" }, "description": "Only these kinds, e.g. [\\"peripheral_call\\", \\"peripheral_return\\"]." },
                 "ticks": { "type": "string", "description": "Tick range: N, A-B, A- or -B." },
                 "peripheral": { "type": "string", "description": "Only records of this peripheral (side or network name)." },
+                "contains": { "type": "string", "description": "Only records whose text, event name, peripheral, method, arguments, results or screen rows contain this text (case-insensitive), e.g. setTargetSpeed or a chat command." },
                 "source": { "type": "string", "description": "Only screen/output records of this source: term or a monitor name." },
                 "offset": { "type": "integer", "minimum": 0, "description": "Skip this many matching records. Default 0." },
                 "limit": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "At most this many records. Default 200." }
@@ -203,7 +204,7 @@ final class McpTools {
     // --- cct_trace / cct_screen ----------------------------------------------------------------------------------
 
     static List<String> traceArgs(JsonObject a, Path outDir) throws ToolError {
-        allowOnly(a, "run", "kind", "ticks", "peripheral", "source", "offset", "limit");
+        allowOnly(a, "run", "kind", "ticks", "peripheral", "source", "contains", "offset", "limit");
         var argv = runSelector("trace", a, outDir);
         if (a.has("kind") && !a.get("kind").isJsonNull()) {
             var kind = a.get("kind");
@@ -218,6 +219,7 @@ final class McpTools {
             add(argv, "--ticks", ticks.getAsString());
         }
         addString(argv, a, "peripheral", "--peripheral");
+        addString(argv, a, "contains", "--contains");
         addString(argv, a, "source", "--source");
         var offset = integer(a, "offset");
         if (offset != null) add(argv, "--offset", offset.toString());

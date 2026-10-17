@@ -138,7 +138,8 @@ class McpServerTest {
             call(3, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":\"program_end\",\"limit\":1}"),
             call(4, "cct_trace", "{\"kind\":[\"modem_transmit\"]}"),
             call(5, "cct_screen", "{\"source\":\"monitor_9\"}"),
-            call(6, "cct_trace", "{\"run\":\"" + dir.toString().replace("\\", "\\\\") + "\"}"));
+            call(6, "cct_trace", "{\"run\":\"" + dir.toString().replace("\\", "\\\\") + "\"}"),
+            call(7, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"contains\":\"INDEX LOCAL\"}"));
         assertFalse(isError(q.get("1")));
         assertTrue(text(q.get("1")).contains("\"kind\":\"program_end\""));
         assertTrue(text(q.get("2")).contains("\"lines\""));
@@ -148,6 +149,8 @@ class McpServerTest {
         assertTrue(isError(q.get("5")));
         assertTrue(isError(q.get("6")));
         assertTrue(text(q.get("6")).contains("not a run directory"));
+        assertFalse(isError(q.get("7")));
+        assertTrue(text(q.get("7")).contains("attempt to index local"), text(q.get("7")));
     }
 
     /** Field test (computer 7): on Chinese Windows a fixture error under D:\\...\\测试 became "internal error: MalformedInputException". */

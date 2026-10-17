@@ -50,6 +50,8 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
   - `cct_live_wait`：在服务端等待某段文字、某类记录出现，或者画面停止变化，最长 120 秒；等文字时不会被操作之前就在屏幕上的旧文字骗到。
   - `cct_live_trace`：默认只返回 50 条，`summary` 只返回各类记录的数量，`contains` 按 URL、路径或文字过滤（比如只看某一个文件的下载），`peripheral` / `method` 只看某个外设或方法的调用。trace 超过大小上限后保留最新的记录。
   - `cct_live_peripheral`：程序运行时也能直接读取外设（应力表、箱子等），不经过电脑的 Lua，不影响程序。
+  - `cct_live_files` 可以只读地查看 `/rom`（这台电脑实际运行的 ROM）。
+- **模拟器**：fixture 新增 `scripted` 外设，用来描述 Create、Advanced Peripherals 等模组的外设（类型名和每个方法的返回值，数值从实机上取）；`cct_trace` 新增 `contains` 文字过滤。
   - `cct_live_lua`：一次调用就能在电脑上运行一段 Lua 并拿到结果，临时文件自动删除；超时后可以用 `result` 取回结果。
   - `cct_live_body`：读取 HTTP 响应的完整正文，每个最多 4 MB。
 - **快照和恢复**：`cct_live_snapshot` 在改动之前保存电脑的全部文件，结束时列出改动了什么，并能一键恢复原样（恢复需要打开 `files.allow_write`）。快照保存在 `cct-live/snapshots/` 下。
@@ -97,7 +99,7 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
   - 不支持通过有线网络连接的显示器；
   - 海龟、口袋电脑和命令电脑还没有测试过；
   - `cct_live_lua` 要从 shell 运行，程序运行时不能用（程序运行时可以用 `cct_live_peripheral` 读取外设）；
-  - `cct_live_peripheral`、trace 的 `peripheral` / `method` 和轮换、`cct_live_wait` 对旧画面的处理是本版最后加入的，只在开发服务器上验证过，还没有经过 AI 实测。
+  - `cct_live_peripheral`、trace 的 `peripheral` / `method` 和轮换、`cct_live_wait` 对旧画面的处理、`/rom` 只读、fixture 的 `scripted` 外设和 `cct_trace` 的 `contains` 是本版最后加入的，只在开发服务器和模拟器里验证过，还没有经过 AI 实测。
 - 接管之前就打开的文件或 HTTP 句柄，trace 里不会显示它的路径或 URL（打开记录模式可以缓解）。
 
 ## 许可证

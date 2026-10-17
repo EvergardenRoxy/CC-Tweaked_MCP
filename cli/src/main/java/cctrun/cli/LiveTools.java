@@ -168,7 +168,7 @@ final class LiveTools {
           {
             "name": "cct_live_files",
             "title": "Files of a computer in the game",
-            "description": "An attached computer's own files (not /rom or disks), without running anything on it. op list (default): entries {name, dir, size}; stat: exists, dir, size; read: text from offset, up to length bytes (default 65536, max 1048576), with size, eof, encoding; write: write text to path (append: true to add), only if the player allowed it (files_write in cct_live_attach; config files.allow_write), recorded as file_write. All results include free_space. Write only what the user asked for.",
+            "description": "An attached computer's own files (not disks) and, read-only, /rom (the ROM the computer runs, e.g. rom/apis/peripheral.lua), without running anything on it. op list (default): entries {name, dir, size}; stat: exists, dir, size; read: text from offset, up to length bytes (default 65536, max 1048576), with size, eof, encoding; write: write text to path (append: true to add), only if the player allowed it (files_write in cct_live_attach; config files.allow_write), recorded as file_write. All results include free_space. Write only what the user asked for.",
             "inputSchema": {
               "type": "object",
               "properties": {

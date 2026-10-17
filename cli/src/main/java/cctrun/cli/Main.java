@@ -47,7 +47,7 @@ public final class Main {
         Usage:
           cct-run run <program.lua> [--fixture FILE] [--timeout SECONDS] [--out DIR] [--term WxH]
                                     [--basic | --advanced] [--] [program args...]
-          cct-run trace <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME]
+          cct-run trace <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME] [--contains TEXT]
                                          [--offset N] [--limit N] [--out DIR]
           cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR] [--out DIR]
           cct-run guide
@@ -115,7 +115,7 @@ public final class Main {
         var rest = Arrays.asList(argv).subList(1, argv.length);
         return switch (argv[0]) {
             case "run" -> run(new Args(rest, Set.of("--fixture", "--timeout", "--out", "--term"), Set.of("--basic", "--advanced")), out);
-            case "trace" -> trace(new Args(rest, Set.of("--kind", "--ticks", "--peripheral", "--source", "--offset", "--limit", "--out"), Set.of()), out);
+            case "trace" -> trace(new Args(rest, Set.of("--kind", "--ticks", "--peripheral", "--source", "--contains", "--offset", "--limit", "--out"), Set.of()), out);
             case "screen" -> screen(new Args(rest, Set.of("--tick", "--source", "--out"), Set.of()), out);
             case "version", "--version" -> version(out);
             case "guide" -> guide(out);
@@ -197,7 +197,7 @@ public final class Main {
         }
         Set<String> kindSet = kinds == null ? null : Arrays.stream(kinds.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
 
-        var records = TraceQuery.records(runDir, new TraceQuery.Filter(kindSet, from, to, peripheral, source, offset, limit));
+        var records = TraceQuery.records(runDir, new TraceQuery.Filter(kindSet, from, to, peripheral, source, args.option("--contains"), offset, limit));
         for (var record : records) out.println(ascii(COMPACT.toJson(record)));
         if (records.size() == limit) System.err.println("cct-run: stopped at --limit " + limit + "; use --offset " + (offset + limit) + " for more");
         return 0;

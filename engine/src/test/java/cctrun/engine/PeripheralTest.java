@@ -27,6 +27,67 @@ class PeripheralTest {
           "right": {"type": "inventory", "size": 2, "items": {"2": {"name": "minecraft:iron_ingot", "count": 60}}}
         }}""";
 
+    /** Mod peripherals (Create, Advanced Peripherals ...) described by the fixture: joint test 3 needed them. */
+    @Test
+    void scriptedPeripheralsStandInForModBlocks() throws Exception {
+        var result = run(out, """
+            local stress = peripheral.wrap("Create_Stressometer_0")
+            local ctrl = peripheral.wrap("Create_RotationSpeedController_0")
+            print(peripheral.getType("Create_Stressometer_0"), peripheral.hasType("Create_Stressometer_0", "extra"))
+            print(stress.getStress(), stress.getStressCapacity())
+            ctrl.setTargetSpeed(-64)
+            print(ctrl.getTargetSpeed())
+            local p = peripheral.wrap("playerDetector_0")
+            print(p.isPlayerInRange(32, "Evergarden_Roxy"), p.isPlayerInRange(32, "Evergarden_Roxy"), p.isPlayerInRange(32, "x"))
+            print(pcall(p.getPlayerPos, "Evergarden_Roxy"))
+            local t = peripheral.call("chatBox_1", "getOperationCooldown", "chatMessage")
+            print(type(t), t.chatMessage)
+            sleep(1)
+            print(stress.getStress())
+            print(table.concat(peripheral.getMethods("Create_RotationSpeedController_0"), ","))
+            """, """
+            {"peripherals": {"back": {"type": "wired_modem", "network": {
+              "Create_Stressometer_0": {"type": "scripted", "peripheral_type": "Create_Stressometer", "additional_types": ["extra"],
+                "methods": {"getStress": 11776, "getStressCapacity": {"returns": [16384]}}},
+              "Create_RotationSpeedController_0": {"type": "scripted", "peripheral_type": "Create_RotationSpeedController",
+                "methods": {"getTargetSpeed": -128, "setTargetSpeed": {"sets": "getTargetSpeed"}}},
+              "playerDetector_0": {"type": "scripted", "peripheral_type": "playerDetector", "main_thread": false,
+                "methods": {"isPlayerInRange": {"sequence": [[true], [false]]}, "getPlayerPos": {"error": "Player is not online"}}},
+              "chatBox_1": {"type": "scripted", "peripheral_type": "chatBox", "methods": {"getOperationCooldown": {"returns": [{"chatMessage": 0}]}}}
+            }}},
+             "timeline": [{"tick": 10, "do": "method", "peripheral": "Create_Stressometer_0", "method": "getStress", "returns": [17664]}]}
+            """, 10);
+        assertEquals("ok", result.status(), result.status() + " " + screen(result));
+        assertEquals(List.of(
+            "Create_Stressometer\ttrue",
+            "11776\t16384",
+            "-64",
+            "true\tfalse\tfalse",
+            "false\tPlayer is not online",
+            "table\t0",
+            "17664",
+            "getTargetSpeed,setTargetSpeed"), screen(result));
+        var calls = trace(result, "peripheral_call");
+        var first = calls.get(0);
+        assertEquals("Create_Stressometer_0", first.get("peripheral").getAsString());
+        assertEquals("Create_Stressometer", first.get("type").getAsString());
+        assertTrue(first.get("main_thread").getAsBoolean(), "main thread by default, like most mod peripherals");
+        assertEquals(1, trace(result, "fixture_action").size());
+    }
+
+    @Test
+    void scriptedPeripheralFixtureErrors() throws Exception {
+        for (var bad : List.of(
+            "{\"peripherals\": {\"left\": {\"type\": \"scripted\", \"methods\": {\"a\": 1}}}}",
+            "{\"peripherals\": {\"left\": {\"type\": \"scripted\", \"peripheral_type\": \"x\", \"methods\": {\"a\": {\"returns\": [1], \"error\": \"e\"}}}}}",
+            "{\"peripherals\": {\"left\": {\"type\": \"scripted\", \"peripheral_type\": \"x\", \"methods\": {\"set\": {\"sets\": \"get\"}}}}}",
+            "{\"peripherals\": {\"left\": {\"type\": \"scripted\", \"peripheral_type\": \"x\", \"methods\": {\"a\": {\"chatMessage\": 0}}}}}",
+            "{\"peripherals\": {\"left\": {\"type\": \"scripted\", \"peripheral_type\": \"x\", \"methods\": {\"a\": 1}}}, \"timeline\": [{\"tick\": 1, \"do\": \"method\", \"peripheral\": \"left\", \"method\": \"b\", \"returns\": [2]}]}")) {
+            var e = org.junit.jupiter.api.Assertions.assertThrows(FixtureException.class, () -> Fixture.parse(bad), bad);
+            assertTrue(e.getMessage().startsWith("$.peripherals.left") || e.getMessage().startsWith("$.timeline"), e.getMessage());
+        }
+    }
+
     @Test
     void directlyAttachedInventoriesMoveItemsBySideName() throws Exception {
         var result = run(out, """

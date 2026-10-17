@@ -23,7 +23,7 @@ Sections: 1-6 cover the simulation (`run`, `trace`, `screen`); 7 covers real com
 
 ```
 cct-run run <program.lua> [--fixture FILE] [--timeout SECONDS] [--out DIR] [--term WxH] [--basic|--advanced] [-- program args]
-cct-run trace  <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME] [--offset N] [--limit N]
+cct-run trace  <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME] [--contains TEXT] [--offset N] [--limit N]
 cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR]
 cct-run guide | version | help
 ```
@@ -82,6 +82,7 @@ Every record has `seq`, `tick`, `ms` and `kind`. Useful queries:
 | What was on screen at tick N? | `screen latest --tick N`, or `--source monitor_0` for a monitor |
 | Redstone the program set | `trace latest --kind redstone_output` |
 | What happened between ticks 40 and 60? | `trace latest --ticks 40-60` |
+| Every record that mentions a method, command or text | `trace latest --contains setTargetSpeed` (text, event name, peripheral, method, arguments, results, screen rows; case-insensitive; MCP: `contains`) |
 
 Kinds and their pitfalls:
 
@@ -137,11 +138,33 @@ Peripheral rules:
 - An inventory's type is its `block` (default `minecraft:chest`) plus `inventory`.
 - Monitor size follows the game: 1x1 block = 7x5 characters at scale 1; `setTextScale(0.5)` doubles it.
 
+Peripherals from other mods (Create, Advanced Peripherals, ...) are not modelled, but you can describe them with `"type": "scripted"`: you give the type name and what each method returns, and cct-run answers and traces the calls like any other peripheral. Take the names, methods and real values from the game first (`cct_live_peripheral` without `method` lists the methods; with a getter it returns the value), or from `peripheral_call`/`peripheral_return` records.
+
+```json
+"back": { "type": "wired_modem", "network": {
+  "Create_Stressometer_0": { "type": "scripted", "peripheral_type": "Create_Stressometer",
+    "methods": { "getStress": 11776, "getStressCapacity": { "returns": [16384] } } },
+  "Create_RotationSpeedController_0": { "type": "scripted", "peripheral_type": "Create_RotationSpeedController",
+    "methods": { "getTargetSpeed": -128, "setTargetSpeed": { "sets": "getTargetSpeed" } } },
+  "playerDetector_0": { "type": "scripted", "peripheral_type": "playerDetector",
+    "methods": { "isPlayerInRange": { "sequence": [[true], [true], [false]] },
+                 "getPlayerPos": { "error": "Player is not online" } } },
+  "chatBox_0": { "type": "scripted", "peripheral_type": "chatBox",
+    "methods": { "sendMessageToPlayer": { "returns": [true] },
+                 "getOperationCooldown": { "returns": [{ "chatMessage": 0 }] } } } } }
+```
+
+- A method's value is either one plain return value (number, string, boolean, array = list table), or an object with one of `returns` (all return values, so a table is `{"returns": [{...}]}`), `sequence` (the returns of successive calls; the last one repeats) or `error` (the call raises this message). No key at all: returns nothing.
+- `sets: "<method>"`: the call stores its first argument as that method's return value (a setter and its getter).
+- `main_thread` (peripheral or method, default `true`): like most mod peripherals, the call takes a tick and waits for `task_complete`, so events arriving meanwhile are dropped as in the game. `additional_types` adds types for `peripheral.hasType`/`find`.
+- Nothing else is simulated: values change only through `sets` and the timeline, and machines do not react to each other (raising the speed does not raise the stress unless the timeline says so). Mod events (e.g. the chat box's `chat`) are timeline `event`s; copy their argument layout from a real event in `cct_live_trace`.
+
 Timeline actions:
 - `event` queues any event, e.g. `key`, `char`, `monitor_touch`, `rednet_message`-style custom events.
 - `redstone` sets an input level.
 - `item` sets or (with `null`) clears a slot.
 - `energy` sets stored energy.
+- `method` changes what a scripted peripheral's method returns from then on: `{ "tick": 60, "do": "method", "peripheral": "Create_Stressometer_0", "method": "getStress", "returns": [16000] }` (or `sequence`, `error`).
 - `terminate` sends Ctrl+T, a clean way to end an endless loop.
 
 Recipes:
@@ -160,6 +183,7 @@ A pass means the program works against this model, which is not guaranteed to ma
   - `getItemDetail` returns only name, count, displayName, maxCount, tags, nbt and damage;
   - item transfer fills target slots in order (Forge behaviour; Fabric fills existing stacks first).
 - **Fluids:** only `tanks()`.
+- **Scripted peripherals:** they return what the fixture says, nothing more; their accuracy is that of the values you copied from the game.
 - **Energy and fluid amounts:** change only through the timeline.
 - **Time:** in-game time is frozen at 0 (`os.time()`, `os.day()`); real time (`os.clock()`, `os.epoch`) runs normally. `os.clock()` counts the computer's ticks (0.05 s steps, here and in the game): it does not move inside one run of Lua between two yields and falls behind when the server lags. Measure intervals with `os.epoch("utc")`.
 - **Disk:** the 1 MB limit is reported but not enforced.
@@ -188,7 +212,7 @@ Tools:
 - `cct_live_snapshot {computer, op, name}`: `save` copies all of the computer's files (except `/.cctlive`) on the game side; `diff` lists `added`, `removed`, `changed` files and directories since then (`identical` true when nothing changed); `restore` writes back changed and removed files and deletes the added ones, then checks (needs `files_write`); `list` shows saved snapshots. Save before your first change; at the end `diff`, `restore` what you changed, and `diff` again to prove the computer is back. Do not copy the world folder by hand.
 - `cct_live_peripheral {computer, name, method, args}`: calls a getter of one of the computer's peripherals (a side or a wired network name, e.g. `Create_Stressometer_0`) on the game side, without the computer's Lua: it works while a program runs, adds no event and does not disturb the program. Without `method` it lists the peripheral's type and methods. Only methods that read state (`get...`, `is...`, `has...`, `can...`, `list`, `size`, `tanks`, `count...`). Recorded as `peripheral_query`. Use it to check readings while the program under test is running instead of stopping it for `cct_live_lua`.
 - `cct_live_body {computer, body, offset, length}`: the full body of an HTTP response read with `readAll` while attached (the `handle` record has `body: N`); trace data is cut to 200 characters.
-- `cct_live_files {computer, op, path, ...}`: the computer's own files without running anything on it: `list`, `stat`, `read` (up to 1 MB per call), and `write` (`text`, `append`) only when the player allowed it (`files_write`). A write is recorded as `file_write`. For diagnostics prefer `cct_live_lua`.
+- `cct_live_files {computer, op, path, ...}`: the computer's own files without running anything on it, and `/rom` read-only (the ROM this computer runs, e.g. `rom/apis/peripheral.lua`, to check how a CC API behaves): `list`, `stat`, `read` (up to 1 MB per call), and `write` (`text`, `append`) only when the player allowed it (`files_write`). A write is recorded as `file_write`. For diagnostics prefer `cct_live_lua`.
 - `cct_live_trace {computer, kind, exclude, after, ticks, contains, peripheral, method, summary, offset, limit}`: records of this game session (all attachments; seq keeps counting). Default limit 50; `screen` records are left out unless `kind` names them. Start with `summary: true` (counts and seq ranges per kind). `contains` keeps records whose url, path, program, text, event name, peripheral, method or arguments contain the text (case-insensitive), e.g. `contains: "User.lua"` to follow one download through `api`, `handle` and the file write. `peripheral` and `method` keep the calls and returns of one peripheral or method (exact names). The trace keeps the newest records within the player's size limit: when older ones were dropped, results carry `first_seq` (the oldest left) and a `trace_rotated` record marks each drop. Kinds:
   - `printed_error`: text printed with `printError` and the running `program`; this is how the shell reports a program crash (e.g. `/startup.lua:911: module 'icons.User' not found ...`). Look here first. Under multishell (`bg`, `fg`) `program` can be the tab's launcher (e.g. `rom/programs/advanced/bg.lua`): trust the file name in the error text. `vm_error` only covers VM-level failures such as "Too long without yielding";
   - `api`: `http.request/checkURL/websocket` and `fs.open/delete/move/copy/makeDir` with args and result (`http.get` shows up as `http.request`);

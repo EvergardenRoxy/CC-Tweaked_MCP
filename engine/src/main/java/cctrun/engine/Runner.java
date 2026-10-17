@@ -4,6 +4,7 @@ package cctrun.engine;
 
 import cctrun.engine.peripheral.EnergyPeripheral;
 import cctrun.engine.peripheral.Inventory;
+import cctrun.engine.peripheral.ScriptedPeripheral;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -251,7 +252,7 @@ public final class Runner {
             case "event" -> {
                 var args = spec.has("args") ? spec.getAsJsonArray("args") : new JsonArray();
                 var values = new Object[args.size()];
-                for (var i = 0; i < args.size(); i++) values[i] = toLua(args.get(i));
+                for (var i = 0; i < args.size(); i++) values[i] = JsonValues.toLua(args.get(i));
                 computer.queueEvent(spec.get("name").getAsString(), values);
                 data.addProperty("name", spec.get("name").getAsString());
                 data.add("args", args);
@@ -281,28 +282,20 @@ public final class Runner {
                 data.addProperty("slot", slot);
                 data.add("item", item);
             }
+            case "method" -> {
+                var name = spec.get("peripheral").getAsString();
+                var behaviours = ((ScriptedPeripheral) built.byName().get(name)).getTarget();
+                var method = spec.get("method").getAsString();
+                var behaviour = new JsonObject();
+                for (var key : new String[]{"returns", "sequence", "error"}) if (spec.has(key)) behaviour.add(key, spec.get(key));
+                behaviours.get(method).set(behaviour);
+                data.addProperty("peripheral", name);
+                data.addProperty("method", method);
+                for (var entry : behaviour.entrySet()) data.add(entry.getKey(), entry.getValue());
+            }
             default -> throw new IllegalStateException("validated earlier: " + action.action());
         }
         trace.record("fixture_action", data);
-    }
-
-    private static Object toLua(JsonElement value) {
-        if (value == null || value.isJsonNull()) return null;
-        if (value.isJsonPrimitive()) {
-            var p = value.getAsJsonPrimitive();
-            if (p.isBoolean()) return p.getAsBoolean();
-            if (p.isNumber()) return p.getAsDouble();
-            return p.getAsString();
-        }
-        if (value.isJsonArray()) {
-            var out = new java.util.HashMap<Object, Object>();
-            var array = value.getAsJsonArray();
-            for (var i = 0; i < array.size(); i++) out.put((double) (i + 1), toLua(array.get(i)));
-            return out;
-        }
-        var out = new java.util.HashMap<Object, Object>();
-        for (var entry : value.getAsJsonObject().entrySet()) out.put(entry.getKey(), toLua(entry.getValue()));
-        return out;
     }
 
     /**

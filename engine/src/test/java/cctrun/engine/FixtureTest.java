@@ -19,7 +19,7 @@ class FixtureTest {
         assertEquals("$.peripherals: expected an object", error("{\"peripherals\": []}"));
         assertEquals("$.peripherals.up: not a side (use one of [bottom, top, back, front, right, left])", error("{\"peripherals\": {\"up\": {}}}"));
         assertEquals("$.peripherals.left.type: required", error("{\"peripherals\": {\"left\": {}}}"));
-        assertEquals("$.peripherals.left.type: unknown peripheral type \"turtle\" (supported: inventory, energy_storage, fluid_storage, monitor, wired_modem)",
+        assertEquals("$.peripherals.left.type: unknown peripheral type \"turtle\" (supported: inventory, energy_storage, fluid_storage, monitor, wired_modem, scripted)",
             error("{\"peripherals\": {\"left\": {\"type\": \"turtle\"}}}"));
         assertEquals("$.peripherals.left.items.4: slot must be between 1 and 3",
             error("{\"peripherals\": {\"left\": {\"type\": \"inventory\", \"size\": 3, \"items\": {\"4\": {\"name\": \"minecraft:dirt\"}}}}}"));
@@ -27,7 +27,7 @@ class FixtureTest {
             error("{\"peripherals\": {\"left\": {\"type\": \"inventory\", \"items\": {\"1\": {\"name\": \"minecraft:egg\", \"count\": 17, \"maxCount\": 16}}}}}"));
         assertEquals("$.timeline[0].peripheral: no peripheral named \"right\" in this fixture",
             error("{\"timeline\": [{\"tick\": 1, \"do\": \"energy\", \"peripheral\": \"right\", \"energy\": 1}]}"));
-        assertEquals("$.timeline[0].do: unknown action \"explode\" (supported: event, terminate, redstone, energy, item)",
+        assertEquals("$.timeline[0].do: unknown action \"explode\" (supported: event, terminate, redstone, energy, item, method)",
             error("{\"timeline\": [{\"tick\": 1, \"do\": \"explode\"}]}"));
         assertEquals("$.computer.term: expected WIDTHxHEIGHT, e.g. 51x19", error("{\"computer\": {\"term\": \"big\"}}"));
         assertEquals("$.colour: unknown key (allowed: [schema, computer, files, peripherals, redstone, timeline])",
