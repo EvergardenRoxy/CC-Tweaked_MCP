@@ -1,0 +1,89 @@
+# cct-run 0.2.0
+
+这一版来自 0.1.0 发布之后的三次 AI 实测：MPlayer 安装脚本排错（第 4 轮），以及联合测试 3 的两次 Create 工厂控制中心（用模组外设、聊天指令和显示器写一个完整的工厂控制程序）。这些测试暴露的问题集中在三处：模组外设在模拟器里测不了；程序运行时很难在实机上查看外设；有几处记录会误导 AI。测试记录见 [`joint-test-factory-report.md`](joint-test-factory-report.md)。
+
+配套的 [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill) 1.2.0 同时更新，写入了这些测试得出的编程经验（最重要的是“外设调用期间会丢事件”）。两者建议一起升级。
+
+## 下载
+
+| 文件 | 说明 |
+|---|---|
+| `cct-run-0.2.0.zip` | 命令行工具和 MCP 服务器 |
+| `cct-live-1.20.1-0.2.0.jar` | Forge 1.20.1 mod（可选）。**要和 cct-run 0.2.0 一起升级**，否则新增的实机功能不可用 |
+
+系统要求和 0.1.0 相同：cct-run 需要 Java 17+；cct-live 需要 Minecraft 1.20.1、Forge 47.x、CC: Tweaked 1.120.2。
+
+## 新增
+
+### 模拟器
+
+- **模组外设（`scripted`）**：fixture 新增一种外设类型，用来描述 Create、Advanced Peripherals 等任何模组的外设，cct-run 里不包含针对某个模组的代码。写法是给出类型名和每个方法的返回值：
+  - 一个固定值，或 `returns`（多个返回值）、`sequence`（每次调用依次返回）、`error`（调用时报错）；
+  - `sets`：设置方法改变对应读取方法的返回值（例如 `setTargetSpeed` 和 `getTargetSpeed`）；
+  - 默认按“要等一个游戏刻”的方法处理，和大多数模组外设一样，所以“外设调用期间丢事件”的问题在模拟器里也会出现；
+  - 时间线新增 `method` 动作，在某一刻改变返回值（例如让应力超过 95%）。
+
+  数值应该从实机取得（`cct_live_peripheral`）。用第二次联合测试交付的工厂程序原样验证过：它在游戏里丢聊天指令的问题，现在部署之前在模拟器里就能看到。
+- **`cct_trace` 的 `contains`**（命令行 `cct-run trace --contains`）：按文字过滤记录，范围包括文字、事件名、外设名、方法名、参数、返回值和屏幕内容，不区分大小写。
+
+### 实机（cct-live）
+
+- **`cct_live_peripheral`**（新工具，共 20 个）：程序运行时也能读取外设，例如应力表的 `getStress`、箱子的 `list`。它在游戏这一侧直接调用，不经过电脑的 Lua，不产生事件，不影响正在运行的程序。只允许读取类方法（`get…`、`is…`、`has…`、`list`、`size` 等），会改动世界的方法会被拒绝。
+- **`cct_live_snapshot`**：改动前保存电脑的全部文件，结束时比较改动了什么，一键恢复原样。
+- **`cct_live_trace` 的过滤**：`contains` 按文字过滤；`peripheral` / `method` 只看某个外设或方法的调用。
+- **`cct_live_files` 可以只读 `/rom`**：查看这台电脑实际运行的 ROM（包括数据包的修改），不用再自己去解 mod 的 jar；写入仍然不允许。
+- **`cct_live_lua`**：超时后返回 `pending` 名字，之后用 `result` 取回结果，不用重新运行；遗留的临时文件在下一次调用和释放电脑时自动清理。
+- `cct_live_attach` 返回 `computer_dir`（这台电脑的文件在存档里的位置）。
+
+## 改进
+
+- **有线网络上的外设按真实名字记录**：以前记成调制解调器的 `callRemote`（真正的外设名和方法名藏在参数里），现在记成外设的网络名和方法，`via` 是调制解调器所在的面。和模拟器的记录方式一致。
+- **trace 达到大小上限后保留最新的记录**：以前达到上限（默认 64 MB）后就停止记录，长时间运行的程序后半段什么也查不到。现在分成两个文件轮换，丢弃最早的一半，并留下 `trace_rotated` 记录；查询结果里的 `first_seq` 是还保留着的最早一条。轮换后按 tick 还原画面仍然可用。
+- **`cct_live_wait` 不再被旧画面骗到**：
+  - 等 `text` 时，只认上一次输入、点击、发送事件或开关机之后变化过的屏幕。例如重启后等 `>`，不会再匹配到重启前留下的提示符；
+  - 等 `kind` 时，只算等待开始之后的新记录。
+- **trace 里的字符串按程序实际收到的记录**：Java 一侧的文字里，U+00FF 以上的字符（中文等）进 Lua 时会变成 `?`。trace 以前记录的是 Java 一侧的原文，例如聊天框的消息显示为正确的中文，而程序收到的其实是 `??`。模拟器和实机都已改正。
+- **说明（`cct_guide`）补充**：
+  - 事件参数的下标：`args[1]` 对应 `{os.pullEvent()}` 的 `ev[2]`；
+  - 外设调用期间到达的事件会被丢弃（trace 照样记录），附解决办法和实测数据；
+  - `os.clock()` 的含义；
+  - 在 fixture 里注入 UTF-8 文字的写法；
+  - CC: Tweaked 源码对应的 tag。
+
+## 修复
+
+- **中文 Windows 上 fixture 出错时，MCP 返回 `internal error: MalformedInputException`**，而不是具体的校验错误（例如 `not a side`）。只要 fixture 有错、路径里又有中文就会出现。这个 bug 让第一次联合测试的 AI 花了约 8 分钟，还得出了“模拟器不支持自定义外设”的错误结论。
+- **模拟器里 `fs.move("/a.log", "/a.log.1")` 误报 “Cannot move a directory inside itself”**。游戏里这样移动是可以的，两次联合测试的 AI 都碰到了。
+
+## 兼容性：升级前请注意
+
+- **cct-live mod 和 cct-run 要一起升级**。旧 mod 配新 cct-run 时，`cct_live_peripheral` 和只读 `/rom` 不可用（返回 404 或报错），其他工具照常。
+- **实机 trace 的格式有三处变化**，依赖旧格式的脚本要相应调整：
+  - 网络外设的调用记成网络名和真实方法，多了 `via`；
+  - `truncated` 记录改为 `trace_rotated`；
+  - 中文等字符显示为 `?`（和程序看到的一样）。
+- **config 的 `trace.max_megabytes_per_computer` 含义变了**：以前是“写到这么大就停止”，现在是“保留最新的这么多”。旧 config 文件里的注释不会自动更新，数值仍然有效。
+- **`cct_live_wait` 等 `text` 的行为变了**：操作之前就在屏幕上的文字不再算数。需要旧行为时传 `unchanged: true`。
+- **`cct_live_files` 列出 `/` 时多了一项 `rom`**（标为只读），和电脑里 `fs.list("/")` 的结果一致。
+- 模拟器的 fixture 格式只有新增，没有改动：0.1.0 的 fixture 原样可用。fixture 出错时，“支持的类型”提示里多了 `scripted` 和 `method`。
+
+## 安装和升级
+
+1. 用 `cct-run-0.2.0.zip` 替换旧的 cct-run 文件夹；MCP 配置不用改。
+2. 用实机功能的话，把 `mods/` 里的旧 jar 换成 `cct-live-1.20.1-0.2.0.jar`。config 文件会保留。
+
+## 测试情况
+
+- **单元测试**：53 个，全部通过（模拟器 33 个，命令行和 MCP 20 个）。
+- **开发服务器**（Linux，Forge 47.4.10）：新增的实机功能都实际验证过，包括 `cct_live_peripheral` 读取直连和网络上的外设、`/rom` 只读访问、网络外设的记录、trace 轮换和轮换后还原画面、`cct_live_wait` 在重启后的行为。具体内容见 `handoff.md` 的 V21–V24。
+- **AI 实测**：联合测试 3 做了两次（开源 DeepSeek 和 deepseek-v4.1-flash，用的是 0.1.0 加快照功能的版本）。第二次的 AI 请玩家配合了 17 次，在游戏里验证了真实的聊天指令、过载保护、拆装外设和开机自启。**这一版新增的功能还没有经过 AI 实测。**
+
+## 已知限制
+
+- `scripted` 外设只返回 fixture 里写的值，不模拟机器之间的联动（调高转速不会让应力跟着变，除非时间线这样安排）。
+- `cct_live_lua` 仍然要在 shell 提示符下运行；程序运行时可以用 `cct_live_peripheral` 读外设，但不能执行任意代码。
+- 其余限制和 0.1.0 相同：macOS 未测试；模拟器不支持海龟、HTTP、真实世界等；cct-live 拿不到程序出错时的调用栈，不支持通过有线网络连接的显示器。
+
+## 许可证
+
+和 0.1.0 相同：本项目代码 MPL-2.0；`harness.lua` 为 CCPL；附带的 CC: Tweaked 及其依赖使用各自的许可证。

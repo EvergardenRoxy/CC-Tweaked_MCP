@@ -5,7 +5,7 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
 - **模拟器**：不用打开 Minecraft，直接在真实的 CC: Tweaked 1.120.2 代码上运行程序，返回结构化结果和完整记录（trace）。
 - **cct-live mod（原型）**：AI 在玩家同意后，接管正在运行的游戏里的真实电脑，查看它的运行情况，也可以操作它。不需要在电脑里运行 Lua 脚本，也不需要转发服务器。
 
-这两种方式都通过同一个本地 MCP 服务器（`cct-run mcp`，共 20 个工具）提供给 AI。配套的 AI Skill 是 [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)，它告诉 AI 什么时候该测试、怎么测试。
+这两种方式都通过同一个本地 MCP 服务器（`cct-run mcp`，共 18 个工具）提供给 AI。配套的 AI Skill 是 [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)，它告诉 AI 什么时候该测试、怎么测试。
 
 ## 下载
 
@@ -34,7 +34,7 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
 
 - 本地 stdio 方式，每次运行启动一个独立的进程。
 - 模拟器工具 4 个：`cct_run`、`cct_trace`、`cct_screen`、`cct_guide`。
-- 实机工具 16 个：`cct_live_computers`、`cct_live_attach`、`cct_live_detach`、`cct_live_status`、`cct_live_wait`、`cct_live_screen`、`cct_live_trace`、`cct_live_type`、`cct_live_click`、`cct_live_files`、`cct_live_lua`、`cct_live_body`、`cct_live_snapshot`、`cct_live_peripheral`、`cct_live_event`、`cct_live_power`。
+- 实机工具 14 个：`cct_live_computers`、`cct_live_attach`、`cct_live_detach`、`cct_live_status`、`cct_live_wait`、`cct_live_screen`、`cct_live_trace`、`cct_live_type`、`cct_live_click`、`cct_live_files`、`cct_live_lua`、`cct_live_body`、`cct_live_event`、`cct_live_power`。
 - 用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录。启动器开了版本隔离时，填版本文件夹。
 
 ### cct-live mod（原型）
@@ -47,14 +47,10 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
 - **记录模式**（可选）：在内存里保留每台电脑最近的一小段记录，AI 接管时能看到接管之前发生了什么。
 - **省 token 的工具**：
   - `cct_live_status`：返回很小的状态摘要。
-  - `cct_live_wait`：在服务端等待某段文字、某类记录出现，或者画面停止变化，最长 120 秒；等文字时不会被操作之前就在屏幕上的旧文字骗到。
-  - `cct_live_trace`：默认只返回 50 条，`summary` 只返回各类记录的数量，`contains` 按 URL、路径或文字过滤（比如只看某一个文件的下载），`peripheral` / `method` 只看某个外设或方法的调用。trace 超过大小上限后保留最新的记录。
-  - `cct_live_peripheral`：程序运行时也能直接读取外设（应力表、箱子等），不经过电脑的 Lua，不影响程序。
-  - `cct_live_files` 可以只读地查看 `/rom`（这台电脑实际运行的 ROM）。
-- **模拟器**：fixture 新增 `scripted` 外设，用来描述 Create、Advanced Peripherals 等模组的外设（类型名和每个方法的返回值，数值从实机上取）；`cct_trace` 新增 `contains` 文字过滤。
-  - `cct_live_lua`：一次调用就能在电脑上运行一段 Lua 并拿到结果，临时文件自动删除；超时后可以用 `result` 取回结果。
+  - `cct_live_wait`：在服务端等待某段文字、某类记录出现，或者画面停止变化，最长 120 秒。
+  - `cct_live_trace`：默认只返回 50 条，`summary` 只返回各类记录的数量。
+  - `cct_live_lua`：一次调用就能在电脑上运行一段 Lua 并拿到结果，临时文件自动删除。
   - `cct_live_body`：读取 HTTP 响应的完整正文，每个最多 4 MB。
-- **快照和恢复**：`cct_live_snapshot` 在改动之前保存电脑的全部文件，结束时列出改动了什么，并能一键恢复原样（恢复需要打开 `files.allow_write`）。快照保存在 `cct-live/snapshots/` 下。
 - **图形界面**：`cct_live_screen` 的 `regions` 会列出颜色区域和里面的按钮标签（`labels`），便于点击按钮；查看和点击显示器时加 `source`。
 - **本机 HTTP 接口**：只监听 `127.0.0.1:47823`，需要 token（`cct-live/token.txt`），并检查 Host 头；所有操作都在服务器线程上执行。
 
@@ -81,7 +77,7 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
 
 - **单元测试**：全部通过。
 - **Windows 11**：冒烟测试 22/22 通过（PowerShell、cmd、代码页 936、从 Java 8 自动切换、路径含空格和中文）。
-- **cct-live**：在 Linux 上的 Forge 47.4.10 开发服务器和正式服务器上测试过，也在 Windows 单人游戏（PCL2 启动器）里做过四轮 AI 实测（用 MPlayer 安装脚本做排错，每轮都找到了同一个根因）。各轮结果见 `docs/test-results.md`。
+- **cct-live**：在 Linux 上的 Forge 47.4.10 开发服务器和正式服务器上测试过，也在 Windows 单人游戏（PCL2 启动器）里做过三轮 AI 实测（用 MPlayer 安装脚本做排错）。
 - **性能**（30 台电脑一刻不停地跑循环的极端情况）：
   - 没有接管时，和不装 mod 的差别在测量误差之内；
   - 记录模式大约慢 5% 到 8%；
@@ -98,8 +94,7 @@ cct-run 让 AI 能**实际运行和调试** CC: Tweaked 程序，有两种方式
   - 程序出错时能拿到错误文字，但拿不到调用栈；
   - 不支持通过有线网络连接的显示器；
   - 海龟、口袋电脑和命令电脑还没有测试过；
-  - `cct_live_lua` 要从 shell 运行，程序运行时不能用（程序运行时可以用 `cct_live_peripheral` 读取外设）；
-  - `cct_live_peripheral`、trace 的 `peripheral` / `method` 和轮换、`cct_live_wait` 对旧画面的处理、`/rom` 只读、fixture 的 `scripted` 外设和 `cct_trace` 的 `contains` 是本版最后加入的，只在开发服务器和模拟器里验证过，还没有经过 AI 实测。
+  - `cct_live_lua`、`cct_live_body` 和 `labels` 是本版最后加入的，还没有经过 AI 实测。
 - 接管之前就打开的文件或 HTTP 句柄，trace 里不会显示它的路径或 URL（打开记录模式可以缓解）。
 
 ## 许可证

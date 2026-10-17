@@ -15,7 +15,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill) 会告诉 AI 什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
 
-> 当前版本是 **0.1.0（首个测试版）**，更新内容见 [`docs/release-notes-0.1.0.md`](docs/release-notes-0.1.0.md)。cct-live 还是原型。
+> 当前版本是 **0.2.0**，更新内容见 [`docs/release-notes-0.2.0.md`](docs/release-notes-0.2.0.md)（上一版：[0.1.0](docs/release-notes-0.1.0.md)）。cct-live 还是原型。
 
 ---
 
