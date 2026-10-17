@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="320" viewBox="0 0 760 320" font-family='system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif' role="img" aria-label="联合测试 3：同一个任务，两个模型">
+<title>联合测试 3：同一个任务，两个模型</title>
+<rect width="760" height="320" rx="8" fill="#fcfcfb"/>
+<text x="24.0" y="34.0" fill="#0b0b0b" font-size="17" text-anchor="start" font-weight="600">联合测试 3：同一个任务，两个模型</text>
+<text x="24.0" y="56.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">用 Create 和 Advanced Peripherals 外设写一个工厂控制程序，先在模拟器里测，再到游戏里验收</text>
+<rect x="24.0" y="75.0" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="40.0" y="84.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">第 1 次：开源 DeepSeek（算力中心部署）</text>
+<rect x="303.5" y="75.0" width="10" height="10" rx="2" fill="#eb6834"/>
+<text x="319.5" y="84.0" fill="#52514e" font-size="12" text-anchor="start" font-weight="normal">第 2 次：deepseek-v4.1-flash（官方 API）</text>
+<text x="24.0" y="118.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="600">会话时长（分钟）</text>
+<path d="M24.0,130.0 H196.0 Q200.0,130.0 200.0,134.0 V140.0 Q200.0,144.0 196.0,144.0 H24.0 Z" fill="#2a78d6"/>
+<text x="206.0" y="141.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">117</text>
+<path d="M24.0,146.0 H110.3 Q114.3,146.0 114.3,150.0 V156.0 Q114.3,160.0 110.3,160.0 H24.0 Z" fill="#eb6834"/>
+<text x="120.3" y="157.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">60</text>
+<line x1="24.0" y1="126" x2="24.0" y2="164" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="266.0" y="118.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="600">工具调用（次）</text>
+<path d="M266.0,130.0 H438.0 Q442.0,130.0 442.0,134.0 V140.0 Q442.0,144.0 438.0,144.0 H266.0 Z" fill="#2a78d6"/>
+<text x="448.0" y="141.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">576</text>
+<path d="M266.0,146.0 H343.9 Q347.9,146.0 347.9,150.0 V156.0 Q347.9,160.0 343.9,160.0 H266.0 Z" fill="#eb6834"/>
+<text x="353.9" y="157.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">268</text>
+<line x1="266.0" y1="126" x2="266.0" y2="164" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="508.0" y="118.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="600">总 token（百万）</text>
+<path d="M508.0,130.0 H680.0 Q684.0,130.0 684.0,134.0 V140.0 Q684.0,144.0 680.0,144.0 H508.0 Z" fill="#2a78d6"/>
+<text x="690.0" y="141.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">92.9</text>
+<path d="M508.0,146.0 H637.8 Q641.8,146.0 641.8,150.0 V156.0 Q641.8,160.0 637.8,160.0 H508.0 Z" fill="#eb6834"/>
+<text x="647.8" y="157.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">70.6</text>
+<line x1="508.0" y1="126" x2="508.0" y2="164" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="24.0" y="210.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="600">输出 token（万）</text>
+<path d="M24.0,222.0 H196.0 Q200.0,222.0 200.0,226.0 V232.0 Q200.0,236.0 196.0,236.0 H24.0 Z" fill="#2a78d6"/>
+<text x="206.0" y="233.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">75.1</text>
+<path d="M24.0,238.0 H77.4 Q81.4,238.0 81.4,242.0 V248.0 Q81.4,252.0 77.4,252.0 H24.0 Z" fill="#eb6834"/>
+<text x="87.4" y="249.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">24.5</text>
+<line x1="24.0" y1="218" x2="24.0" y2="256" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="266.0" y="210.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="600">上下文压缩（次）</text>
+<path d="M266.0,222.0 H438.0 Q442.0,222.0 442.0,226.0 V232.0 Q442.0,236.0 438.0,236.0 H266.0 Z" fill="#2a78d6"/>
+<text x="448.0" y="233.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">46</text>
+<text x="272.0" y="249.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">0</text>
+<line x1="266.0" y1="218" x2="266.0" y2="256" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="508.0" y="210.0" fill="#0b0b0b" font-size="12" text-anchor="start" font-weight="600">请玩家配合（次）</text>
+<text x="514.0" y="233.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">0</text>
+<path d="M508.0,238.0 H680.0 Q684.0,238.0 684.0,242.0 V248.0 Q684.0,252.0 680.0,252.0 H508.0 Z" fill="#eb6834"/>
+<text x="690.0" y="249.0" fill="#52514e" font-size="11" text-anchor="start" font-weight="normal">17</text>
+<line x1="508.0" y1="218" x2="508.0" y2="256" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="24.0" y="304.0" fill="#898781" font-size="11" text-anchor="start" font-weight="normal">数据来自 dsh 会话记录和客户端统计；每个小图各用自己的刻度。详见 docs/joint-test-factory-report.md。</text>
+</svg>
