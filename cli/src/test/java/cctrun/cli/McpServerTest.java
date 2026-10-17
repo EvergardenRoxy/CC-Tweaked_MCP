@@ -62,6 +62,8 @@ class McpServerTest {
             "not json",
             call(5, "no_such_tool", "{}"),
             call(6, "cct_guide", "{}"),
+            call(9, "cct_guide", "{\"section\": 7}"),
+            call(10, "cct_guide", "{\"section\": 42}"),
             "{\"jsonrpc\":\"2.0\",\"id\":\"s\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"1999-01-01\"}}",
             "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":{\"not\":\"a string\"}}",
             "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"ping\"}");
@@ -74,7 +76,7 @@ class McpServerTest {
         assertEquals(McpServer.PROTOCOL_VERSIONS.get(0), r.get("\"s\"").getAsJsonObject("result").get("protocolVersion").getAsString());
 
         var tools = r.get("2").getAsJsonObject("result").getAsJsonArray("tools");
-        assertEquals(12, tools.size());
+        assertEquals(14, tools.size());
         for (var tool : tools) assertEquals("object", tool.getAsJsonObject().getAsJsonObject("inputSchema").get("type").getAsString());
 
         assertTrue(r.get("3").has("result"));
@@ -83,6 +85,10 @@ class McpServerTest {
         assertEquals(-32602, r.get("5").getAsJsonObject("error").get("code").getAsInt());
         assertFalse(isError(r.get("6")));
         assertTrue(text(r.get("6")).contains("cct-run agent guide"));
+        assertTrue(text(r.get("9")).startsWith("## 7. Real computers in the game"), text(r.get("9")));
+        assertFalse(text(r.get("9")).contains("## 6."));
+        assertTrue(isError(r.get("10")));
+        assertTrue(text(r.get("10")).contains("## 1. Workflow"));
         assertEquals(-32600, r.get("7").getAsJsonObject("error").get("code").getAsInt());
         assertTrue(r.get("8").has("result"), "still serving after a malformed message");
     }

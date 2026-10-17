@@ -194,8 +194,9 @@ final class McpServer {
             fields, the trace, fixtures (simulated peripherals, redstone, timed events) and what a passing run does and \
             does not prove. Runs are stored in %s. Relative paths resolve against %s; prefer absolute paths. \
             The cct_live_* tools work on real computers in a running Minecraft game with the cct-live mod (screen, \
-            trace of events, peripheral calls, http and file access, input, power); attach a computer (cct_live_attach) \
-            before recording or controlling it, and detach it when done; %s"""
+            trace of events, peripheral calls, http and file access, printed errors, files, input, clicks, power); read \
+            cct_guide with section 7 for them; attach a computer (cct_live_attach) before recording or controlling it, \
+            and detach it when done; %s"""
             .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir,
                 liveDir == null ? "no game directory is configured, so pass game_dir to them." : "the game directory is " + liveDir + "."));
         return result;
@@ -209,8 +210,9 @@ final class McpServer {
                 case McpTools.RUN -> run(arguments, call);
                 case McpTools.TRACE -> inProcess(McpTools.traceArgs(arguments, outDir), McpTools.traceLimit(arguments));
                 case McpTools.SCREEN -> inProcess(McpTools.screenArgs(arguments, outDir), -1);
-                case McpTools.GUIDE -> inProcess(List.of("guide"), -1);
-                case LiveTools.COMPUTERS, LiveTools.SCREEN, LiveTools.ATTACH, LiveTools.DETACH, LiveTools.TRACE, LiveTools.EVENT, LiveTools.TYPE, LiveTools.POWER -> live.call(name, arguments);
+                case McpTools.GUIDE -> guide(arguments);
+                case LiveTools.COMPUTERS, LiveTools.SCREEN, LiveTools.ATTACH, LiveTools.DETACH, LiveTools.TRACE, LiveTools.EVENT, LiveTools.TYPE,
+                     LiveTools.CLICK, LiveTools.FILES, LiveTools.POWER -> live.call(name, arguments);
                 default -> {
                     var unknown = new JsonObject();
                     unknown.addProperty("jsonrpcError", "Unknown tool: " + name);
@@ -289,6 +291,21 @@ final class McpServer {
     }
 
     // --- read-only tools: CLI code in this process ---------------------------------------------------------------
+
+    /** cct_guide: the whole guide, or one section (some clients cut long tool results). */
+    private JsonObject guide(JsonObject arguments) throws McpTools.ToolError {
+        var section = McpTools.guideSection(arguments);
+        var whole = inProcess(List.of("guide"), -1);
+        if (section == null || whole.get("isError").getAsBoolean()) return whole;
+        var text = whole.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+        var parts = text.split("\n(?=## )");
+        for (var part : parts) {
+            if (part.startsWith("## " + section + ".")) return toolResult(part.strip(), false);
+        }
+        var headings = new StringBuilder("No section " + section + ". Sections:");
+        for (var part : parts) if (part.startsWith("## ")) headings.append("\n").append(part.lines().findFirst().orElse(""));
+        return toolResult(headings.toString(), true);
+    }
 
     private JsonObject inProcess(List<String> argv, int limit) {
         var buffer = new ByteArrayOutputStream();

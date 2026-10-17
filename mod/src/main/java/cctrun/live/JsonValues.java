@@ -15,7 +15,8 @@ import java.util.Map;
 
 /** Copy of cctrun.engine.JsonValues (to be shared once engine and mod have a common module). Converts values crossing the Lua/Java boundary into bounded JSON for the trace. */
 public final class JsonValues {
-    static final int MAX_STRING = 200;
+    /** Characters kept per string (config trace.max_string, set when a world opens). */
+    static volatile int MAX_STRING = 200;
     static final int MAX_ENTRIES = 50;
     static final int MAX_DEPTH = 4;
 

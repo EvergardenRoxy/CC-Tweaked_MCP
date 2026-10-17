@@ -166,6 +166,6 @@ final class Attachment {
         var data = new JsonObject();
         data.addProperty("reason", reason);
         trace.record("detach", data);
-        trace.close();
+        trace.flush();
     }
 }

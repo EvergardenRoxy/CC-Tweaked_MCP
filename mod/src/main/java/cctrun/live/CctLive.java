@@ -3,6 +3,7 @@
 package cctrun.live;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import dan200.computercraft.api.ComputerCraftAPI;
 import dan200.computercraft.shared.computer.core.ServerContext;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
@@ -42,6 +43,8 @@ public final class CctLive {
 
         // Read by ServerContext's constructor, i.e. on every server start (each world in single player).
         ServerContext.luaMachine = LiveMachine.factory(ServerContext.luaMachine);
+        // Every computer gets the __cctlive bridge used by rom/autorun/cctlive.lua (shipped in this jar's data pack).
+        ComputerCraftAPI.registerAPIFactory(computer -> new BridgeApi());
 
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
         MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);

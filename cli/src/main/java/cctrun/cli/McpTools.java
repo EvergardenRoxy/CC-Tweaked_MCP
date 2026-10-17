@@ -85,8 +85,12 @@ final class McpTools {
           {
             "name": "cct_guide",
             "title": "cct-run guide for agents",
-            "description": "Returns the cct-run guide: workflow, summary fields, trace queries and pitfalls, fixture format with examples, and what a passing run does and does not prove (simulation limits to mention to the user). Read it once before the first cct_run. Its command-line examples map 1:1 to these tools.",
-            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+            "description": "Returns the cct-run guide: workflow, summary fields, trace queries and pitfalls, fixture format with examples, and what a passing run does and does not prove (simulation limits to mention to the user). Read it once before the first cct_run. Its command-line examples map 1:1 to these tools. The guide is long (7 sections); if your client shortens long results, read it one section at a time with 'section': 1-6 cover the simulation (cct_run), 7 the cct_live_* tools for real computers in the game.",
+            "inputSchema": {
+              "type": "object",
+              "properties": { "section": { "type": "integer", "minimum": 1, "description": "Return only this section (1-7)." } },
+              "additionalProperties": false
+            },
             "annotations": { "readOnlyHint": true, "openWorldHint": false }
           }
         ]
@@ -242,6 +246,11 @@ final class McpTools {
         argv.add(run == null || run.isBlank() ? "latest" : run);
         add(argv, "--out", outDir.toString());
         return argv;
+    }
+
+    static Integer guideSection(JsonObject a) throws ToolError {
+        allowOnly(a, "section");
+        return integer(a, "section");
     }
 
     // --- argument helpers ----------------------------------------------------------------------------------------

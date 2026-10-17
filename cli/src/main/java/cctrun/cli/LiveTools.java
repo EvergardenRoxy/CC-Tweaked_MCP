@@ -34,13 +34,13 @@ import java.util.Set;
 final class LiveTools {
     static final String COMPUTERS = "cct_live_computers", SCREEN = "cct_live_screen", ATTACH = "cct_live_attach",
         DETACH = "cct_live_detach", TRACE = "cct_live_trace", EVENT = "cct_live_event", TYPE = "cct_live_type",
-        POWER = "cct_live_power";
-    static final Set<String> NAMES = Set.of(COMPUTERS, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, POWER);
+        CLICK = "cct_live_click", FILES = "cct_live_files", POWER = "cct_live_power";
+    static final Set<String> NAMES = Set.of(COMPUTERS, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER);
     /** GLFW key codes, as CC: Tweaked 1.120.2 on Minecraft 1.20.1 reports them in key events. */
     static final int KEY_ENTER = 257;
 
     private static final String GAME_DIR = """
-        "game_dir": { "type": "string", "description": "Minecraft game directory (the folder with mods/ and cct-live/; with launcher version isolation the version folder). Default: the server's --live option or CCT_LIVE_DIR." }""";
+        "game_dir": { "type": "string", "description": "Minecraft game directory (the folder with mods/ and cct-live/; with launcher version isolation the version folder). Default: the server's --live option or CCT_LIVE_DIR, else the last game_dir that worked in this session." }""";
     private static final String COMPUTER = """
         "computer": { "type": "integer", "minimum": 0, "description": "Computer ID, as listed by cct_live_computers." }""";
 
@@ -56,28 +56,37 @@ final class LiveTools {
           {
             "name": "cct_live_screen",
             "title": "Screen of a computer in the game",
-            "description": "Returns what a real computer's terminal shows now: lines (text), fg and bg (one colour character 0-9a-f per cell, as in term.blit), cursor, size, on/off and the server tick.",
-            "inputSchema": { "type": "object", "properties": { %1$s, %2$s }, "required": ["computer"], "additionalProperties": false },
+            "description": "Returns what a real computer's terminal shows now: lines (text), fg and bg (one colour character 0-9a-f per cell, as in term.blit), cursor, size, on/off and the server tick. regions: true adds the screen's colour areas (connected cells of one background colour other than the main one, largest first: bg, from [x,y], to [x,y], center [x,y], cells, rectangle, text inside). Use it to find GUI buttons and panels, also when their labels are drawn as pixel art and unreadable in lines; click a button at its center with cct_live_click. tick: N rebuilds the screen as it was at server tick N from the trace (only ticks while attached). Works without attaching (except tick).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                %1$s, %2$s,
+                "regions": { "type": "boolean", "description": "Also return colour regions (buttons, panels). Default false." },
+                "tick": { "type": "integer", "minimum": 0, "description": "Rebuild the screen as it was at this server tick, from the trace." }
+              },
+              "required": ["computer"],
+              "additionalProperties": false
+            },
             "annotations": { "readOnlyHint": true, "openWorldHint": true }
           },
           {
             "name": "cct_live_attach",
             "title": "Attach to a computer in the game",
-            "description": "Starts observing and controlling a real computer: from now on everything it does is recorded (see cct_live_trace) and the input and power tools work on it. The player sees a chat message that an AI took control of the computer, and can take it back with /cctlive detach <id>. The attachment lasts while you keep using it: every request for this computer renews a lease (lease_seconds, 600 by default); with no request for that long it ends by itself. Calling it again only renews. If the game runs with recording mode on, the trace starts with the computer's recent records from before the attachment (marked history: true); otherwise nothing before the attachment is known, so attach first and then reproduce the problem (re-run the program with cct_live_type, or reboot). Attach only when the user asked you to work on their computer.",
+            "description": "Starts observing and controlling a real computer: from now on everything it does is recorded (see cct_live_trace) and the input and power tools work on it. The player sees a chat message that an AI took control of the computer, and can take it back with /cctlive detach <id>. The attachment lasts while you keep using it: every request for this computer renews a lease (lease_seconds, 1800 by default); with no request for that long it ends by itself. Calling it again only renews. If the game runs with recording mode on, the trace starts with the computer's recent records from before the attachment (marked history: true); otherwise nothing before the attachment is known, so attach first and then reproduce the problem (re-run the program with cct_live_type, or reboot). Attach only when the user asked you to work on their computer.",
             "inputSchema": { "type": "object", "properties": { %1$s, %2$s }, "required": ["computer"], "additionalProperties": false },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": true }
           },
           {
             "name": "cct_live_detach",
             "title": "Release a computer in the game",
-            "description": "Ends your attachment to a real computer: recording stops, input and power tools stop working on it, and the player sees that the AI released it. Release computers when you are done. Its trace stays readable with cct_live_trace.",
+            "description": "Ends your attachment to a real computer: recording stops, input and power tools stop working on it, and the player sees that the AI released it. Release computers when you are done. Its trace stays readable with cct_live_trace, and attaching again continues the same trace.",
             "inputSchema": { "type": "object", "properties": { %1$s, %2$s }, "required": ["computer"], "additionalProperties": false },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": true }
           },
           {
             "name": "cct_live_trace",
             "title": "Trace of a computer in the game",
-            "description": "Returns the trace of your current (or last) attachment to a real computer, oldest first, as JSON {tick, attached, matched, records, next_offset?}. Records exist only from cct_live_attach on (plus recording-mode history, marked history: true). Every record has seq, tick (server ticks since the world opened), ms and kind. Kinds: attach / detach (reason: detach, revoked by a player, expired, removed, closed), event (every event delivered to the Lua VM: keys, timers, http_success, task_complete, redstone ...), peripheral_call / peripheral_return, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir with args and result), handle (each read/write/close on an open file, HTTP response or websocket, with the data, first 200 characters), screen (changed rows with fg/bg colours), redstone_output, power, label, moved, vm_start, vm_close, vm_error, computer_seen, computer_removed, truncated. Files under /rom are not recorded. To see what an action caused, note 'tick' or the last seq first, act, then query with after=<seq> or ticks=<tick>-.",
+            "description": "Returns the trace of a real computer for this game session (all your attachments to it, one file, seq counts on), oldest first, as JSON {tick, attached, matched, records, next_offset?}. Records exist only while attached (plus recording-mode history, marked history: true). Every record has seq, tick (server ticks since the world opened), ms and kind. Kinds: attach / detach (reason: detach, revoked by a player, expired, removed, closed), printed_error (text the computer printed with printError, which is how the shell reports a program's crash, e.g. '/startup.lua:911: ...'; program = the running program), event (every event delivered to the Lua VM: keys, timers, http_success, task_complete, redstone ...), peripheral_call / peripheral_return, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir with args and result), handle (each read/write/close on an open file, HTTP response or websocket, with the data, first 200 characters by default; read whole files with cct_live_files), screen (changed rows with fg/bg colours), redstone_output, power, label, moved, vm_start, vm_close, vm_error, computer_seen, computer_removed, truncated. Files under /rom are not recorded. To see what an action caused, note 'tick' or the last seq first, act, then query with after=<seq> or ticks=<tick>-.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -126,6 +135,41 @@ final class LiveTools {
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
           },
           {
+            "name": "cct_live_click",
+            "title": "Click on a computer's screen in the game",
+            "description": "Clicks at column x, row y (1-based) of a real computer you have attached: sends mouse_click then mouse_up at the same cell (advanced computers only). Find buttons with cct_live_screen regions: true and click their center. Then check the screen or trace before the next click.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                %1$s, %2$s,
+                "x": { "type": "integer", "minimum": 1 },
+                "y": { "type": "integer", "minimum": 1 },
+                "button": { "type": "integer", "enum": [1, 2, 3], "description": "1 left (default), 2 right, 3 middle." }
+              },
+              "required": ["computer", "x", "y"],
+              "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
+          },
+          {
+            "name": "cct_live_files",
+            "title": "Read a computer's files in the game",
+            "description": "Reads a real computer's own files (what Lua sees under /, not /rom or disks) without running anything on it; the computer must be attached. op 'list' (path = directory): entries with name, dir, size; 'stat': exists, dir, size; 'read': text of the file from offset (bytes, default 0), up to length bytes (default 65536, max 1048576), with size, eof and encoding (utf-8 if valid, else iso-8859-1). Every result has free_space and capacity of the computer's disk.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                %1$s, %2$s,
+                "op": { "type": "string", "enum": ["list", "stat", "read"], "description": "Default list." },
+                "path": { "type": "string", "description": "Path on the computer, e.g. / or icons/User.lua. Default /." },
+                "offset": { "type": "integer", "minimum": 0 },
+                "length": { "type": "integer", "minimum": 0, "maximum": 1048576 }
+              },
+              "required": ["computer"],
+              "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": true }
+          },
+          {
             "name": "cct_live_power",
             "title": "Turn a computer in the game on, off or reboot it",
             "description": "Turns a real computer you have attached (cct_live_attach) on, shuts it down or reboots it (startup.lua runs again on boot). This acts on the user's real world; do it only when the user asked for or agreed to it.",
@@ -145,6 +189,8 @@ final class LiveTools {
 
     private final Path defaultGameDir;
     private final Path workDir;
+    /** The last game_dir that worked, used when a later call gives none and no default is configured. */
+    private volatile Path rememberedGameDir;
     private final HttpClient client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .proxy(HttpClient.Builder.NO_PROXY)
@@ -168,8 +214,43 @@ final class LiveTools {
                 yield result(get(endpoint(a), "computers"));
             }
             case SCREEN -> {
-                allowOnly(a, "game_dir", "computer");
-                yield result(get(endpoint(a), "computers/" + computer(a) + "/screen"));
+                allowOnly(a, "game_dir", "computer", "regions", "tick");
+                var query = new ArrayList<String>();
+                if (a.has("regions") && !a.get("regions").isJsonNull() && a.get("regions").getAsBoolean()) query.add("regions=1");
+                var tick = integer(a, "tick");
+                if (tick != null) query.add("tick=" + tick);
+                yield result(get(endpoint(a), "computers/" + computer(a) + "/screen" + (query.isEmpty() ? "" : "?" + String.join("&", query))));
+            }
+            case CLICK -> {
+                allowOnly(a, "game_dir", "computer", "x", "y", "button");
+                var x = integer(a, "x");
+                var y = integer(a, "y");
+                if (x == null || y == null || x < 1 || y < 1) throw new McpTools.ToolError("'x' and 'y' (1-based column and row) are required");
+                var button = integer(a, "button");
+                if (button == null) button = 1;
+                if (button < 1 || button > 3) throw new McpTools.ToolError("'button' must be 1, 2 or 3");
+                var endpoint = endpoint(a);
+                var id = computer(a);
+                post(endpoint, "computers/" + id + "/event", event("mouse_click", button, x, y));
+                var last = post(endpoint, "computers/" + id + "/event", event("mouse_up", button, x, y));
+                var out = new JsonObject();
+                out.addProperty("clicked", "[" + x + "," + y + "]");
+                out.addProperty("button", button);
+                out.add("queued", JsonParser.parseString(last));
+                yield McpServer.toolResult(Main.ascii(out.toString()), false);
+            }
+            case FILES -> {
+                allowOnly(a, "game_dir", "computer", "op", "path", "offset", "length");
+                var query = new ArrayList<String>();
+                var op = string(a, "op");
+                query.add("op=" + encode(op == null ? "list" : op));
+                var path = string(a, "path");
+                query.add("path=" + encode(path == null ? "/" : path));
+                for (var key : List.of("offset", "length")) {
+                    var value = integer(a, key);
+                    if (value != null) query.add(key + "=" + value);
+                }
+                yield result(get(endpoint(a), "computers/" + computer(a) + "/files?" + String.join("&", query)));
             }
             case ATTACH, DETACH -> {
                 allowOnly(a, "game_dir", "computer");
@@ -244,7 +325,7 @@ final class LiveTools {
         var given = string(a, "game_dir");
         Path gameDir;
         try {
-            gameDir = given != null ? workDir.resolve(given) : defaultGameDir;
+            gameDir = given != null ? workDir.resolve(given) : defaultGameDir != null ? defaultGameDir : rememberedGameDir;
         } catch (InvalidPathException e) {
             throw new McpTools.ToolError("'game_dir' is not a valid path here: " + given);
         }
@@ -260,6 +341,7 @@ final class LiveTools {
             var endpoint = JsonParser.parseString(Files.readString(endpointFile, StandardCharsets.UTF_8)).getAsJsonObject();
             var token = Files.readString(home.resolve("token.txt"), StandardCharsets.UTF_8).trim();
             var url = endpoint.get("url").getAsString();
+            rememberedGameDir = gameDir;
             return new Endpoint(URI.create(url.endsWith("/") ? url : url + "/"), token);
         } catch (IOException | RuntimeException e) {
             throw new McpTools.ToolError("cannot read " + home + " (endpoint.json / token.txt): " + e.getMessage());

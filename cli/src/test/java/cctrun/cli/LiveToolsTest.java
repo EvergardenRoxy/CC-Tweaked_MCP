@@ -104,8 +104,11 @@ class LiveToolsTest {
             "cct_live_type {\"computer\": 1, \"text\": \"ls rom\"}",
             "cct_live_power {\"computer\": 1, \"action\": \"reboot\"}",
             "cct_live_attach {\"computer\": 1}",
-            "cct_live_detach {\"computer\": 1}");
-        for (var i = 1; i <= 8; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
+            "cct_live_detach {\"computer\": 1}",
+            "cct_live_screen {\"computer\": 2, \"regions\": true, \"tick\": 300}",
+            "cct_live_click {\"computer\": 3, \"x\": 12, \"y\": 16}",
+            "cct_live_files {\"computer\": 4, \"op\": \"read\", \"path\": \"icons/User.lua\", \"length\": 100}");
+        for (var i = 1; i <= 11; i++) assertFalse(r.get(Integer.toString(i)).get("isError").getAsBoolean(), text(r.get(Integer.toString(i))));
         assertTrue(text(r.get("1")).contains("/computers"));
         // Calls run concurrently, so compare as a set; the three requests of cct_live_type are sent in order.
         var expected = List.of(
@@ -118,7 +121,11 @@ class LiveToolsTest {
             "POST /computers/1/event {\"name\":\"key_up\",\"args\":[257]}",
             "POST /computers/1/power {\"action\":\"reboot\"}",
             "POST /computers/1/attach {}",
-            "POST /computers/1/detach {}");
+            "POST /computers/1/detach {}",
+            "GET /computers/2/screen?regions=1&tick=300",
+            "POST /computers/3/event {\"name\":\"mouse_click\",\"args\":[1,12,16]}",
+            "POST /computers/3/event {\"name\":\"mouse_up\",\"args\":[1,12,16]}",
+            "GET /computers/4/files?op=read&path=icons%2FUser.lua&length=100");
         assertEquals(expected.stream().sorted().toList(), requests.stream().sorted().toList());
         var typed = requests.stream().filter(q -> q.contains("paste") || q.contains("\"key")).toList();
         assertEquals(List.of(expected.get(4), expected.get(5), expected.get(6)), typed);
@@ -147,6 +154,15 @@ class LiveToolsTest {
         assertTrue(text(r.get("4")).contains("on, shutdown or reboot"));
         assertTrue(text(r.get("5")).contains("unknown argument 'bogus'"));
         assertFalse(r.get("6").get("isError").getAsBoolean());
+
+        // Without a configured game directory, the last game_dir that worked is reused (calls in order).
+        var tools = new LiveTools(null, dir);
+        var withDir = new JsonObject();
+        withDir.addProperty("game_dir", game.toString());
+        assertFalse(tools.call(LiveTools.COMPUTERS, withDir).get("isError").getAsBoolean());
+        var screen = new JsonObject();
+        screen.addProperty("computer", 0);
+        assertFalse(tools.call(LiveTools.SCREEN, screen).get("isError").getAsBoolean());
         for (var i = 1; i <= 5; i++) assertTrue(r.get(Integer.toString(i)).get("isError").getAsBoolean());
 
         Files.writeString(game.resolve("cct-live/token.txt"), "wrong\n");

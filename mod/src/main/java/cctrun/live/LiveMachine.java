@@ -27,6 +27,7 @@ final class LiveMachine implements ILuaMachine {
     static ILuaMachine.Factory factory(ILuaMachine.Factory inner) {
         return (environment, bios) -> {
             var recorder = new Recorder(environment.metrics());
+            for (var api : environment.apis()) if (api instanceof BridgeApi bridge) bridge.connect(recorder);
             var traced = new MachineEnvironment(
                 environment.context(), environment.metrics(), environment.timeout(), environment.apis(),
                 new TracingMethods(environment.luaMethods(), recorder), environment.hostString()

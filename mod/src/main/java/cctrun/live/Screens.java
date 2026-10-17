@@ -1,0 +1,139 @@
+// SPDX-License-Identifier: MPL-2.0
+
+package cctrun.live;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.HashMap;
+
+/** Screen helpers for the endpoint: rebuilding a past screen from the trace, and finding colour regions. */
+final class Screens {
+    static final int MAX_REGIONS = 60;
+
+    private Screens() {
+    }
+
+    /** The terminal as it was at {@code tick}: applies the trace's screen records (rows, fg, bg, size) in order. */
+    static Terminals.Snapshot replay(Path trace, long tick) throws IOException {
+        int width = 0, height = 0, cursorX = 1, cursorY = 1;
+        String[] text = new String[0], fg = new String[0], bg = new String[0];
+        var seen = false;
+        try (var lines = Files.lines(trace, StandardCharsets.UTF_8)) {
+            for (var it = lines.iterator(); it.hasNext(); ) {
+                var line = it.next();
+                if (line.isBlank() || !line.contains("\"kind\":\"screen\"")) continue;
+                var record = JsonParser.parseString(line).getAsJsonObject();
+                if (!"screen".equals(record.get("kind").getAsString())) continue;
+                if (record.get("tick").getAsLong() > tick) break;
+                if (record.has("size")) {
+                    var size = record.getAsJsonArray("size");
+                    width = size.get(0).getAsInt();
+                    height = size.get(1).getAsInt();
+                    text = filled(height, width, ' ');
+                    fg = filled(height, width, '0');
+                    bg = filled(height, width, 'f');
+                }
+                seen = true;
+                apply(text, record.getAsJsonObject("lines"));
+                apply(fg, record.getAsJsonObject("fg"));
+                apply(bg, record.getAsJsonObject("bg"));
+                if (record.has("cursor")) {
+                    cursorX = record.getAsJsonArray("cursor").get(0).getAsInt();
+                    cursorY = record.getAsJsonArray("cursor").get(1).getAsInt();
+                }
+            }
+        }
+        if (!seen) return null;
+        return new Terminals.Snapshot(width, height, text, fg, bg, cursorX, cursorY, false);
+    }
+
+    private static String[] filled(int rows, int width, char c) {
+        var out = new String[rows];
+        for (var i = 0; i < rows; i++) out[i] = String.valueOf(c).repeat(width);
+        return out;
+    }
+
+    private static void apply(String[] target, JsonObject rows) {
+        if (rows == null) return;
+        for (var entry : rows.entrySet()) {
+            var row = Integer.parseInt(entry.getKey()) - 1;
+            if (row >= 0 && row < target.length) target[row] = entry.getValue().getAsString();
+        }
+    }
+
+    /**
+     * Connected areas (4-neighbour) of one background colour that differs from the screen's most common background:
+     * buttons, panels and bars of a GUI, also when their labels are drawn as pixel art. Largest first.
+     */
+    static JsonArray regions(Terminals.Snapshot s) {
+        var counts = new HashMap<Character, Integer>();
+        for (var row : s.bg()) for (var c : row.toCharArray()) counts.merge(c, 1, Integer::sum);
+        char background = 'f';
+        var best = -1;
+        for (var e : counts.entrySet()) if (e.getValue() > best) {
+            best = e.getValue();
+            background = e.getKey();
+        }
+
+        var w = s.width();
+        var h = s.height();
+        var seen = new boolean[h][w];
+        var found = new java.util.ArrayList<JsonObject>();
+        for (var y = 0; y < h; y++) {
+            for (var x = 0; x < w; x++) {
+                var colour = s.bg()[y].charAt(x);
+                if (seen[y][x] || colour == background) continue;
+                int minX = x, maxX = x, minY = y, maxY = y, cells = 0;
+                var queue = new ArrayDeque<int[]>();
+                queue.add(new int[]{x, y});
+                seen[y][x] = true;
+                while (!queue.isEmpty()) {
+                    var p = queue.poll();
+                    cells++;
+                    minX = Math.min(minX, p[0]);
+                    maxX = Math.max(maxX, p[0]);
+                    minY = Math.min(minY, p[1]);
+                    maxY = Math.max(maxY, p[1]);
+                    for (var d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                        int nx = p[0] + d[0], ny = p[1] + d[1];
+                        if (nx < 0 || ny < 0 || nx >= w || ny >= h || seen[ny][nx] || s.bg()[ny].charAt(nx) != colour) continue;
+                        seen[ny][nx] = true;
+                        queue.add(new int[]{nx, ny});
+                    }
+                }
+                var region = new JsonObject();
+                region.addProperty("bg", String.valueOf(colour));
+                region.add("from", pair(minX + 1, minY + 1));
+                region.add("to", pair(maxX + 1, maxY + 1));
+                region.add("center", pair((minX + maxX) / 2 + 1, (minY + maxY) / 2 + 1));
+                region.addProperty("cells", cells);
+                region.addProperty("rectangle", cells == (maxX - minX + 1) * (maxY - minY + 1));
+                var label = new StringBuilder();
+                for (var yy = minY; yy <= maxY; yy++) {
+                    var part = s.text()[yy].substring(minX, maxX + 1).strip();
+                    if (!part.isEmpty()) label.append(label.length() > 0 ? " | " : "").append(part);
+                }
+                region.addProperty("text", label.toString());
+                found.add(region);
+            }
+        }
+        found.sort((a, b) -> Integer.compare(b.get("cells").getAsInt(), a.get("cells").getAsInt()));
+        var out = new JsonArray();
+        for (var i = 0; i < Math.min(found.size(), MAX_REGIONS); i++) out.add(found.get(i));
+        return out;
+    }
+
+    private static JsonArray pair(int a, int b) {
+        var out = new JsonArray();
+        out.add(a);
+        out.add(b);
+        return out;
+    }
+}

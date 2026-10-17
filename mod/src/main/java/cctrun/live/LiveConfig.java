@@ -11,6 +11,7 @@ final class LiveConfig {
     static final ForgeConfigSpec.IntValue HTTP_PORT;
     static final ForgeConfigSpec.BooleanValue TRACE_SCREENS;
     static final ForgeConfigSpec.IntValue TRACE_MAX_MB;
+    static final ForgeConfigSpec.IntValue TRACE_MAX_STRING;
     static final ForgeConfigSpec.BooleanValue RECORDER_ENABLED;
     static final ForgeConfigSpec.IntValue RECORDER_SIZE;
     static final ForgeConfigSpec.IntValue LEASE_SECONDS;
@@ -28,8 +29,10 @@ final class LiveConfig {
         b.push("trace");
         TRACE_SCREENS = b.comment("While a computer is attached, record terminal changes (text and colours) once per tick.")
             .define("screens", true);
-        TRACE_MAX_MB = b.comment("Stop writing an attachment's trace file once it reaches this size (a 'truncated' record marks the cut).")
+        TRACE_MAX_MB = b.comment("Stop writing a computer's trace file (one per computer per world session) once it reaches this size (a 'truncated' record marks the cut).")
             .defineInRange("max_megabytes_per_computer", 64, 1, 4096);
+        TRACE_MAX_STRING = b.comment("Characters kept of each string in a record (file and HTTP data, event arguments ...). Whole files can be read with the files endpoint.")
+            .defineInRange("max_string", 200, 50, 65536);
         b.pop();
 
         b.push("recorder");
@@ -44,7 +47,7 @@ final class LiveConfig {
 
         b.push("control");
         LEASE_SECONDS = b.comment("An attachment ends by itself when the AI sends no request for this computer for this long (seconds).")
-            .defineInRange("lease_seconds", 600, 30, 86400);
+            .defineInRange("lease_seconds", 1800, 30, 86400);
         CHAT = b.comment("Announce in chat when an AI attaches to or releases a computer.")
             .define("chat", true);
         b.pop();

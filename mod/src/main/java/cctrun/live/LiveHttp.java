@@ -31,7 +31,9 @@ import java.util.function.Supplier;
  * {@code cct-live/token.txt}); the Host header must name the loopback address (DNS rebinding guard).
  * <pre>
  * GET  /computers                                    computers on the server now (and which are attached)
- * GET  /computers/{id}/screen                        text, colours, cursor (no attachment needed)
+ * GET  /computers/{id}/screen?regions=1&tick=N       text, colours, cursor (no attachment needed); regions = colour
+ *                                                    areas (buttons ...); tick = rebuilt from the trace at that tick
+ * GET  /computers/{id}/files?op=list|stat|read&path=&offset=&length=   the computer's files (needs an attachment)
  * POST /computers/{id}/attach                        start (or renew) an attachment: observe and control
  * POST /computers/{id}/detach                        end it
  * GET  /computers/{id}/trace?kind=a,b&after=&ticks=&offset=&limit=
@@ -111,7 +113,11 @@ final class LiveHttp {
                 }
                 var action = parts[2];
                 if (action.equals("screen") && method.equals("GET")) {
-                    send(exchange, 200, onServer(() -> screen(id)));
+                    var query = query(exchange);
+                    send(exchange, 200, query.containsKey("tick") ? pastScreen(id, query) : onServer(() -> screen(id, query)));
+                } else if (action.equals("files") && method.equals("GET")) {
+                    var query = query(exchange);
+                    send(exchange, 200, onServer(() -> files(id, query)));
                 } else if (action.equals("trace") && method.equals("GET")) {
                     send(exchange, 200, trace(id, query(exchange)));
                 } else if (action.equals("event") && method.equals("POST")) {
@@ -197,7 +203,7 @@ final class LiveHttp {
         return computer;
     }
 
-    private JsonObject screen(int id) {
+    private JsonObject screen(int id, Map<String, String> query) {
         var computer = find(id);
         var s = Terminals.snapshot(computer);
         var out = new JsonObject();
@@ -205,13 +211,66 @@ final class LiveHttp {
         out.addProperty("tick", session.tickCount());
         out.addProperty("on", computer.isOn());
         out.addProperty("attached", session.attachmentOf(computer) != null);
+        describeScreen(out, s, flag(query, "regions"));
+        return out;
+    }
+
+    /** The screen at a past tick, rebuilt from the computer's trace (only ticks while it was attached). */
+    private JsonObject pastScreen(int id, Map<String, String> query) throws IOException {
+        var tick = intParam(query, "tick", 0, 0, Integer.MAX_VALUE);
+        var trace = onServer(() -> {
+            var computer = session.find(id);
+            if (computer != null) {
+                var a = session.attachmentOf(computer);
+                if (a != null) a.renew();
+            }
+            return session.traceOf(id);
+        });
+        if (trace == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet: POST /computers/" + id + "/attach starts recording");
+        trace.flush();
+        var s = Screens.replay(trace.file(), tick);
+        if (s == null) throw new BadRequest(404, "no screen recorded for computer " + id + " up to tick " + tick);
+        var out = new JsonObject();
+        out.addProperty("id", id);
+        out.addProperty("tick", tick);
+        out.addProperty("rebuilt_from_trace", true);
+        describeScreen(out, s, flag(query, "regions"));
+        return out;
+    }
+
+    private static void describeScreen(JsonObject out, Terminals.Snapshot s, boolean regions) {
         out.add("size", pair(s.width(), s.height()));
         out.add("cursor", pair(s.cursorX(), s.cursorY()));
         out.addProperty("cursor_blink", s.blink());
         out.add("lines", strings(s.text()));
         out.add("fg", strings(s.fg()));
         out.add("bg", strings(s.bg()));
-        return out;
+        if (regions) out.add("regions", Screens.regions(s));
+    }
+
+    private JsonObject files(int id, Map<String, String> query) {
+        var computer = controlled(id);
+        var op = query.getOrDefault("op", "list");
+        var path = query.getOrDefault("path", "/");
+        try {
+            return switch (op) {
+                case "list" -> ComputerFiles.list(computer, path);
+                case "stat" -> ComputerFiles.stat(computer, path);
+                case "read" -> ComputerFiles.read(computer, path,
+                    intParam(query, "offset", 0, 0, Integer.MAX_VALUE),
+                    intParam(query, "length", ComputerFiles.DEFAULT_READ, 0, ComputerFiles.MAX_READ));
+                default -> throw new BadRequest(400, "op must be list, stat or read");
+            };
+        } catch (IllegalArgumentException e) {
+            throw new BadRequest(400, e.getMessage());
+        } catch (IOException e) {
+            throw new BadRequest(500, "cannot read the computer's files: " + e.getMessage());
+        }
+    }
+
+    private static boolean flag(Map<String, String> query, String name) {
+        var value = query.get(name);
+        return value != null && (value.equals("1") || value.equalsIgnoreCase("true"));
     }
 
     private JsonObject queueEvent(int id, JsonObject body) {
@@ -257,7 +316,8 @@ final class LiveHttp {
             if (a != null) a.renew();
             return a;
         });
-        var file = attachment != null ? attachment.trace().file() : session.traceFile(id);
+        var computerTrace = attachment != null ? attachment.trace() : session.traceOf(id);
+        var file = computerTrace == null ? null : computerTrace.file();
         if (file == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet: POST /computers/" + id + "/attach starts recording");
         var kinds = new HashSet<String>();
         if (query.containsKey("kind")) for (var k : query.get("kind").split(",")) if (!k.isBlank()) kinds.add(k.trim());
@@ -279,7 +339,7 @@ final class LiveHttp {
         var offset = intParam(query, "offset", 0, 0, Integer.MAX_VALUE);
         var limit = intParam(query, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT);
 
-        if (attachment != null) attachment.trace().flush();
+        computerTrace.flush();
         var records = new JsonArray();
         var matched = 0;
         try (var lines = Files.lines(file, StandardCharsets.UTF_8)) {

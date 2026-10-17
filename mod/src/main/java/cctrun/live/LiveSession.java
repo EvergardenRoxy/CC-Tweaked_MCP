@@ -28,7 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * One Minecraft server run (a world in single player). On demand (D40): nothing is observed until an AI attaches a
  * computer, except that recording mode keeps a short in-memory history per computer.
  * <p>
- * Each attachment writes {@code <game dir>/cct-live/sessions/<start time>/computer-<id>-<n>.jsonl}.
+ * Each computer gets one trace file per session, {@code <game dir>/cct-live/sessions/<start time>/computer-<id>.jsonl};
+ * repeated attachments append to it (seq keeps counting), separated by {@code attach}/{@code detach} records.
  */
 final class LiveSession {
     private static final DateTimeFormatter DIR_NAME = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
@@ -43,6 +44,7 @@ final class LiveSession {
     static LiveSession start(MinecraftServer server, Path home) throws IOException {
         stop();
         var dir = home.resolve("sessions").resolve(LocalDateTime.now().format(DIR_NAME));
+        JsonValues.MAX_STRING = LiveConfig.TRACE_MAX_STRING.get();
         var session = new LiveSession(server, home, dir);
         current = session;
         CctLive.LOG.info("cct-live: on demand; recording mode {}; attachments are written to {}", session.recording ? "on" : "off", dir);
@@ -68,9 +70,9 @@ final class LiveSession {
     private volatile boolean anyAttached;
     /** Recording mode; weak keys, so a removed computer's ring goes with it. */
     private final Map<MetricsObserver, Ring> rings = Collections.synchronizedMap(new WeakHashMap<>());
-    /** Server thread: number of attachments per computer ID so far, and the last trace file per computer ID. */
-    private final Map<Integer, Integer> attachCounts = new HashMap<>();
-    private final Map<Integer, Path> lastTrace = new ConcurrentHashMap<>();
+    /** Server thread: each computer's trace (kept open between attachments), and the latest trace per computer ID. */
+    private final Map<MetricsObserver, ComputerTrace> traces = new HashMap<>();
+    private final Map<Integer, ComputerTrace> traceById = new ConcurrentHashMap<>();
     private LiveHttp http;
 
     private LiveSession(MinecraftServer server, Path home, Path dir) {
@@ -134,8 +136,9 @@ final class LiveSession {
         return attached.get(computer.getMetrics());
     }
 
-    Path traceFile(int id) {
-        return lastTrace.get(id);
+    /** The trace of the computer with this ID (also after it was unloaded), or null if it was never attached. */
+    ComputerTrace traceOf(int id) {
+        return traceById.get(id);
     }
 
     /** Attach, or renew an existing attachment. */
@@ -145,11 +148,16 @@ final class LiveSession {
             existing.renew();
             return existing;
         }
-        Files.createDirectories(dir);
         var id = computer.getID();
-        var n = attachCounts.merge(id, 1, Integer::sum);
-        var file = dir.resolve("computer-" + id + "-" + n + ".jsonl");
-        var trace = new ComputerTrace(this, file, LiveConfig.TRACE_MAX_MB.get() * 1024L * 1024L);
+        var trace = traces.get(computer.getMetrics());
+        if (trace == null) {
+            Files.createDirectories(dir);
+            var file = dir.resolve("computer-" + id + ".jsonl");
+            // Two computers with the same ID (a copied computer) get separate files.
+            for (var n = 2; Files.exists(file); n++) file = dir.resolve("computer-" + id + "-" + n + ".jsonl");
+            trace = new ComputerTrace(this, file, LiveConfig.TRACE_MAX_MB.get() * 1024L * 1024L);
+            traces.put(computer.getMetrics(), trace);
+        }
         var attachment = new Attachment(computer, trace, leaseMillis);
 
         var start = new JsonObject();
@@ -180,7 +188,7 @@ final class LiveSession {
             }
             trace.record("computer_seen", Attachment.describe(computer));
         }
-        lastTrace.put(id, file);
+        traceById.put(id, trace);
         CctLive.announce(server, "cctlive.attached", "[cct-live] AI 已接管 %s 号电脑（租约 %s 秒，输入 /cctlive detach %s 可收回）", id, leaseSeconds(), id);
         return attachment;
     }
@@ -270,6 +278,7 @@ final class LiveSession {
             }
         }
         for (var attachment : attachments()) detach(attachment.computer(), "closed");
+        for (var trace : traces.values()) trace.close();
         rings.clear();
     }
 }

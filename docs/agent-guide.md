@@ -4,6 +4,8 @@ For AI agents. `cct-run guide` and the MCP tool `cct_guide` return this text.
 
 cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s. It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
 
+Sections: 1-6 cover the simulation (`run`, `trace`, `screen`); 7 covers real computers in a running game (MCP `cct_live_*` tools). Through MCP, `cct_guide` with `section: N` returns one section.
+
 ## 1. Workflow
 
 1. Save the program to a file, e.g. `door.lua`.
@@ -171,15 +173,20 @@ If the user plays with the cct-live mod (Forge 1.20.1, CC: Tweaked 1.120.2), the
 The mod works on demand: nothing is recorded for a computer until you attach it, and only an attached computer accepts input.
 
 - `cct_live_computers`: computers loaded now (id, label, family, on, position, attached), the server `tick`, `recording_mode`, `lease_seconds`.
-- `cct_live_screen {computer}`: what the terminal shows now: `lines`, plus `fg`/`bg` colour rows (blit characters). No attachment needed.
-- `cct_live_attach {computer}`: start recording and controlling it. The player sees a chat message ("AI has taken control of computer N") and can take it back with `/cctlive detach N`. Every request for the computer renews a lease (default 600 s); without requests the attachment ends by itself. Calling attach again only renews.
+- `cct_live_screen {computer, regions, tick}`: what the terminal shows now: `lines`, plus `fg`/`bg` colour rows (blit characters). No attachment needed.
+  - `regions: true` adds the colour areas of the screen (cells of one background colour other than the main one, largest first, with `from`, `to`, `center`, `text`). GUI buttons are such areas, even when their labels are pixel art that `lines` cannot show.
+  - `tick: N` rebuilds the screen as it was at tick N from the trace (only while attached).
+- `cct_live_attach {computer}`: start recording and controlling it. The player sees a chat message ("AI has taken control of computer N") and can take it back with `/cctlive detach N`. Every request for the computer renews a lease (default 1800 s); without requests the attachment ends by itself. Calling attach again only renews.
 - `cct_live_detach {computer}`: release it when you are done.
-- `cct_live_trace {computer, kind, after, ticks, offset, limit}`: the records of the current (or last) attachment. Kinds as in section 4 (`event`, `peripheral_call`/`peripheral_return`, `screen` with `fg`/`bg`, `redstone_output`) plus:
+- `cct_live_trace {computer, kind, after, ticks, offset, limit}`: the computer's records for this game session (all attachments in one trace; seq keeps counting). Kinds as in section 4 (`event`, `peripheral_call`/`peripheral_return`, `screen` with `fg`/`bg`, `redstone_output`) plus:
   - `api`: `http.request/checkURL/websocket` and `fs.open/delete/move/copy/makeDir`, with args and result (`http.get` shows up as `http.request`);
-  - `handle`: each call on an open file, HTTP response or websocket (`readAll`, `readLine`, `write`, `close` ...), with its `path` or `url` and the data (first 200 characters);
+  - `handle`: each call on an open file, HTTP response or websocket (`readAll`, `readLine`, `write`, `close` ...), with its `path` or `url` and the data (first 200 characters by default; read whole files with `cct_live_files`);
+  - `printed_error`: text printed with `printError`, with the running `program`. The shell reports a program's crash this way (e.g. `/startup.lua:911: module 'icons.User' not found ...`), so look here first when a program fails; `vm_error` only covers VM-level failures such as "Too long without yielding";
   - `attach`, `detach` (reason: detach, revoked = taken back by a player, expired, removed, closed), `power`, `label`, `moved`, `vm_start`, `vm_close`, `vm_error`, `computer_seen`, `truncated`.
   - Files under /rom are not recorded.
 - `cct_live_type {computer, text, enter}` (attached only): types one line (paste event) and presses Enter: runs a shell command or answers `read()`.
+- `cct_live_click {computer, x, y, button}` (attached only): mouse_click + mouse_up at one cell (advanced computers). Click a button's region `center`.
+- `cct_live_files {computer, op, path, offset, length}` (attached only): the computer's own files without running anything on it: `list` a directory, `stat` a path, `read` a file (text, up to 1 MB per call; `size`, `eof`, `encoding`); every result has `free_space` and `capacity`.
 - `cct_live_event {computer, name, args}` (attached only): any event (`char`, `key` with GLFW codes, `terminate`, `monitor_touch`, custom).
 - `cct_live_power {computer, action}` (attached only): `on`, `shutdown`, `reboot`.
 
@@ -187,8 +194,8 @@ Workflow:
 
 1. `cct_live_computers` to find the computer; `cct_live_screen` to see its state.
 2. `cct_live_attach`. If `recording_mode` is true, the trace starts with the computer's recent records from before the attachment (marked `history: true`). Otherwise nothing before the attachment is known: reproduce the problem (re-run the program with `cct_live_type`, or `cct_live_power reboot` if the user agrees).
-3. Note `tick` (or the last `seq`), act, then `cct_live_trace` with `ticks: "<tick>-"` or `after: <seq>` to see exactly what followed.
-4. Explain from the records: e.g. an `api` http.request, then a `handle` readAll whose data starts with `<!DOCTYPE html>`, then a `handle` write of it to `/x.lua`, then a load error `unexpected symbol near '<'` means the download returned a web page, not Lua.
+3. Note `tick` (or the last `seq`), act (`cct_live_type`, `cct_live_click` on a region center), then `cct_live_trace` with `ticks: "<tick>-"` or `after: <seq>` to see exactly what followed.
+4. Explain from the records (start with `printed_error`, then `api`/`handle` around it; read the files involved with `cct_live_files`): e.g. an `api` http.request, then a `handle` readAll whose data starts with `<!DOCTYPE html>`, then a `handle` write of it to `/x.lua`, then a load error `unexpected symbol near '<'` means the download returned a web page, not Lua.
 5. `cct_live_detach` when done.
 
 Rules:
