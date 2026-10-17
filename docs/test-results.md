@@ -45,14 +45,23 @@
 | 4 | 5 | 未记录 | 结论同上，并用 `loadfile()` 确认 47 个文件里只有这 1 个坏；另外找到两个问题：引导 Basalt 时 `load(..., _G)` 的环境里没有 `require`；字体只缓存在内存里，站点不可用时程序开不了机 | `cct_live_wait` 不再返回旧记录；`cct_live_lua` 超时可取回结果、自动清理临时文件；`cct_live_snapshot`（保存 / 比较 / 恢复）；trace 的 `contains`；`computer_dir` |
 
 第 4 轮报告里提到但**没有改**的：
-- `cct_live_lua` 在程序运行时无法使用：它要从 shell 运行；要在程序运行时执行代码，就得改动程序收发事件的方式，会影响被测程序本身。
+- `cct_live_lua` 在程序运行时无法使用：它要从 shell 运行；要在程序运行时执行代码，就得改动程序收发事件的方式，会影响被测程序本身。（联合测试 3 之后加了 `cct_live_peripheral`：不运行 Lua，在游戏这一侧直接读取外设，程序运行时也能用。）
 - 区域的 `labels` 不带文字：像素图按钮本来就没有文字可读。
 - `cct_live_files stat` 不报告文件的来源：可以用 trace 的 `contains` 查到这个文件是哪次下载写入的。
 - 去掉 URL 里易变参数的“归一化 URL”：用 `contains` 按文件名过滤就够了。
 
+## 联合测试 3：Create 工厂控制中心（模组外设）
+
+提示词见 [`joint-test-factory.md`](joint-test-factory.md)，第 1 次的分析见 [`joint-test-factory-report.md`](joint-test-factory-report.md)。
+
+| 次数 | 电脑 | token | 结论 | 根据报告做的改进 |
+|---|---|---|---|---|
+| 1 | 7 | 9293 万（开源 DeepSeek，算力中心部署） | 看板、按钮在实机上可用；聊天指令只用注入的事件测过，过载保护和缺料暂停没有测到；没有完成收尾 | 中文 Windows 上 fixture 出错不再变成 `MalformedInputException`；`cct_live_peripheral`（程序运行时读外设）；网络外设按真实名字记录；trace 的 `peripheral` / `method` 过滤和大小上限后的轮换；`cct_live_wait` 不再匹配旧画面；指南补充事件参数下标、事件丢失和 `os.clock` |
+| 2 | 8 | 7064 万（输出 24.5 万；deepseek-v4.1-flash-1017 官方 API；60 分钟，268 次调用） | 请玩家配合了 17 次：真实聊天、真实过载保护和通知去重、拆装应力表、远离禁止加速、开机自启都在实机上验证；缺料和满箱只在模拟器；收尾完整。CC 的事件丢失问题仍花了约 34 分钟，交付的程序只是缩小了丢失窗口 | 模拟器 `fs.move` 到同前缀的路径不再误报；trace 里的字符串按 Lua 实际收到的记录；指南：用 `parallel` 避免事件丢失、注入 UTF-8、同一外设接两次时事件重复、源码 tag。之后实现了 N12 / N13：fixture 的 `scripted` 外设（用它在模拟器里复现了这次交付程序的丢指令问题）、`cct_trace` 的 `contains`、`cct_live_files` 只读 `/rom` |
+
 ## Linux 验证（开发环境）
 
-- 单元测试 46 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
+- 单元测试 53 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
 - 官方 MCP TypeScript SDK 客户端连接发布包：四个工具、内联 fixture 与定时触摸显示器、两个运行并行、参数错误提示、内存耗尽结果；用 Java 8 启动同样可用。
 - Java 8 自动切换、找不到 Java 17+ 时退出码 69 的提示、`JAVA_OPTS=-Xmx256m` 覆盖内存上限，均已验证。
 

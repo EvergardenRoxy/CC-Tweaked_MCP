@@ -41,7 +41,7 @@ public final class JsonValues {
             if (Double.isNaN(d) || Double.isInfinite(d)) return new JsonPrimitive(Double.toString(d));
             return new JsonPrimitive(d);
         }
-        if (value instanceof String s) return new JsonPrimitive(truncate(s));
+        if (value instanceof String s) return new JsonPrimitive(truncate(asLua(s)));
         if (value instanceof ByteBuffer b) {
             var copy = b.duplicate();
             var bytes = new byte[copy.remaining()];
@@ -80,10 +80,46 @@ public final class JsonValues {
 
     private static String keyOf(Object key) {
         if (key instanceof Number n && n.doubleValue() == Math.rint(n.doubleValue())) return Long.toString(n.longValue());
-        return String.valueOf(key);
+        return key instanceof String s ? asLua(s) : String.valueOf(key);
+    }
+
+    /**
+     * A Java string as Lua receives it: Lua strings are bytes, and CC: Tweaked (Cobalt) turns every character above
+     * U+00FF into '?'. So Chinese text from a peripheral or event (e.g. the chat box's message) is recorded as the
+     * program sees it, not as the Java side had it.
+     */
+    static String asLua(String s) {
+        for (var i = 0; i < s.length(); i++) {
+            if (s.charAt(i) > 0xFF) {
+                var out = s.toCharArray();
+                for (var j = i; j < out.length; j++) if (out[j] > 0xFF) out[j] = '?';
+                return new String(out);
+            }
+        }
+        return s;
     }
 
     static String truncate(String s) {
         return s.length() <= MAX_STRING ? s : s.substring(0, MAX_STRING) + "...(" + s.length() + " chars)";
+    }
+
+    /** A fixture's JSON value as a Lua value: numbers are doubles, arrays are 1-based tables, objects tables. */
+    public static Object toLua(JsonElement value) {
+        if (value == null || value.isJsonNull()) return null;
+        if (value.isJsonPrimitive()) {
+            var p = value.getAsJsonPrimitive();
+            if (p.isBoolean()) return p.getAsBoolean();
+            if (p.isNumber()) return p.getAsDouble();
+            return p.getAsString();
+        }
+        if (value.isJsonArray()) {
+            var out = new java.util.HashMap<Object, Object>();
+            var array = value.getAsJsonArray();
+            for (var i = 0; i < array.size(); i++) out.put((double) (i + 1), toLua(array.get(i)));
+            return out;
+        }
+        var out = new java.util.HashMap<Object, Object>();
+        for (var entry : value.getAsJsonObject().entrySet()) out.put(entry.getKey(), toLua(entry.getValue()));
+        return out;
     }
 }

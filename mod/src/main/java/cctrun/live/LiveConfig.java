@@ -30,7 +30,7 @@ final class LiveConfig {
         b.push("trace");
         TRACE_SCREENS = b.comment("While a computer is attached, record terminal changes (text and colours) once per tick.")
             .define("screens", true);
-        TRACE_MAX_MB = b.comment("Stop writing a computer's trace file (one per computer per world session) once it reaches this size (a 'truncated' record marks the cut).")
+        TRACE_MAX_MB = b.comment("Size kept of a computer's trace (one per computer per world session). The newest records are kept: the trace is split into two files of half this size, and the older one is dropped when the newer one is full (a 'trace_rotated' record marks each switch).")
             .defineInRange("max_megabytes_per_computer", 64, 1, 4096);
         TRACE_MAX_STRING = b.comment("Characters kept of each string in a record (file and HTTP data, event arguments ...). Whole files can be read with the files endpoint.")
             .defineInRange("max_string", 200, 50, 65536);

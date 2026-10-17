@@ -9,6 +9,7 @@ import cctrun.engine.peripheral.Inventory;
 import cctrun.engine.peripheral.InventoryPeripheral;
 import cctrun.engine.peripheral.ItemStack;
 import cctrun.engine.peripheral.MonitorPeripheral;
+import cctrun.engine.peripheral.ScriptedPeripheral;
 import cctrun.engine.peripheral.WiredModemPeripheral;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -219,9 +220,59 @@ public final class Fixture {
                     }
                 }
             }
+            case "scripted" -> {
+                allowOnly(spec, path, "type", "peripheral_type", "additional_types", "main_thread", "methods");
+                var peripheralType = string(require(spec, "peripheral_type", path), path + ".peripheral_type");
+                if (peripheralType.isEmpty()) throw new FixtureException(path + ".peripheral_type", "must not be empty");
+                if (spec.has("additional_types")) {
+                    var types = array(spec.get("additional_types"), path + ".additional_types");
+                    for (var i = 0; i < types.size(); i++) string(types.get(i), path + ".additional_types[" + i + "]");
+                }
+                if (spec.has("main_thread")) bool(spec.get("main_thread"), path + ".main_thread");
+                var methods = object(require(spec, "methods", path), path + ".methods");
+                if (methods.isEmpty()) throw new FixtureException(path + ".methods", "give at least one method");
+                for (var entry : methods.entrySet()) {
+                    var methodPath = path + ".methods." + entry.getKey();
+                    if (!entry.getKey().matches("[A-Za-z_][A-Za-z0-9_]*")) throw new FixtureException(methodPath, "method names must be Lua identifiers");
+                    var value = entry.getValue();
+                    if (!value.isJsonObject()) continue; // a plain value: the one value the method returns
+                    var behaviour = value.getAsJsonObject();
+                    for (var key : behaviour.keySet()) {
+                        if (!Set.of("returns", "sequence", "error", "sets", "main_thread").contains(key)) {
+                            throw new FixtureException(methodPath + "." + key, "unknown key (expected returns, sequence, error, sets, main_thread); to return a table write {\"returns\": [{...}]}");
+                        }
+                    }
+                    validateBehaviour(behaviour, methodPath);
+                    if (behaviour.has("sets")) {
+                        var target = string(behaviour.get("sets"), methodPath + ".sets");
+                        if (!methods.has(target)) throw new FixtureException(methodPath + ".sets", "no method \"" + target + "\" on this peripheral");
+                    }
+                    if (behaviour.has("main_thread")) bool(behaviour.get("main_thread"), methodPath + ".main_thread");
+                }
+            }
             default -> throw new FixtureException(path + ".type", "unknown peripheral type \"" + type
-                + "\" (supported: inventory, energy_storage, fluid_storage, monitor, wired_modem)");
+                + "\" (supported: inventory, energy_storage, fluid_storage, monitor, wired_modem, scripted)");
         }
+    }
+
+    /** returns (array of return values), sequence (array of such arrays) or error (message): at most one. */
+    private static void validateBehaviour(JsonObject behaviour, String path) throws FixtureException {
+        var given = 0;
+        if (behaviour.has("returns")) {
+            array(behaviour.get("returns"), path + ".returns");
+            given++;
+        }
+        if (behaviour.has("sequence")) {
+            var steps = array(behaviour.get("sequence"), path + ".sequence");
+            if (steps.isEmpty()) throw new FixtureException(path + ".sequence", "give at least one step");
+            for (var i = 0; i < steps.size(); i++) array(steps.get(i), path + ".sequence[" + i + "]");
+            given++;
+        }
+        if (behaviour.has("error")) {
+            string(behaviour.get("error"), path + ".error");
+            given++;
+        }
+        if (given > 1) throw new FixtureException(path, "give only one of returns, sequence and error");
     }
 
     private static void validateAction(String action, JsonObject spec, String path, Map<ComputerSide, JsonObject> peripherals) throws FixtureException {
@@ -249,7 +300,17 @@ public final class Fixture {
                 var item = require(spec, "item", path);
                 if (!item.isJsonNull()) item(item, path + ".item");
             }
-            default -> throw new FixtureException(path + ".do", "unknown action \"" + action + "\" (supported: event, terminate, redstone, energy, item)");
+            case "method" -> {
+                allowOnly(spec, path, "tick", "do", "peripheral", "method", "returns", "sequence", "error");
+                requirePeripheral(spec, path, peripherals, "scripted");
+                var method = string(require(spec, "method", path), path + ".method");
+                var target = findSpec(spec.get("peripheral").getAsString(), peripherals);
+                if (!target.getAsJsonObject("methods").has(method)) {
+                    throw new FixtureException(path + ".method", "\"" + spec.get("peripheral").getAsString() + "\" has no method \"" + method + "\" in this fixture");
+                }
+                validateBehaviour(spec, path);
+            }
+            default -> throw new FixtureException(path + ".do", "unknown action \"" + action + "\" (supported: event, terminate, redstone, energy, item, method)");
         }
     }
 
@@ -321,6 +382,9 @@ public final class Fixture {
                 var monitor = new MonitorPeripheral(name, blocks[0], blocks[1], advanced, trace);
                 monitors.add(monitor);
                 return monitor;
+            }
+            case "scripted" -> {
+                return new ScriptedPeripheral(spec, trace);
             }
             case "wired_modem" -> {
                 var remote = new LinkedHashMap<String, DispatchPeripheral>();

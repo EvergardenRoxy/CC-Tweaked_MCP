@@ -40,6 +40,40 @@ class RunnerTest {
         assertTrue(Files.isRegularFile(result.runDir().resolve("program/prog.lua")));
     }
 
+    /** Field tests: log rotation to "<name>.1" failed in cct-run only (MemoryMount compares paths as strings). */
+    @Test
+    void moveToAPathThatStartsWithTheSourceName() throws Exception {
+        var result = run(out, """
+            local f = fs.open("/t.log", "w") f.write("x") f.close()
+            fs.move("/t.log", "/t.log.1")
+            print(fs.exists("/t.log"), fs.exists("/t.log.1"))
+            fs.makeDir("/d")
+            print(pcall(fs.move, "/d", "/d/inner"))
+            print(table.concat(fs.list("/"), ","))
+            """, null, 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals("false\ttrue", screen(result).get(0));
+        // A real move into itself is still refused, by FileSystem (as in the game); the line wraps at 51 columns.
+        assertTrue(screen(result).get(1).startsWith("false\t/prog.lua:5: Can't move a directory inside"), screen(result).get(1));
+        assertEquals("d,prog.lua,rom,startup.lua,t.log.1", screen(result).get(3), "no temporary file left");
+    }
+
+    /** Field test: the chat box's message showed as Chinese in the trace, but the program received "!??". */
+    @Test
+    void eventStringsAreRecordedAsLuaReceivesThem() throws Exception {
+        var result = run(out, """
+            local _, msg, raw = os.pullEvent("chat")
+            print(#msg, msg:byte(2), #raw)
+            """, """
+            {"timeline": [{"tick": 5, "do": "event", "name": "chat", "args": ["!\u5de5\u5382 \u00e9", "\u00e5\u00b7\u00a5"]}]}
+            """, 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        // Characters above U+00FF become '?' (one byte each); U+00E9 stays one byte; JSON escapes up to U+00FF give raw bytes (how to inject UTF-8).
+        assertEquals("5\t63\t3", screen(result).get(0));
+        var chat = trace(result, "event", r -> r.get("name").getAsString().equals("chat")).get(0);
+        assertEquals("!?? \u00e9", chat.getAsJsonArray("args").get(0).getAsString());
+    }
+
     @Test
     void syntaxErrorIsReportedWithTheGamesMessage() throws Exception {
         var result = run(out, "local x = 1\nif x == 1\n  print(x)\nend\n", null, 10);

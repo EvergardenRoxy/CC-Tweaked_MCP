@@ -2,7 +2,7 @@
 
 For AI agents. `cct-run guide` and the MCP tool `cct_guide` return this text.
 
-cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s. It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
+cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s (source of this version: github.com/cc-tweaked/CC-Tweaked tag `v1.20.1-1.120.2`; raw files at `https://raw.githubusercontent.com/cc-tweaked/CC-Tweaked/v1.20.1-1.120.2/<path>`, e.g. `projects/core/src/main/resources/data/computercraft/lua/rom/apis/peripheral.lua`). It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
 
 Sections: 1-6 cover the simulation (`run`, `trace`, `screen`); 7 covers real computers in a running game (MCP `cct_live_*` tools). Through MCP, `cct_guide` with `section: N` returns one section.
 
@@ -23,7 +23,7 @@ Sections: 1-6 cover the simulation (`run`, `trace`, `screen`); 7 covers real com
 
 ```
 cct-run run <program.lua> [--fixture FILE] [--timeout SECONDS] [--out DIR] [--term WxH] [--basic|--advanced] [-- program args]
-cct-run trace  <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME] [--offset N] [--limit N]
+cct-run trace  <run-dir|latest> [--kind K1,K2] [--ticks A-B] [--peripheral NAME] [--source NAME] [--contains TEXT] [--offset N] [--limit N]
 cct-run screen <run-dir|latest> [--tick N] [--source term|MONITOR]
 cct-run guide | version | help
 ```
@@ -82,11 +82,15 @@ Every record has `seq`, `tick`, `ms` and `kind`. Useful queries:
 | What was on screen at tick N? | `screen latest --tick N`, or `--source monitor_0` for a monitor |
 | Redstone the program set | `trace latest --kind redstone_output` |
 | What happened between ticks 40 and 60? | `trace latest --ticks 40-60` |
+| Every record that mentions a method, command or text | `trace latest --contains setTargetSpeed` (text, event name, peripheral, method, arguments, results, screen rows; case-insensitive; MCP: `contains`) |
 
 Kinds and their pitfalls:
 
 - `event {name, args}`: every event delivered to the Lua VM, including `timer`, `task_complete` and `redstone`.
-  - An event delivered while the program was inside `sleep()` or a filtered `os.pullEvent(x)` was received and thrown away. This is a classic CC bug: compare event ticks with what the program was doing.
+  - `args` are the values after the event name: in `local ev = {os.pullEvent()}`, `ev[1]` is the name and `args[1]` is `ev[2]`. Count from the Lua side before changing an index.
+  - An event delivered while the program was inside `sleep()`, a filtered `os.pullEvent(x)`, or a `main_thread` peripheral method (it waits for `task_complete`) was received and thrown away, although the trace lists it. This is a classic CC bug: a timer that fires while the program is in a slow peripheral call is lost, and a loop that only re-arms its timer when the timer arrives stops for good. Compare event ticks with the program's peripheral calls. The fix is `parallel`: put the peripheral polling and the event handling (chat, touches, timers) in separate functions under `parallel.waitForAny`/`waitForAll`. Each coroutine keeps its own filter, so the listener gets every event while the poller waits (measured here: 20 of 20 chat events with `parallel`, 1 of 20 in a single loop). Compare deadlines with `os.epoch("utc")`.
+  - Strings in `args` (and in peripheral results) are recorded as Lua receives them: Lua strings are bytes, and a character above U+00FF in a Java string arrives as `?`. Chinese text from a peripheral therefore reaches the program as `??` (the Advanced Peripherals chat box sends a separate `messageUtf8` with the real bytes). To inject UTF-8 text in a fixture event, write each byte as an escape up to U+00FF (`"\u00e5\u00b7\u00a5"` is the UTF-8 of U+5DE5).
+  - A peripheral that the computer reaches twice (directly on a side and again over a wired modem) is attached twice; one that sends events (seen with the Advanced Peripherals chat box) then delivers each event twice. Deduplicate, or use only one of the two names.
   - `"harness": true` marks events caused by cct-run itself (its default settings). Ignore those.
   - `setting_changed` args are `(name, new value, old value)`.
 - `peripheral_call` / `peripheral_return` share an `id`.
@@ -134,11 +138,33 @@ Peripheral rules:
 - An inventory's type is its `block` (default `minecraft:chest`) plus `inventory`.
 - Monitor size follows the game: 1x1 block = 7x5 characters at scale 1; `setTextScale(0.5)` doubles it.
 
+Peripherals from other mods (Create, Advanced Peripherals, ...) are not modelled, but you can describe them with `"type": "scripted"`: you give the type name and what each method returns, and cct-run answers and traces the calls like any other peripheral. Take the names, methods and real values from the game first (`cct_live_peripheral` without `method` lists the methods; with a getter it returns the value), or from `peripheral_call`/`peripheral_return` records.
+
+```json
+"back": { "type": "wired_modem", "network": {
+  "Create_Stressometer_0": { "type": "scripted", "peripheral_type": "Create_Stressometer",
+    "methods": { "getStress": 11776, "getStressCapacity": { "returns": [16384] } } },
+  "Create_RotationSpeedController_0": { "type": "scripted", "peripheral_type": "Create_RotationSpeedController",
+    "methods": { "getTargetSpeed": -128, "setTargetSpeed": { "sets": "getTargetSpeed" } } },
+  "playerDetector_0": { "type": "scripted", "peripheral_type": "playerDetector",
+    "methods": { "isPlayerInRange": { "sequence": [[true], [true], [false]] },
+                 "getPlayerPos": { "error": "Player is not online" } } },
+  "chatBox_0": { "type": "scripted", "peripheral_type": "chatBox",
+    "methods": { "sendMessageToPlayer": { "returns": [true] },
+                 "getOperationCooldown": { "returns": [{ "chatMessage": 0 }] } } } } }
+```
+
+- A method's value is either one plain return value (number, string, boolean, array = list table), or an object with one of `returns` (all return values, so a table is `{"returns": [{...}]}`), `sequence` (the returns of successive calls; the last one repeats) or `error` (the call raises this message). No key at all: returns nothing.
+- `sets: "<method>"`: the call stores its first argument as that method's return value (a setter and its getter).
+- `main_thread` (peripheral or method, default `true`): like most mod peripherals, the call takes a tick and waits for `task_complete`, so events arriving meanwhile are dropped as in the game. `additional_types` adds types for `peripheral.hasType`/`find`.
+- Nothing else is simulated: values change only through `sets` and the timeline, and machines do not react to each other (raising the speed does not raise the stress unless the timeline says so). Mod events (e.g. the chat box's `chat`) are timeline `event`s; copy their argument layout from a real event in `cct_live_trace`.
+
 Timeline actions:
 - `event` queues any event, e.g. `key`, `char`, `monitor_touch`, `rednet_message`-style custom events.
 - `redstone` sets an input level.
 - `item` sets or (with `null`) clears a slot.
 - `energy` sets stored energy.
+- `method` changes what a scripted peripheral's method returns from then on: `{ "tick": 60, "do": "method", "peripheral": "Create_Stressometer_0", "method": "getStress", "returns": [16000] }` (or `sequence`, `error`).
 - `terminate` sends Ctrl+T, a clean way to end an endless loop.
 
 Recipes:
@@ -157,8 +183,9 @@ A pass means the program works against this model, which is not guaranteed to ma
   - `getItemDetail` returns only name, count, displayName, maxCount, tags, nbt and damage;
   - item transfer fills target slots in order (Forge behaviour; Fabric fills existing stacks first).
 - **Fluids:** only `tanks()`.
+- **Scripted peripherals:** they return what the fixture says, nothing more; their accuracy is that of the values you copied from the game.
 - **Energy and fluid amounts:** change only through the timeline.
-- **Time:** in-game time is frozen at 0 (`os.time()`, `os.day()`); real time (`os.clock()`, `os.epoch`) runs normally.
+- **Time:** in-game time is frozen at 0 (`os.time()`, `os.day()`); real time (`os.clock()`, `os.epoch`) runs normally. `os.clock()` counts the computer's ticks (0.05 s steps, here and in the game): it does not move inside one run of Lua between two yields and falls behind when the server lags. Measure intervals with `os.epoch("utc")`.
 - **Disk:** the 1 MB limit is reported but not enforced.
 - **Memory:** cct-run stops a program at about 1 GB of heap (`out_of_memory`). The game has no per-computer limit: the computer shares the server's memory, so a program that runs out here would lag or crash a server, and one that stays under it can still be too heavy for a small server.
 - **Multishell:** off by default (`multishell` is nil); set `computer.multishell: true` if the program needs it.
@@ -177,19 +204,21 @@ Tools:
 - `cct_live_computers`: computers loaded now (id, label, family, on, position, attached).
 - `cct_live_attach {computer, lease_seconds}`: start recording and controlling. The player sees a chat message and can take control back with `/cctlive detach <id>`. Every request renews the lease; for a long test pass a longer `lease_seconds`. Returns `last_seq`, `monitors` (sides with a monitor), `files_write` and `computer_dir` (where the game keeps this computer's files).
 - `cct_live_status {computer, after, source}`: tick, on, `last_seq`, lease left, monitors, `new_since_after` (record counts by kind after seq `after`), `last_printed_error`, the screen's text lines and `screen_hash`.
-- `cct_live_wait {computer, text | kind | idle_seconds, after, source, timeout}`: returns when the screen shows `text`, a record of a `kind` appears (e.g. `["printed_error","http_failure","vm_close"]`; returned as `match`), or the screen stays unchanged for `idle_seconds`; `met` says which, or `timeout` (default 30 s, max 120). Without `after`, `kind` only matches records that appear after the wait starts.
+- `cct_live_wait {computer, text | kind | idle_seconds, after, source, timeout, unchanged}`: returns when the screen shows `text`, a record of a `kind` appears (e.g. `["printed_error","http_failure","vm_close"]`; returned as `match`), or the screen stays unchanged for `idle_seconds`; `met` says which, or `timeout` (default 30 s, max 120). Without `after`, `kind` only matches records that appear after the wait starts. `text` only counts on a screen that changed since your last `cct_live_type`/`click`/`event`/`power`: a prompt `>` or a banner left from before the action does not end the wait (a timeout then carries a `note`); pass `unchanged: true` to accept text that was already there.
 - `cct_live_type {computer, text, enter}`: types text; each line is followed by Enter. Several lines run in order (shell commands, lines in the `lua` REPL).
 - `cct_live_click {computer, x, y, source}`: a click on the terminal (mouse_click + mouse_up) or a touch on a monitor (`source` = its side, monitor_touch).
 - `cct_live_screen {computer, source, colors, regions, tick}`: text lines of the terminal or a monitor. `regions: true` adds colour areas (`bg`, `from`, `to`, `center`, `text`, `labels`): GUI buttons are such areas even when their labels are pixel art. When a button shares its background with the card around it, the region is the whole card: then use its `labels` (blocks of drawn content inside, e.g. the button's label) and click the label's `center`. `colors: true` adds fg/bg rows. `tick: N` rebuilds the screen at tick N from the trace.
 - `cct_live_lua {computer, code, timeout}`: runs Lua on the computer in one call and returns `ok`, `output` (printed lines), `returns` (serialised), `error` and `phase` (compile or runtime, with traceback). It writes a temporary script under `/.cctlive`, runs it from the shell and deletes it. Use it for every diagnostic (sizes, `load()` a file to check its syntax, `peripheral.getMethods`, reading settings) instead of write/run/read/delete by hand. Needs the shell prompt on the screen (a program that crashed to a "press any key" screen: send a `char` event first) and the player's `files_write`; the code has the computer's full rights, so keep it read-only unless the user agreed to changes. On timeout it returns `pending: <name>`: the code may still be running; collect the result later with `cct_live_lua {computer, result: <name>}` instead of running it again. Leftover files under `/.cctlive` are removed on the next call and on `cct_live_detach`.
 - `cct_live_snapshot {computer, op, name}`: `save` copies all of the computer's files (except `/.cctlive`) on the game side; `diff` lists `added`, `removed`, `changed` files and directories since then (`identical` true when nothing changed); `restore` writes back changed and removed files and deletes the added ones, then checks (needs `files_write`); `list` shows saved snapshots. Save before your first change; at the end `diff`, `restore` what you changed, and `diff` again to prove the computer is back. Do not copy the world folder by hand.
+- `cct_live_peripheral {computer, name, method, args}`: calls a getter of one of the computer's peripherals (a side or a wired network name, e.g. `Create_Stressometer_0`) on the game side, without the computer's Lua: it works while a program runs, adds no event and does not disturb the program. Without `method` it lists the peripheral's type and methods. Only methods that read state (`get...`, `is...`, `has...`, `can...`, `list`, `size`, `tanks`, `count...`). Recorded as `peripheral_query`. Use it to check readings while the program under test is running instead of stopping it for `cct_live_lua`.
 - `cct_live_body {computer, body, offset, length}`: the full body of an HTTP response read with `readAll` while attached (the `handle` record has `body: N`); trace data is cut to 200 characters.
-- `cct_live_files {computer, op, path, ...}`: the computer's own files without running anything on it: `list`, `stat`, `read` (up to 1 MB per call), and `write` (`text`, `append`) only when the player allowed it (`files_write`). A write is recorded as `file_write`. For diagnostics prefer `cct_live_lua`.
-- `cct_live_trace {computer, kind, exclude, after, ticks, contains, summary, offset, limit}`: records of this game session (all attachments; seq keeps counting). Default limit 50; `screen` records are left out unless `kind` names them. Start with `summary: true` (counts and seq ranges per kind). `contains` keeps records whose url, path, program, text or arguments contain the text (case-insensitive), e.g. `contains: "User.lua"` to follow one download through `api`, `handle` and the file write. Kinds:
+- `cct_live_files {computer, op, path, ...}`: the computer's own files without running anything on it, and `/rom` read-only (the ROM this computer runs, e.g. `rom/apis/peripheral.lua`, to check how a CC API behaves): `list`, `stat`, `read` (up to 1 MB per call), and `write` (`text`, `append`) only when the player allowed it (`files_write`). A write is recorded as `file_write`. For diagnostics prefer `cct_live_lua`.
+- `cct_live_trace {computer, kind, exclude, after, ticks, contains, peripheral, method, summary, offset, limit}`: records of this game session (all attachments; seq keeps counting). Default limit 50; `screen` records are left out unless `kind` names them. Start with `summary: true` (counts and seq ranges per kind). `contains` keeps records whose url, path, program, text, event name, peripheral, method or arguments contain the text (case-insensitive), e.g. `contains: "User.lua"` to follow one download through `api`, `handle` and the file write. `peripheral` and `method` keep the calls and returns of one peripheral or method (exact names). The trace keeps the newest records within the player's size limit: when older ones were dropped, results carry `first_seq` (the oldest left) and a `trace_rotated` record marks each drop. Kinds:
   - `printed_error`: text printed with `printError` and the running `program`; this is how the shell reports a program crash (e.g. `/startup.lua:911: module 'icons.User' not found ...`). Look here first. Under multishell (`bg`, `fg`) `program` can be the tab's launcher (e.g. `rom/programs/advanced/bg.lua`): trust the file name in the error text. `vm_error` only covers VM-level failures such as "Too long without yielding";
   - `api`: `http.request/checkURL/websocket` and `fs.open/delete/move/copy/makeDir` with args and result (`http.get` shows up as `http.request`);
   - `handle`: each call on an open file, HTTP response or websocket (`readAll`, `write`, ...) with `path` or `url`, the data cut to 200 characters, `bytes` = the full length, and for HTTP `readAll` a `body` number (read it with `cct_live_body`);
-  - `event`, `peripheral_call`/`peripheral_return`, `screen` (`source` term or a monitor side), `monitor`, `redstone_output`, `power`, `label`, `moved`, `file_write`, `file_delete`, `snapshot`, `vm_start`, `vm_close`, `attach`, `detach` (reason detach, revoked = a player took control back, expired, removed, closed), `truncated`. Files under /rom are not recorded.
+  - `peripheral_call`/`peripheral_return`: a peripheral on a wired network is recorded under its network name and method, with `via` = the modem's side (the program called `callRemote` on the modem);
+  - `event` (see section 4: `args` start after the event name, and events that arrive during a peripheral call are dropped by CC), `screen` (`source` term or a monitor side), `monitor`, `redstone_output`, `power`, `label`, `moved`, `file_write`, `file_delete`, `snapshot`, `peripheral_query` (your `cct_live_peripheral` calls), `vm_start`, `vm_close`, `attach`, `detach` (reason detach, revoked = a player took control back, expired, removed, closed), `trace_rotated`. Files under /rom are not recorded.
 - `cct_live_event {computer, name, args}`: any event (key codes are GLFW: enter 257). `terminate` is the same as the player holding Ctrl+T: a program that catches it may clean up, one that does not ends with "Terminated", and code after its event loop runs (which can expose unguarded paths). `cct_live_power {computer, action}`: on, shutdown, reboot.
 - Every record has both `seq` (order in the trace) and `tick` (server time). `after` filters by seq, `ticks` by tick; `cct_live_status` and `cct_live_wait` return both the current `tick` and `last_seq`, so note both before an action.
 
@@ -197,7 +226,7 @@ Workflow:
 
 1. `cct_live_computers`, then `cct_live_attach` (note `last_seq`); if you may change files, `cct_live_snapshot {op: "save"}` first.
 2. Act (`cct_live_type`, `cct_live_click`), then `cct_live_wait` for the expected text, an error kind, or `idle_seconds`.
-3. `cct_live_status {after: <last_seq>}` to see what happened; read only the kinds that matter with `cct_live_trace {kind, after}`; check facts on the computer with `cct_live_lua`.
+3. `cct_live_status {after: <last_seq>}` to see what happened; read only the kinds that matter with `cct_live_trace {kind, after}`; check facts on the computer with `cct_live_lua` (shell prompt) or `cct_live_peripheral` (while a program runs).
 4. Explain from the records: e.g. an `api` http.request, then a `handle` readAll whose data starts with `<!DOCTYPE html>`, then a `handle` write of it to `/x.lua`, then a `printed_error` `unexpected symbol near '<'` means the download returned a web page, not Lua. Read the files involved with `cct_live_files`.
 5. If you changed files: `cct_live_snapshot {op: "diff"}`, `restore` what is yours to put back, `diff` again. Then `cct_live_detach`.
 

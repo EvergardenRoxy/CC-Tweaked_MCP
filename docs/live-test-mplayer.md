@@ -4,7 +4,7 @@
 
 ## 准备
 
-1. `mods/` 里放最新的 cct-live jar 和 CC: Tweaked 1.120.2；客户端使用最新的 cct-run 发布包（19 个工具）。
+1. `mods/` 里放最新的 cct-live jar 和 CC: Tweaked 1.120.2；客户端使用最新的 cct-run 发布包（20 个工具）。
 2. MCP 配置里设置环境变量 `CCT_LIVE_DIR`，值为游戏目录（启动器开了版本隔离时是版本文件夹）。
 3. `config/cctlive-common.toml`：`files.allow_write = true`（`cct_live_lua` 需要），`lease_seconds = 1800`。
 4. 进入世界，准备一台新的**高级**电脑（安装界面要用鼠标操作），开机并记下 ID（在电脑里输入 `id`）；旁边可以接一个显示器（MPlayer 的主界面显示在显示器上）。

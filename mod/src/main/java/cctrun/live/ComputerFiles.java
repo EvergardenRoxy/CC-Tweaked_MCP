@@ -4,7 +4,8 @@ package cctrun.live;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dan200.computercraft.api.filesystem.WritableMount;
+import dan200.computercraft.api.ComputerCraftAPI;
+import dan200.computercraft.api.filesystem.Mount;
 import dan200.computercraft.shared.computer.core.ServerComputer;
 
 import java.io.IOException;
@@ -15,8 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 /**
- * Read-only access to a computer's own files (its save directory, the same files Lua sees under {@code /}, without
- * /rom and disk drives), read on the Java side so nothing runs on the computer.
+ * Access to a computer's own files (its save directory, the same files Lua sees under {@code /}, without disk drives)
+ * and, read-only, to {@code /rom} (CC: Tweaked's ROM with data pack additions, as the computer sees it), read on the
+ * Java side so nothing runs on the computer.
  */
 final class ComputerFiles {
     static final int MAX_READ = 1024 * 1024;
@@ -36,39 +38,64 @@ final class ComputerFiles {
         return String.join("/", out);
     }
 
+    private static boolean isRom(String path) {
+        return path.equals("rom") || path.startsWith("rom/");
+    }
+
+    /** The mount that holds {@code path} and the path inside it: /rom is the ROM, anything else the computer's drive. */
+    private record Resolved(Mount mount, String inner) {
+    }
+
+    private static Resolved resolve(ServerComputer computer, String path) {
+        if (!isRom(path)) return new Resolved(computer.createRootMount(), path);
+        var rom = ComputerCraftAPI.createResourceMount(computer.getLevel().getServer(), "computercraft", "lua/rom");
+        if (rom == null) throw new IllegalArgumentException("/rom is not available");
+        return new Resolved(rom, path.equals("rom") ? "" : path.substring(4));
+    }
+
     static JsonObject list(ServerComputer computer, String rawPath) throws IOException {
         var path = sanitise(rawPath);
-        var mount = computer.createRootMount();
-        if (!mount.exists(path)) throw new IllegalArgumentException("/" + path + ": no such file or directory");
-        if (!mount.isDirectory(path)) throw new IllegalArgumentException("/" + path + ": not a directory");
+        var r = resolve(computer, path);
+        var mount = r.mount();
+        if (!mount.exists(r.inner())) throw new IllegalArgumentException("/" + path + ": no such file or directory");
+        if (!mount.isDirectory(r.inner())) throw new IllegalArgumentException("/" + path + ": not a directory");
         var names = new ArrayList<String>();
-        mount.list(path, names);
+        mount.list(r.inner(), names);
+        // As fs.list("/") in Lua: the ROM is mounted at /rom.
+        if (path.isEmpty() && !names.contains("rom")) names.add("rom");
         names.sort(String::compareTo);
         var entries = new JsonArray();
         for (var name : names) {
-            var child = path.isEmpty() ? name : path + "/" + name;
             var entry = new JsonObject();
             entry.addProperty("name", name);
+            if (path.isEmpty() && name.equals("rom")) {
+                entry.addProperty("dir", true);
+                entry.addProperty("read_only", true);
+                entries.add(entry);
+                continue;
+            }
+            var child = r.inner().isEmpty() ? name : r.inner() + "/" + name;
             var dir = mount.isDirectory(child);
             entry.addProperty("dir", dir);
             if (!dir) entry.addProperty("size", mount.getSize(child));
             entries.add(entry);
         }
-        var out = base(computer, mount, path);
+        var out = base(computer, path);
         out.add("entries", entries);
         return out;
     }
 
     static JsonObject stat(ServerComputer computer, String rawPath) throws IOException {
         var path = sanitise(rawPath);
-        var mount = computer.createRootMount();
-        var out = base(computer, mount, path);
-        var exists = mount.exists(path);
+        var r = resolve(computer, path);
+        var out = base(computer, path);
+        var exists = r.mount().exists(r.inner());
         out.addProperty("exists", exists);
         if (exists) {
-            var dir = mount.isDirectory(path);
+            var dir = r.mount().isDirectory(r.inner());
             out.addProperty("dir", dir);
-            if (!dir) out.addProperty("size", mount.getSize(path));
+            if (!dir) out.addProperty("size", r.mount().getSize(r.inner()));
+            if (isRom(path)) out.addProperty("read_only", true);
         }
         return out;
     }
@@ -76,12 +103,13 @@ final class ComputerFiles {
     /** Text if the bytes are valid UTF-8, else ISO-8859-1 (CC's own byte-per-character view). */
     static JsonObject read(ServerComputer computer, String rawPath, long offset, int length) throws IOException {
         var path = sanitise(rawPath);
-        var mount = computer.createRootMount();
-        if (!mount.exists(path)) throw new IllegalArgumentException("/" + path + ": no such file");
-        if (mount.isDirectory(path)) throw new IllegalArgumentException("/" + path + ": is a directory");
-        var size = mount.getSize(path);
+        var r = resolve(computer, path);
+        var mount = r.mount();
+        if (!mount.exists(r.inner())) throw new IllegalArgumentException("/" + path + ": no such file");
+        if (mount.isDirectory(r.inner())) throw new IllegalArgumentException("/" + path + ": is a directory");
+        var size = mount.getSize(r.inner());
         var buffer = ByteBuffer.allocate((int) Math.max(0, Math.min(length, size - Math.min(offset, size))));
-        try (var channel = mount.openForRead(path)) {
+        try (var channel = mount.openForRead(r.inner())) {
             channel.position(offset);
             while (buffer.hasRemaining() && channel.read(buffer) > 0) {
                 // keep reading
@@ -91,7 +119,7 @@ final class ComputerFiles {
         var bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
 
-        var out = base(computer, mount, path);
+        var out = base(computer, path);
         out.addProperty("size", size);
         out.addProperty("offset", offset);
         out.addProperty("length", bytes.length);
@@ -121,7 +149,7 @@ final class ComputerFiles {
         var mount = computer.createRootMount();
         var existed = mount.exists(path);
         if (existed) mount.delete(path);
-        var out = base(computer, mount, path);
+        var out = base(computer, path);
         out.addProperty("deleted", existed);
         return out;
     }
@@ -158,14 +186,15 @@ final class ComputerFiles {
             var buffer = ByteBuffer.wrap(bytes);
             while (buffer.hasRemaining()) channel.write(buffer);
         }
-        var out = base(computer, mount, path);
+        var out = base(computer, path);
         out.addProperty("written", bytes.length);
         out.addProperty("size", mount.getSize(path));
         out.addProperty("append", append);
         return out;
     }
 
-    private static JsonObject base(ServerComputer computer, WritableMount mount, String path) throws IOException {
+    private static JsonObject base(ServerComputer computer, String path) throws IOException {
+        var mount = computer.createRootMount();
         var out = new JsonObject();
         out.addProperty("id", computer.getID());
         out.addProperty("path", "/" + path);

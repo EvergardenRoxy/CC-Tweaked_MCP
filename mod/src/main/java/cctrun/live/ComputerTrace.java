@@ -19,14 +19,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@code tick} counts server ticks since the session started.
  * <p>
  * Written from computer threads (events, peripheral calls) and the server thread (polling), so writes are
- * synchronised. Stops at the configured size with one {@code truncated} record.
+ * synchronised. Keeps the newest records within the configured size: the file is split into two segments of half
+ * that size; when the current one is full it becomes {@code <name>.old.jsonl} (replacing the older one) and a new
+ * current file starts with a {@code trace_rotated} record. Readers go through {@link #segments()}.
  */
 final class ComputerTrace {
     static final String SCHEMA = "cct-live/trace@0";
     static final Gson GSON = new GsonBuilder().disableHtmlEscaping().serializeNulls().create();
 
     private final Path file;
-    private final BufferedWriter out;
+    private final Path oldFile;
+    private BufferedWriter out;
     private final LiveSession session;
     private final long maxBytes;
     private final AtomicLong callIds = new AtomicLong();
@@ -37,13 +40,19 @@ final class ComputerTrace {
     private final java.util.Map<String, JsonObject> latest = new java.util.HashMap<>();
     private static final java.util.Set<String> KEEP_LATEST = java.util.Set.of("printed_error", "vm_error", "detach", "attach");
     private long bytes;
-    private boolean truncated;
+    private int rotations;
+    /** First seq still on disk (in the old segment if there is one). */
+    private long firstSeq = 1;
+    private long currentFirstSeq = 1;
     private boolean closed;
 
     ComputerTrace(LiveSession session, Path file, long maxBytes) throws IOException {
         this.session = session;
         this.file = file;
         this.maxBytes = maxBytes;
+        var name = file.getFileName().toString().replaceFirst("\\.jsonl$", "");
+        this.oldFile = file.resolveSibling(name + ".old.jsonl");
+        Files.deleteIfExists(oldFile);
         this.out = Files.newBufferedWriter(file, StandardCharsets.UTF_8);
         var header = new JsonObject();
         header.addProperty("schema", SCHEMA);
@@ -52,6 +61,35 @@ final class ComputerTrace {
 
     Path file() {
         return file;
+    }
+
+    /** The trace files to read, oldest first: the old segment (if the trace was rotated) and the current one. */
+    synchronized java.util.List<Path> segments() {
+        return rotations > 0 && Files.exists(oldFile) ? java.util.List.of(oldFile, file) : java.util.List.of(file);
+    }
+
+    /** All records on disk, oldest first; the caller closes the stream. */
+    java.util.stream.Stream<String> lines() throws IOException {
+        flush();
+        java.util.stream.Stream<String> all = java.util.stream.Stream.empty();
+        for (var segment : segments()) {
+            java.util.stream.Stream<String> next;
+            try {
+                next = Files.lines(segment, StandardCharsets.UTF_8);
+            } catch (java.nio.file.NoSuchFileException e) {
+                continue; // rotated away between segments() and here
+            }
+            all = java.util.stream.Stream.concat(all, next);
+        }
+        return all;
+    }
+
+    synchronized int rotations() {
+        return rotations;
+    }
+
+    synchronized long firstSeq() {
+        return firstSeq;
     }
 
     long nextCallId() {
@@ -64,7 +102,20 @@ final class ComputerTrace {
 
     /** Write a record observed earlier (buffered until the computer was identified). */
     synchronized void recordAt(long tick, double ms, String kind, JsonObject data) {
-        if (closed || truncated) return;
+        if (closed) return;
+        try {
+            // Rough size of the record (seq, tick and ms add a few dozen characters): rotate before it is numbered.
+            var estimate = GSON.toJson(data).length() + kind.length() + 64;
+            if (bytes > 0 && bytes + estimate > maxBytes / 2) rotate(tick, ms);
+            write(line(tick, ms, kind, data));
+        } catch (IOException e) {
+            CctLive.LOG.warn("Could not write {}; tracing for this computer stops", file, e);
+            closed = true;
+        }
+    }
+
+    /** A numbered record; seq comes first (LiveHttp finds records by their "{\"seq\":N," prefix). */
+    private JsonObject line(long tick, double ms, String kind, JsonObject data) {
         var line = new JsonObject();
         line.addProperty("seq", ++seq);
         line.addProperty("tick", tick);
@@ -73,29 +124,33 @@ final class ComputerTrace {
         for (var entry : data.entrySet()) line.add(entry.getKey(), entry.getValue());
         kinds.add(kind.intern());
         if (KEEP_LATEST.contains(kind)) latest.put(kind, line);
+        return line;
+    }
+
+    private void write(JsonObject line) throws IOException {
         var text = GSON.toJson(line);
-        try {
-            if (bytes + text.length() + 1 > maxBytes) {
-                truncated = true;
-                var cut = new JsonObject();
-                cut.addProperty("seq", ++seq);
-                kinds.add("truncated");
-                cut.addProperty("tick", tick);
-                cut.addProperty("ms", ms);
-                cut.addProperty("kind", "truncated");
-                cut.addProperty("max_bytes", maxBytes);
-                out.write(GSON.toJson(cut));
-                out.write('\n');
-                out.flush();
-                return;
-            }
-            out.write(text);
-            out.write('\n');
-            bytes += text.length() + 1;
-        } catch (IOException e) {
-            CctLive.LOG.warn("Could not write {}; tracing for this computer stops", file, e);
-            closed = true;
-        }
+        out.write(text);
+        out.write('\n');
+        bytes += text.length() + 1;
+    }
+
+    /**
+     * The current segment is full: it becomes the old one (the previous old one is dropped), and a new current file
+     * starts with a trace_rotated record.
+     */
+    private void rotate(long tick, double ms) throws IOException {
+        out.close();
+        Files.move(file, oldFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        out = Files.newBufferedWriter(file, StandardCharsets.UTF_8);
+        bytes = 0;
+        rotations++;
+        firstSeq = currentFirstSeq;
+        currentFirstSeq = seq + 1;
+        var data = new JsonObject();
+        data.addProperty("rotations", rotations);
+        data.addProperty("first_seq", firstSeq);
+        data.addProperty("max_bytes", maxBytes);
+        write(line(tick, ms, "trace_rotated", data));
     }
 
     static final int MAX_BODY = 4 * 1024 * 1024;

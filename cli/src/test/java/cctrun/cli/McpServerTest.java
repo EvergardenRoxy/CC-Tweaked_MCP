@@ -18,6 +18,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class McpServerTest {
     @TempDir
@@ -76,7 +77,7 @@ class McpServerTest {
         assertEquals(McpServer.PROTOCOL_VERSIONS.get(0), r.get("\"s\"").getAsJsonObject("result").get("protocolVersion").getAsString());
 
         var tools = r.get("2").getAsJsonObject("result").getAsJsonArray("tools");
-        assertEquals(19, tools.size());
+        assertEquals(20, tools.size());
         for (var tool : tools) assertEquals("object", tool.getAsJsonObject().getAsJsonObject("inputSchema").get("type").getAsString());
 
         assertTrue(r.get("3").has("result"));
@@ -137,7 +138,8 @@ class McpServerTest {
             call(3, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":\"program_end\",\"limit\":1}"),
             call(4, "cct_trace", "{\"kind\":[\"modem_transmit\"]}"),
             call(5, "cct_screen", "{\"source\":\"monitor_9\"}"),
-            call(6, "cct_trace", "{\"run\":\"" + dir.toString().replace("\\", "\\\\") + "\"}"));
+            call(6, "cct_trace", "{\"run\":\"" + dir.toString().replace("\\", "\\\\") + "\"}"),
+            call(7, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"contains\":\"INDEX LOCAL\"}"));
         assertFalse(isError(q.get("1")));
         assertTrue(text(q.get("1")).contains("\"kind\":\"program_end\""));
         assertTrue(text(q.get("2")).contains("\"lines\""));
@@ -147,6 +149,22 @@ class McpServerTest {
         assertTrue(isError(q.get("5")));
         assertTrue(isError(q.get("6")));
         assertTrue(text(q.get("6")).contains("not a run directory"));
+        assertFalse(isError(q.get("7")));
+        assertTrue(text(q.get("7")).contains("attempt to index local"), text(q.get("7")));
+    }
+
+    /** Field test (computer 7): on Chinese Windows a fixture error under D:\\...\\测试 became "internal error: MalformedInputException". */
+    @Test
+    void fixtureErrorUnderNonAsciiPath() throws Exception {
+        var name = "\u6d4b\u8bd5";
+        assumeTrue(java.nio.charset.Charset.forName(System.getProperty("sun.jnu.encoding")).newEncoder().canEncode(name), "needs a UTF-8 locale (L20)");
+        var folder = Files.createDirectories(dir.resolve(name));
+        var fixture = Files.writeString(folder.resolve("f.json"), "{\"peripherals\":{\"Create_Stressometer_0\":{\"type\":\"inventory\"}}}");
+        var r = session(call(1, "cct_run", "{\"code\":\"print(1)\",\"fixture_file\":" + JsonParser.parseString("\"" + fixture.toString().replace("\\", "\\\\") + "\"") + "}"));
+        assertTrue(isError(r.get("1")));
+        assertTrue(text(r.get("1")).contains("exit code 65"), text(r.get("1")));
+        assertTrue(text(r.get("1")).contains("$.peripherals.Create_Stressometer_0: not a side"), text(r.get("1")));
+        assertTrue(McpServer.childCommand(java.util.List.of("run")).contains("-D" + Main.STDERR_ENCODING + "=UTF-8"));
     }
 
     @Test
