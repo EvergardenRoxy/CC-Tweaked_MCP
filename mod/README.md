@@ -209,4 +209,4 @@ Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
 - 没有 `output` 记录：滚出屏幕的行看不到。
 - 只支持直接贴在电脑上的显示器，不支持通过有线网络连接的显示器；海龟的背包和燃料还没有接口。
 - 海龟、口袋电脑和命令电脑都还没有测试过。
-- 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，只测过接管功能加入之前的版本）。
+- 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，做过三轮 AI 实测；`cct_live_lua`、`cct_live_body` 和 `labels` 还没有经过实测）。
