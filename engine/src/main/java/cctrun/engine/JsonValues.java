@@ -41,7 +41,7 @@ public final class JsonValues {
             if (Double.isNaN(d) || Double.isInfinite(d)) return new JsonPrimitive(Double.toString(d));
             return new JsonPrimitive(d);
         }
-        if (value instanceof String s) return new JsonPrimitive(truncate(s));
+        if (value instanceof String s) return new JsonPrimitive(truncate(asLua(s)));
         if (value instanceof ByteBuffer b) {
             var copy = b.duplicate();
             var bytes = new byte[copy.remaining()];
@@ -80,7 +80,23 @@ public final class JsonValues {
 
     private static String keyOf(Object key) {
         if (key instanceof Number n && n.doubleValue() == Math.rint(n.doubleValue())) return Long.toString(n.longValue());
-        return String.valueOf(key);
+        return key instanceof String s ? asLua(s) : String.valueOf(key);
+    }
+
+    /**
+     * A Java string as Lua receives it: Lua strings are bytes, and CC: Tweaked (Cobalt) turns every character above
+     * U+00FF into '?'. So Chinese text from a peripheral or event (e.g. the chat box's message) is recorded as the
+     * program sees it, not as the Java side had it.
+     */
+    static String asLua(String s) {
+        for (var i = 0; i < s.length(); i++) {
+            if (s.charAt(i) > 0xFF) {
+                var out = s.toCharArray();
+                for (var j = i; j < out.length; j++) if (out[j] > 0xFF) out[j] = '?';
+                return new String(out);
+            }
+        }
+        return s;
     }
 
     static String truncate(String s) {

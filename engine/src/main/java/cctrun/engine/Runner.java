@@ -89,7 +89,7 @@ public final class Runner {
             addFile(mount, storedName, spec.programSource());
             addFile(mount, "startup.lua", harness(storedName, spec.args()));
 
-            var env = new RunnerEnvironment(mount);
+            var env = new RunnerEnvironment(new RootMount(mount));
             var terminal = TracingTerminal.create(size[0], size[1], advanced, "term", trace);
             var mainThread = new MainThread(MainThreadConfig.DEFAULT);
             var machines = new RecordingMachine.Holder();

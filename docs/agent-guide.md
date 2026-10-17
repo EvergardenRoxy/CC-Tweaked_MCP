@@ -2,7 +2,7 @@
 
 For AI agents. `cct-run guide` and the MCP tool `cct_guide` return this text.
 
-cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s. It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
+cct-run runs a CC: Tweaked Lua program on a headless computer: CC: Tweaked 1.120.2, Minecraft 1.20.1, real time at 20 ticks/s (source of this version: github.com/cc-tweaked/CC-Tweaked tag `v1.20.1-1.120.2`; raw files at `https://raw.githubusercontent.com/cc-tweaked/CC-Tweaked/v1.20.1-1.120.2/<path>`, e.g. `projects/core/src/main/resources/data/computercraft/lua/rom/apis/peripheral.lua`). It returns a JSON summary and keeps a full trace of the run, all recorded outside Lua. Use it to check a program before handing it to the user, and to debug it from evidence instead of guessing.
 
 Sections: 1-6 cover the simulation (`run`, `trace`, `screen`); 7 covers real computers in a running game (MCP `cct_live_*` tools). Through MCP, `cct_guide` with `section: N` returns one section.
 
@@ -87,7 +87,9 @@ Kinds and their pitfalls:
 
 - `event {name, args}`: every event delivered to the Lua VM, including `timer`, `task_complete` and `redstone`.
   - `args` are the values after the event name: in `local ev = {os.pullEvent()}`, `ev[1]` is the name and `args[1]` is `ev[2]`. Count from the Lua side before changing an index.
-  - An event delivered while the program was inside `sleep()`, a filtered `os.pullEvent(x)`, or a `main_thread` peripheral method (it waits for `task_complete`) was received and thrown away, although the trace lists it. This is a classic CC bug: a timer that fires while the program is in a slow peripheral call is lost, and a loop that only re-arms its timer when the timer arrives stops for good. Compare event ticks with the program's peripheral calls; arm the timer right before waiting and compare deadlines with `os.epoch("utc")`.
+  - An event delivered while the program was inside `sleep()`, a filtered `os.pullEvent(x)`, or a `main_thread` peripheral method (it waits for `task_complete`) was received and thrown away, although the trace lists it. This is a classic CC bug: a timer that fires while the program is in a slow peripheral call is lost, and a loop that only re-arms its timer when the timer arrives stops for good. Compare event ticks with the program's peripheral calls. The fix is `parallel`: put the peripheral polling and the event handling (chat, touches, timers) in separate functions under `parallel.waitForAny`/`waitForAll`. Each coroutine keeps its own filter, so the listener gets every event while the poller waits (measured here: 20 of 20 chat events with `parallel`, 1 of 20 in a single loop). Compare deadlines with `os.epoch("utc")`.
+  - Strings in `args` (and in peripheral results) are recorded as Lua receives them: Lua strings are bytes, and a character above U+00FF in a Java string arrives as `?`. Chinese text from a peripheral therefore reaches the program as `??` (the Advanced Peripherals chat box sends a separate `messageUtf8` with the real bytes). To inject UTF-8 text in a fixture event, write each byte as an escape up to U+00FF (`"\u00e5\u00b7\u00a5"` is the UTF-8 of U+5DE5).
+  - A peripheral that the computer reaches twice (directly on a side and again over a wired modem) is attached twice; one that sends events (seen with the Advanced Peripherals chat box) then delivers each event twice. Deduplicate, or use only one of the two names.
   - `"harness": true` marks events caused by cct-run itself (its default settings). Ignore those.
   - `setting_changed` args are `(name, new value, old value)`.
 - `peripheral_call` / `peripheral_return` share an `id`.
