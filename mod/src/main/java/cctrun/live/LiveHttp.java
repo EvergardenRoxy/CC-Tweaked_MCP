@@ -151,6 +151,9 @@ final class LiveHttp {
                 } else if (action.equals("snapshot") && method.equals("POST")) {
                     var body = body(exchange);
                     send(exchange, 200, onServer(() -> snapshot(id, body)));
+                } else if (action.equals("peripheral") && method.equals("POST")) {
+                    var body = body(exchange);
+                    send(exchange, 200, onServer(() -> peripheral(id, body)));
                 } else if (action.equals("detach") && method.equals("POST")) {
                     send(exchange, 200, onServer(() -> detach(id)));
                 } else {
@@ -251,6 +254,30 @@ final class LiveHttp {
         }
     }
 
+    /** A getter of one of the computer's peripherals, called from Java while the computer does anything (PeripheralQuery). */
+    private JsonObject peripheral(int id, JsonObject body) {
+        var computer = controlled(id);
+        if (!body.has("name")) throw new BadRequest(400, "\"name\" (a side or a wired network name) is required");
+        var name = body.get("name").getAsString();
+        var methodName = body.has("method") && !body.get("method").isJsonNull() ? body.get("method").getAsString() : null;
+        var args = body.has("args") && body.get("args").isJsonArray() ? body.getAsJsonArray("args") : new JsonArray();
+        JsonObject out;
+        try {
+            out = PeripheralQuery.call(computer, name, methodName, args);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequest(400, e.getMessage());
+        }
+        if (methodName != null) {
+            var record = out.deepCopy();
+            record.remove("type");
+            record.add("args", args);
+            record.addProperty("by", "ai");
+            session.attachmentOf(computer).trace().record("peripheral_query", record);
+        }
+        out.addProperty("tick", session.tickCount());
+        return out;
+    }
+
     private JsonObject detach(int id) {
         var computer = find(id);
         var out = new JsonObject();
@@ -318,6 +345,8 @@ final class LiveHttp {
         var trace = session.traceOf(id);
         if (trace != null) {
             out.addProperty("last_seq", trace.lastSeq());
+            // Records before first_seq were dropped to keep the trace within its size (trace.max_megabytes_per_computer).
+            if (trace.rotations() > 0) out.addProperty("first_seq", trace.firstSeq());
             var counts = new JsonObject();
             for (var e : trace.countsAfter(after).entrySet()) counts.addProperty(e.getKey(), e.getValue());
             out.add("new_since_after", counts);
@@ -325,18 +354,15 @@ final class LiveHttp {
             if (printed != null) out.add("last_printed_error", printed);
             if (!wanted.isEmpty()) {
                 var seq = trace.firstAfter(after, wanted);
-                if (seq > 0) {
-                    trace.flush();
-                    out.add("match", recordAt(trace.file(), seq));
-                }
+                if (seq > 0) out.add("match", recordAt(trace, seq));
             }
         }
         return out;
     }
 
-    private static JsonObject recordAt(java.nio.file.Path file, long seq) throws IOException {
+    private static JsonObject recordAt(ComputerTrace trace, long seq) throws IOException {
         var prefix = "{\"seq\":" + seq + ",";
-        try (var lines = Files.lines(file, StandardCharsets.UTF_8)) {
+        try (var lines = trace.lines()) {
             for (var it = lines.iterator(); it.hasNext(); ) {
                 var line = it.next();
                 if (line.startsWith(prefix)) return JsonParser.parseString(line).getAsJsonObject();
@@ -357,10 +383,12 @@ final class LiveHttp {
             return session.traceOf(id);
         });
         if (trace == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet: POST /computers/" + id + "/attach starts recording");
-        trace.flush();
         var source = query.getOrDefault("source", "term");
-        var s = Screens.replay(trace.file(), tick, source);
-        if (s == null) throw new BadRequest(404, "no screen recorded for computer " + id + " up to tick " + tick);
+        var s = Screens.replay(trace, tick, source);
+        if (s == null) {
+            var dropped = trace.rotations() > 0 ? "; records before seq " + trace.firstSeq() + " were dropped to keep the trace within trace.max_megabytes_per_computer" : "";
+            throw new BadRequest(404, "no screen recorded for computer " + id + " up to tick " + tick + dropped);
+        }
         var out = new JsonObject();
         out.addProperty("id", id);
         out.addProperty("tick", tick);
@@ -557,12 +585,13 @@ final class LiveHttp {
         if (query.containsKey("exclude")) for (var k : query.get("exclude").split(",")) if (!k.isBlank()) excluded.add(k.trim());
         var summary = flag(query, "summary");
         var contains = query.containsKey("contains") ? query.get("contains").toLowerCase(java.util.Locale.ROOT) : null;
+        var peripheralName = query.get("peripheral");
+        var methodName = query.get("method");
         var byKind = new java.util.TreeMap<String, long[]>();
 
-        computerTrace.flush();
         var records = new JsonArray();
         var matched = 0;
-        try (var lines = Files.lines(file, StandardCharsets.UTF_8)) {
+        try (var lines = computerTrace.lines()) {
             for (var it = lines.iterator(); it.hasNext(); ) {
                 var line = it.next();
                 if (line.isBlank()) continue;
@@ -574,6 +603,8 @@ final class LiveHttp {
                 var tick = record.get("tick").getAsLong();
                 if (tick < fromTick || tick > toTick) continue;
                 if (contains != null && !mentions(record, contains)) continue;
+                if (peripheralName != null && !peripheralName.equals(stringOf(record, "peripheral"))) continue;
+                if (methodName != null && !methodName.equals(stringOf(record, "method"))) continue;
                 if (summary) {
                     // count, first seq, last seq, first tick, last tick
                     var seq = record.get("seq").getAsLong();
@@ -594,6 +625,7 @@ final class LiveHttp {
         out.addProperty("attached", attachment != null);
         out.addProperty("tick", session.tickCount());
         out.addProperty("matched", matched);
+        if (computerTrace.rotations() > 0) out.addProperty("first_seq", computerTrace.firstSeq());
         if (summary) {
             var kindsOut = new JsonObject();
             for (var e : byKind.entrySet()) {
@@ -616,13 +648,18 @@ final class LiveHttp {
 
     // Helpers
 
-    /** True if the record's url, path, program or text (lower case) contains the needle. */
+    /** True if the record's url, path, program, text, event name, peripheral, method or arguments (lower case) contain the needle. */
     private static boolean mentions(JsonObject record, String needle) {
-        for (var key : new String[]{"url", "path", "program", "text"}) {
+        for (var key : new String[]{"url", "path", "program", "text", "name", "peripheral", "method"}) {
             var v = record.get(key);
             if (v != null && v.isJsonPrimitive() && v.getAsString().toLowerCase(java.util.Locale.ROOT).contains(needle)) return true;
         }
         return mentions(record.get("args"), needle);
+    }
+
+    private static String stringOf(JsonObject record, String key) {
+        var v = record.get(key);
+        return v != null && v.isJsonPrimitive() ? v.getAsString() : null;
     }
 
     /** Strings anywhere in call arguments (http.request takes a URL or a table with url = ...). */

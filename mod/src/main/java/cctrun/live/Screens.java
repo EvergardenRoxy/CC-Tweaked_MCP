@@ -7,9 +7,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 
@@ -21,11 +18,11 @@ final class Screens {
     }
 
     /** The terminal as it was at {@code tick}: applies the trace's screen records (rows, fg, bg, size) in order. */
-    static Terminals.Snapshot replay(Path trace, long tick, String source) throws IOException {
+    static Terminals.Snapshot replay(ComputerTrace trace, long tick, String source) throws IOException {
         int width = 0, height = 0, cursorX = 1, cursorY = 1;
         String[] text = new String[0], fg = new String[0], bg = new String[0];
         var seen = false;
-        try (var lines = Files.lines(trace, StandardCharsets.UTF_8)) {
+        try (var lines = trace.lines()) {
             for (var it = lines.iterator(); it.hasNext(); ) {
                 var line = it.next();
                 if (line.isBlank() || !line.contains("\"kind\":\"screen\"")) continue;
@@ -33,6 +30,8 @@ final class Screens {
                 if (!"screen".equals(record.get("kind").getAsString())) continue;
                 if (record.get("tick").getAsLong() > tick) break;
                 if (!source.equals(record.has("source") ? record.get("source").getAsString() : "term")) continue;
+                // After a trace rotation the oldest records left can be row changes without the size they apply to.
+                if (!record.has("size") && !seen) continue;
                 if (record.has("size")) {
                     var size = record.getAsJsonArray("size");
                     width = size.get(0).getAsInt();

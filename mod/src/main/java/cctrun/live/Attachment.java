@@ -33,6 +33,8 @@ final class Attachment {
     private final int[] bundled = new int[SIDES.length];
     /** Last screen per source: "term" and the sides with a monitor. */
     private final java.util.Map<String, Terminals.Snapshot> screens = new java.util.HashMap<>();
+    /** Trace rotations seen: after one, the next screen record of each source is written in full (replay needs it). */
+    private int rotationsSeen;
 
     Attachment(ServerComputer computer, ComputerTrace trace, long leaseMillis) {
         this.computer = computer;
@@ -137,9 +139,11 @@ final class Attachment {
         }
 
         if (screens) {
-            pollScreen("term", Terminals.snapshot(computer));
+            var full = trace.rotations() != rotationsSeen;
+            rotationsSeen = trace.rotations();
+            pollScreen("term", Terminals.snapshot(computer), full);
             var monitors = Terminals.monitors(computer);
-            for (var entry : monitors.entrySet()) pollScreen(entry.getKey(), Terminals.snapshot(entry.getValue()));
+            for (var entry : monitors.entrySet()) pollScreen(entry.getKey(), Terminals.snapshot(entry.getValue()), full);
             for (var it = this.screens.keySet().iterator(); it.hasNext(); ) {
                 var source = it.next();
                 if (source.equals("term") || monitors.containsKey(source)) continue;
@@ -152,7 +156,7 @@ final class Attachment {
         }
     }
 
-    private void pollScreen(String source, Terminals.Snapshot now) {
+    private void pollScreen(String source, Terminals.Snapshot now, boolean full) {
         var before = screens.get(source);
         if (before == null && !source.equals("term")) {
             var data = new JsonObject();
@@ -160,7 +164,7 @@ final class Attachment {
             data.addProperty("present", true);
             trace.record("monitor", data);
         }
-        var resized = before == null || before.width() != now.width() || before.height() != now.height();
+        var resized = full || before == null || before.width() != now.width() || before.height() != now.height();
         var lines = new JsonObject();
         var fg = new JsonObject();
         var bg = new JsonObject();

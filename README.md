@@ -10,7 +10,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 有两种接入方式：
 
-- **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），一共 19 个工具：模拟器 4 个（`cct_run`、`cct_trace`、`cct_screen`、`cct_guide`），实机 15 个（`cct_live_*`，需要 cct-live mod）。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop、DeepSeek Harness 等）配置一次即可使用。
+- **MCP 服务器**（推荐）：`cct-run mcp` 是一个本地 MCP 服务器（stdio），一共 20 个工具：模拟器 4 个（`cct_run`、`cct_trace`、`cct_screen`、`cct_guide`），实机 16 个（`cct_live_*`，需要 cct-live mod）。支持 MCP 的客户端（Claude Code、Codex、Claude Desktop、DeepSeek Harness 等）配置一次即可使用。
 - **命令行**：AI 通过终端直接调用 `cct-run` 命令，适合不支持 MCP 或只有终端工具的客户端。命令行只有模拟器功能。
 
 配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill) 会告诉 AI 什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。

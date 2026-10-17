@@ -13,8 +13,11 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -34,6 +37,8 @@ import java.util.stream.Collectors;
  */
 public final class Main {
     static final int EX_OUT_OF_MEMORY = 4, EX_USAGE = 64, EX_DATAERR = 65, EX_SOFTWARE = 70;
+    /** System property naming the charset for stderr (see main). */
+    static final String STDERR_ENCODING = "cctrun.stderr.encoding";
     private static final Gson PRETTY = new GsonBuilder().disableHtmlEscaping().serializeNulls().setPrettyPrinting().create();
     private static final Gson COMPACT = new GsonBuilder().disableHtmlEscaping().serializeNulls().create();
     private static final Path DEFAULT_OUT = Path.of(".cct-runs");
@@ -70,6 +75,10 @@ public final class Main {
     }
 
     public static void main(String[] argv) {
+        // Set by `cct-run mcp` for its child runs, which reads stderr back: without it, Java writes stderr in the
+        // platform encoding (GBK on Chinese Windows), and a non-ASCII path in an error message could not be decoded.
+        var stderrEncoding = System.getProperty(STDERR_ENCODING);
+        if (stderrEncoding != null) System.setErr(new PrintStream(new FileOutputStream(FileDescriptor.err), true, Charset.forName(stderrEncoding)));
         var stdout = new PrintStream(System.out, true, StandardCharsets.UTF_8);
         int code;
         try {

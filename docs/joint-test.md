@@ -18,7 +18,7 @@
 | cct-run | 最新发布包，MCP 已配置好，并设置了 `CCT_LIVE_DIR`（见 Skill 仓库 INSTALL.md 的“配合 cct-run 使用”一节） |
 | cct-live mod | 最新 jar；`config/cctlive-common.toml` 里设置 `files.allow_write = true`（`cct_live_lua` 需要）、`lease_seconds = 1800` |
 | 游戏 | 进入世界。测试 1 需要一台高级电脑，后面接一个箱子（里面放几种物品），旁边接一个显示器；测试 2 需要一台新的高级电脑 |
-| 确认 | 对 AI 说“列出 cct-run 的工具”，应该能看到 19 个工具（`cct_run`、`cct_guide`、`cct_live_lua`、`cct_live_snapshot` 等） |
+| 确认 | 对 AI 说“列出 cct-run 的工具”，应该能看到 20 个工具（`cct_run`、`cct_guide`、`cct_live_lua`、`cct_live_snapshot` 等） |
 
 每个测试都在**新开的对话**里进行，避免前一个测试的上下文影响结果。
 

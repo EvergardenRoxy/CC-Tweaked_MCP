@@ -151,7 +151,10 @@ class LiveToolsTest {
             "POST /computers/6/event {\"name\":\"paste\",\"args\":[\"b\"]}",
             "GET /computers/7/trace?exclude=screen&limit=50&summary=1",
             "GET /computers/7/status?source=right&after=3",
-            "GET /computers/7/body?n=2&length=10");
+            "GET /computers/7/body?n=2&length=10",
+            // Screen hashes before each input action (cct_live_wait ignores text on the unchanged screen).
+            "GET /computers/1/status", "GET /computers/1/status", "GET /computers/1/status",
+            "GET /computers/3/status", "GET /computers/5/status", "GET /computers/6/status");
         assertEquals(expected.stream().sorted().toList(), requests.stream().sorted().toList());
         var typed = requests.stream().filter(q -> q.startsWith("POST /computers/1/event") && (q.contains("paste") || q.contains("\"key"))).toList();
         assertEquals(List.of(expected.get(4), expected.get(5), expected.get(6)), typed);
@@ -183,19 +186,54 @@ class LiveToolsTest {
         assertEquals("GET /computers/0/status?after=5&kinds=printed_error", requests.get(1));
     }
 
+    /** Field test 4: after a reboot, waiting for ">" matched the old prompt at once and the program never restarted. */
+    @Test
+    void waitIgnoresTextLeftFromBeforeTheAction() throws Exception {
+        // One LiveTools, calls in order (an MCP session runs calls concurrently).
+        var tools = new LiveTools(game(), dir);
+        java.util.function.Function<String, String> call = json -> {
+            try {
+                var a = JsonParser.parseString(json).getAsJsonObject();
+                var name = a.remove("tool").getAsString();
+                return text(tools.call(name, a));
+            } catch (McpTools.ToolError e) {
+                throw new AssertionError(e);
+            }
+        };
+        call.apply("{\"tool\": \"cct_live_type\", \"computer\": 0, \"text\": \"factory\"}");
+        // The fake screen never changes: its text is what was there before the typing.
+        var stale = call.apply("{\"tool\": \"cct_live_wait\", \"computer\": 0, \"text\": \"Ready\", \"timeout\": 1}");
+        assertTrue(stale.contains("\"met\":\"timeout\""), stale);
+        assertTrue(stale.contains("has not changed since your last action"), stale);
+        var accepted = call.apply("{\"tool\": \"cct_live_wait\", \"computer\": 0, \"text\": \"Ready\", \"unchanged\": true, \"timeout\": 1}");
+        assertTrue(accepted.contains("\"met\":\"text\""), accepted);
+        var other = call.apply("{\"tool\": \"cct_live_wait\", \"computer\": 1, \"text\": \"Ready\", \"timeout\": 1}");
+        assertTrue(other.contains("\"met\":\"text\""), "no action on computer 1, so its screen counts: " + other);
+    }
+
     @Test
     void snapshotsAndTraceFilters() throws Exception {
         var r = session(game(),
             "cct_live_snapshot {\"computer\": 2, \"op\": \"save\"}",
             "cct_live_snapshot {\"computer\": 2, \"op\": \"restore\", \"name\": \"clean-1\"}",
             "cct_live_snapshot {\"computer\": 2, \"op\": \"undo\"}",
-            "cct_live_trace {\"computer\": 2, \"kind\": [\"handle\"], \"contains\": \"User.lua\"}");
+            "cct_live_trace {\"computer\": 2, \"kind\": [\"handle\"], \"contains\": \"User.lua\"}",
+            "cct_live_trace {\"computer\": 2, \"peripheral\": \"Create_Stressometer_0\", \"method\": \"getStress\"}",
+            "cct_live_peripheral {\"computer\": 2, \"name\": \"Create_Stressometer_0\", \"method\": \"getStress\"}",
+            "cct_live_peripheral {\"computer\": 2, \"name\": \"left\", \"method\": \"getItemDetail\", \"args\": [1]}",
+            "cct_live_peripheral {\"computer\": 2}");
         assertFalse(r.get("1").get("isError").getAsBoolean());
         assertFalse(r.get("2").get("isError").getAsBoolean());
         assertTrue(r.get("3").get("isError").getAsBoolean());
         assertFalse(r.get("4").get("isError").getAsBoolean());
+        assertFalse(r.get("5").get("isError").getAsBoolean());
+        assertFalse(r.get("6").get("isError").getAsBoolean());
+        assertTrue(r.get("8").get("isError").getAsBoolean());
         assertEquals(List.of(
+                "GET /computers/2/trace?exclude=screen&limit=50&peripheral=Create_Stressometer_0&method=getStress",
                 "GET /computers/2/trace?kind=handle&limit=50&contains=User.lua",
+                "POST /computers/2/peripheral {\"name\":\"Create_Stressometer_0\",\"method\":\"getStress\"}",
+                "POST /computers/2/peripheral {\"name\":\"left\",\"method\":\"getItemDetail\",\"args\":[1]}",
                 "POST /computers/2/snapshot {\"op\":\"restore\",\"name\":\"clean-1\"}",
                 "POST /computers/2/snapshot {\"op\":\"save\"}"),
             requests.stream().sorted().toList());

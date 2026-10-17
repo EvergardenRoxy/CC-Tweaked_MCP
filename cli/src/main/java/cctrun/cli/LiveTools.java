@@ -35,12 +35,18 @@ final class LiveTools {
     static final String COMPUTERS = "cct_live_computers", STATUS = "cct_live_status", WAIT = "cct_live_wait",
         SCREEN = "cct_live_screen", ATTACH = "cct_live_attach", DETACH = "cct_live_detach", TRACE = "cct_live_trace",
         EVENT = "cct_live_event", TYPE = "cct_live_type", CLICK = "cct_live_click", FILES = "cct_live_files",
-        POWER = "cct_live_power", LUA = "cct_live_lua", BODY = "cct_live_body", SNAPSHOT = "cct_live_snapshot";
-    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY, SNAPSHOT);
+        POWER = "cct_live_power", LUA = "cct_live_lua", BODY = "cct_live_body", SNAPSHOT = "cct_live_snapshot",
+        PERIPHERAL = "cct_live_peripheral";
+    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY, SNAPSHOT, PERIPHERAL);
     static final int DEFAULT_LUA_TIMEOUT = 15;
     private static final java.util.concurrent.atomic.AtomicInteger LUA_RUNS = new java.util.concurrent.atomic.AtomicInteger();
     /** cct_live_lua runs that timed out, by "<computer>/<name>": their output may still arrive and be collected. */
     private final Set<String> pendingLua = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * Screen hash of each source ("<computer>/<source>") just before the last input action (event, type, click,
+     * power): cct_live_wait does not accept 'text' on that unchanged screen, which still shows what was there before.
+     */
+    private final java.util.Map<String, String> beforeAction = new java.util.concurrent.ConcurrentHashMap<>();
     /** GLFW key codes, as CC: Tweaked 1.120.2 on Minecraft 1.20.1 reports them in key events. */
     static final int KEY_ENTER = 257;
     static final int DEFAULT_TRACE_LIMIT = 50;
@@ -73,7 +79,7 @@ final class LiveTools {
           {
             "name": "cct_live_wait",
             "title": "Wait for something on a computer",
-            "description": "Waits on the server side (no polling by you) until the first condition holds, then returns a short result {met: text|kind|idle|timeout, waited_seconds, status, match?}. Conditions (give at least one): text = the screen (of source) contains this text; kind = a record of one of these kinds appears after seq 'after' (e.g. [\\"printed_error\\",\\"http_failure\\",\\"vm_close\\"]), match is that record; idle_seconds = the screen did not change for this long (a GUI finished drawing, a download finished). timeout default 30, max 120 seconds. Use it after every action instead of sleeping and re-reading the screen.",
+            "description": "Waits on the server side (no polling by you) until the first condition holds, then returns a short result {met: text|kind|idle|timeout, waited_seconds, status, match?}. Conditions (give at least one): text = the screen (of source) contains this text, on a screen that changed since your last cct_live_type/click/event/power (so a prompt or banner left from before does not count); kind = a record of one of these kinds appears after seq 'after' (e.g. [\\"printed_error\\",\\"http_failure\\",\\"vm_close\\"]), match is that record; idle_seconds = the screen did not change for this long (a GUI finished drawing, a download finished). timeout default 30, max 120 seconds. Use it after every action instead of sleeping and re-reading the screen.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -82,6 +88,7 @@ final class LiveTools {
                 "kind": { "type": "array", "items": { "type": "string" } },
                 "after": { "type": "integer", "minimum": 0, "description": "For kind: only records after this seq. Default: the last seq when the wait starts." },
                 "idle_seconds": { "type": "number", "minimum": 0.5, "maximum": 60 },
+                "unchanged": { "type": "boolean", "description": "Also accept text on a screen that has not changed since your last cct_live_type/click/event/power (default false)." },
                 "timeout": { "type": "integer", "minimum": 1, "maximum": 120 }
               },
               "required": ["computer"],
@@ -123,7 +130,7 @@ final class LiveTools {
           {
             "name": "cct_live_trace",
             "title": "Trace of a computer in the game",
-            "description": "Records of a computer for this game session (all attachments, seq counts on), oldest first: {tick, matched, records, next_offset?}. Default limit 50; screen records are left out unless kind names 'screen'. summary: true returns only counts and seq/tick ranges per kind (use it first). Kinds: printed_error (how a program crash is reported; check it first), event, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir), handle (reads/writes on files, HTTP responses, websockets; data cut to 200 characters, bytes = full length), peripheral_call/peripheral_return, screen, monitor, redstone_output, power, label, moved, file_write, vm_start/vm_close/vm_error, attach/detach, snapshot, truncated. Files under /rom are not recorded. contains: only records whose url, path, program, text or call arguments contain this text (case-insensitive), e.g. a file name to follow one download.",
+            "description": "Records of a computer for this game session (all attachments, seq counts on), oldest first: {tick, matched, records, next_offset?}. Default limit 50; screen records are left out unless kind names 'screen'. summary: true returns only counts and seq/tick ranges per kind (use it first). Kinds: printed_error (how a program crash is reported; check it first), event, api (http.request/checkURL/websocket, fs.open/delete/move/copy/makeDir), handle (reads/writes on files, HTTP responses, websockets; data cut to 200 characters, bytes = full length), peripheral_call/peripheral_return, screen, monitor, redstone_output, power, label, moved, file_write, vm_start/vm_close/vm_error, attach/detach, snapshot, trace_rotated (older records were dropped to keep the trace within its size; first_seq in the result is the oldest one left). Files under /rom are not recorded. Calls to peripherals on a wired network are recorded under the network name (via = the modem side). peripheral / method: only calls and returns of that peripheral name / method (exact). contains: only records whose url, path, program, text, event name, peripheral, method or call arguments contain this text (case-insensitive), e.g. a file name to follow one download.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -133,6 +140,8 @@ final class LiveTools {
                 "after": { "type": "integer", "minimum": 0, "description": "Only records with seq greater than this." },
                 "ticks": { "type": "string", "description": "N, A-B, A- or -B." },
                 "contains": { "type": "string" },
+                "peripheral": { "type": "string", "description": "Peripheral name or side, e.g. Create_Stressometer_0." },
+                "method": { "type": "string", "description": "Method name, e.g. setTargetSpeed." },
                 "summary": { "type": "boolean" },
                 "offset": { "type": "integer", "minimum": 0 },
                 "limit": { "type": "integer", "minimum": 1, "maximum": 5000 }
@@ -206,6 +215,13 @@ final class LiveTools {
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true }
           },
           {
+            "name": "cct_live_peripheral",
+            "title": "Read a peripheral of a computer, even while a program runs",
+            "description": "Calls a getter of one of an attached computer's peripherals (a side, or a name on a wired network) from the game side, without the computer's Lua: works while a program runs (cct_live_lua needs the shell prompt), adds no event and does not touch the program. Without method: the peripheral's type and methods. Only methods that read state (get..., is..., has..., can..., list, size, tanks, count...). Returns {ok, result | error}; recorded as peripheral_query.",
+            "inputSchema": { "type": "object", "properties": { %1$s, %2$s, "name": { "type": "string", "description": "Side (left, back, ...) or wired network name, e.g. Create_Stressometer_0." }, "method": { "type": "string" }, "args": { "type": "array" } }, "required": ["computer", "name"], "additionalProperties": false },
+            "annotations": { "readOnlyHint": true, "openWorldHint": true }
+          },
+          {
             "name": "cct_live_power",
             "title": "Turn a computer on, off or reboot it",
             "description": "on, shutdown or reboot an attached computer (startup.lua runs again on boot). Only when the user agreed.",
@@ -277,6 +293,7 @@ final class LiveTools {
                 var source = string(a, "source");
                 var endpoint = endpoint(a);
                 var id = computer(a);
+                rememberScreens(endpoint, id);
                 var out = new JsonObject();
                 out.addProperty("clicked", "[" + x + "," + y + "]");
                 String last;
@@ -352,7 +369,7 @@ final class LiveTools {
                 yield result(post(endpoint(a), "computers/" + computer(a) + "/snapshot", body));
             }
             case TRACE -> {
-                allowOnly(a, "game_dir", "computer", "kind", "exclude", "after", "ticks", "contains", "summary", "offset", "limit");
+                allowOnly(a, "game_dir", "computer", "kind", "exclude", "after", "ticks", "contains", "peripheral", "method", "summary", "offset", "limit");
                 var query = new ArrayList<String>();
                 var kinds = kinds(a, "kind");
                 if (!kinds.isEmpty()) query.add("kind=" + encode(String.join(",", kinds)));
@@ -366,6 +383,8 @@ final class LiveTools {
                 query.add("limit=" + (limit == null ? DEFAULT_TRACE_LIMIT : limit));
                 addString(query, a, "ticks");
                 addString(query, a, "contains");
+                addString(query, a, "peripheral");
+                addString(query, a, "method");
                 if (bool(a, "summary", false)) query.add("summary=1");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/trace" + join(query)));
             }
@@ -379,6 +398,7 @@ final class LiveTools {
                     if (!a.get("args").isJsonArray()) throw new McpTools.ToolError("'args' must be an array");
                     body.add("args", a.get("args"));
                 }
+                rememberScreens(endpoint(a), computer(a));
                 yield result(post(endpoint(a), "computers/" + computer(a) + "/event", body));
             }
             case TYPE -> {
@@ -389,6 +409,7 @@ final class LiveTools {
                 var enter = bool(a, "enter", true);
                 var endpoint = endpoint(a);
                 var id = computer(a);
+                rememberScreens(endpoint, id);
                 String last = null;
                 for (var i = 0; i < lines.length; i++) {
                     if (!lines[i].isEmpty()) last = post(endpoint, "computers/" + id + "/event", event("paste", lines[i]));
@@ -403,6 +424,20 @@ final class LiveTools {
                 if (last != null) out.add("queued", JsonParser.parseString(last));
                 yield McpServer.toolResult(Main.ascii(out.toString()), false);
             }
+            case PERIPHERAL -> {
+                allowOnly(a, "game_dir", "computer", "name", "method", "args");
+                var peripheralName = string(a, "name");
+                if (peripheralName == null || peripheralName.isBlank()) throw new McpTools.ToolError("'name' (a side or a wired network name) is required");
+                var body = new JsonObject();
+                body.addProperty("name", peripheralName);
+                var method = string(a, "method");
+                if (method != null) body.addProperty("method", method);
+                if (a.has("args") && !a.get("args").isJsonNull()) {
+                    if (!a.get("args").isJsonArray()) throw new McpTools.ToolError("'args' must be an array");
+                    body.add("args", a.get("args"));
+                }
+                yield result(post(endpoint(a), "computers/" + computer(a) + "/peripheral", body));
+            }
             case POWER -> {
                 allowOnly(a, "game_dir", "computer", "action");
                 var action = string(a, "action");
@@ -411,6 +446,7 @@ final class LiveTools {
                 }
                 var body = new JsonObject();
                 body.addProperty("action", action);
+                rememberScreens(endpoint(a), computer(a));
                 yield result(post(endpoint(a), "computers/" + computer(a) + "/power", body));
             }
             default -> throw new IllegalArgumentException(name);
@@ -419,7 +455,7 @@ final class LiveTools {
 
     /** cct_live_wait: polls the endpoint here (not the agent) until a condition holds or the timeout passes. */
     private JsonObject wait(JsonObject a) throws McpTools.ToolError {
-        allowOnly(a, "game_dir", "computer", "source", "text", "kind", "after", "idle_seconds", "timeout");
+        allowOnly(a, "game_dir", "computer", "source", "text", "kind", "after", "idle_seconds", "timeout", "unchanged");
         var text = string(a, "text");
         var kinds = kinds(a, "kind");
         var idle = number(a, "idle_seconds");
@@ -430,6 +466,10 @@ final class LiveTools {
         var endpoint = endpoint(a);
         var id = computer(a);
         var source = string(a, "source");
+        // Text left on the screen from before the last action (a prompt, the previous boot's banner) must not count.
+        var baseline = bool(a, "unchanged", false) ? null : beforeAction.get(id + "/" + (source == null ? "term" : source));
+        var changed = baseline == null;
+        var textOnOldScreen = false;
 
         Long after = integer(a, "after") == null ? null : (long) integer(a, "after");
         if (after == null && !kinds.isEmpty()) {
@@ -449,9 +489,13 @@ final class LiveTools {
             if (after == null) after = status.has("last_seq") ? status.get("last_seq").getAsLong() : 0L;
 
             var now = System.nanoTime();
+            if (!changed && !baseline.equals(status.get("screen_hash").getAsString())) changed = true;
             String met = null;
             if (status.has("match")) met = "kind";
-            else if (text != null && screenContains(status, text)) met = "text";
+            else if (text != null && screenContains(status, text)) {
+                if (changed) met = "text";
+                else textOnOldScreen = true;
+            }
             else if (idle != null) {
                 var hash = status.get("screen_hash").getAsString();
                 if (!hash.equals(lastHash)) {
@@ -466,6 +510,9 @@ final class LiveTools {
                 out.addProperty("met", met);
                 out.addProperty("waited_seconds", Math.round(waited * 10) / 10.0);
                 if (status.has("match")) out.add("match", status.remove("match"));
+                if (met.equals("timeout") && textOnOldScreen && !changed) {
+                    out.addProperty("note", "the text was on the screen, but the screen has not changed since your last action (cct_live_type/click/event/power), so it is left over from before; pass unchanged: true to accept it");
+                }
                 out.add("status", status);
                 return McpServer.toolResult(Main.ascii(out.toString()), false);
             }
@@ -475,6 +522,23 @@ final class LiveTools {
                 Thread.currentThread().interrupt();
                 throw new McpTools.ToolError("cancelled");
             }
+        }
+    }
+
+    /** Remembers each screen's hash before an input action, for cct_live_wait (best effort: errors are ignored). */
+    private void rememberScreens(Endpoint endpoint, int id) {
+        try {
+            var status = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
+            beforeAction.put(id + "/term", status.get("screen_hash").getAsString());
+            if (status.has("monitors")) {
+                for (var monitor : status.getAsJsonArray("monitors")) {
+                    var side = monitor.getAsString();
+                    var m = JsonParser.parseString(get(endpoint, "computers/" + id + "/status?source=" + encode(side))).getAsJsonObject();
+                    beforeAction.put(id + "/" + side, m.get("screen_hash").getAsString());
+                }
+            }
+        } catch (McpTools.ToolError | RuntimeException e) {
+            beforeAction.keySet().removeIf(k -> k.startsWith(id + "/"));
         }
     }
 

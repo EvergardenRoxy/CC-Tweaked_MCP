@@ -196,12 +196,23 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
             var id = recorder.nextCallId();
             var peripheral = args.count() > 0 ? String.valueOf(args.get(0)) : null;
             var method = args.count() > 1 ? String.valueOf(args.get(1)) : null;
+            var skip = 2;
+            String via = null;
+            // A peripheral on a wired network is called as <modem side>.callRemote(name, method, ...): record the
+            // peripheral and method actually called (as cct-run does), with the modem side as "via".
+            if ("callRemote".equals(method) && args.count() > 3 && args.get(2) instanceof String name && args.get(3) instanceof String remoteMethod) {
+                via = peripheral;
+                peripheral = name;
+                method = remoteMethod;
+                skip = 4;
+            }
 
             var call = new JsonObject();
             call.addProperty("id", id);
             call.addProperty("peripheral", peripheral);
             call.addProperty("method", method);
-            call.add("args", JsonValues.array(args.count() > 2 ? args.drop(2).getAll() : new Object[0], recorder.handles()));
+            if (via != null) call.addProperty("via", via);
+            call.add("args", JsonValues.array(args.count() > skip ? args.drop(skip).getAll() : new Object[0], recorder.handles()));
             recorder.record("peripheral_call", call);
 
             MethodResult result;

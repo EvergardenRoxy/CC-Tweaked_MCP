@@ -250,8 +250,9 @@ final class McpServer {
                 }
                 if (call.cancelled) return toolResult("cancelled", true);
                 var code = process.exitValue();
-                var stdout = Files.readString(stdoutFile, StandardCharsets.UTF_8).strip();
-                var stderr = request.hideTempPaths(Files.readString(stderrFile, StandardCharsets.UTF_8).strip());
+                // new String(...) replaces undecodable bytes instead of throwing (stderr may come from the JVM itself).
+                var stdout = new String(Files.readAllBytes(stdoutFile), StandardCharsets.UTF_8).strip();
+                var stderr = request.hideTempPaths(new String(Files.readAllBytes(stderrFile), StandardCharsets.UTF_8).strip());
                 if (code >= 0 && code <= Main.EX_OUT_OF_MEMORY && !stdout.isEmpty()) return toolResult(stdout, false);
                 return toolResult("cct-run run failed with exit code " + code + " (" + exitMeaning(code) + ").\n" + stderr, true);
             } finally {
@@ -282,6 +283,7 @@ final class McpServer {
             if (arg.startsWith("-agentlib") || arg.startsWith("-agentpath") || arg.startsWith("-javaagent") || arg.startsWith("-Xrunjdwp")) continue;
             command.add(arg);
         }
+        command.add("-D" + Main.STDERR_ENCODING + "=UTF-8"); // read back as UTF-8 in run()
         command.add("-cp");
         command.add(System.getProperty("java.class.path"));
         command.add(Main.class.getName());
