@@ -35,15 +35,19 @@ PERF_ROWS = [
 ]
 PERF_NOISE = 5  # run-to-run spread of the no-mod baseline, %
 
-# Joint test 3, two runs of the same task.
-RUNS = ["第 1 次：开源 DeepSeek（算力中心部署）", "第 2 次：deepseek-v4.1-flash（官方 API）"]
+# Joint test 3 (two runs of the factory task) and joint test 4 (order line), see docs/*-report.md.
+RUNS = [
+    "联合测试 3 第 1 次：开源 DeepSeek（算力中心部署），cct-run 0.1.0",
+    "联合测试 3 第 2 次：deepseek-v4.1-flash（官方 API），cct-run 0.1.0",
+    "联合测试 4：deepseek-v4.1-flash（官方 API），cct-run 0.2.0 + Skill 1.2.0",
+]
 METRICS = [
-    ("会话时长（分钟）", [117, 60], "{:.0f}"),
-    ("工具调用（次）", [576, 268], "{:.0f}"),
-    ("总 token（百万）", [92.9, 70.6], "{:.1f}"),
-    ("输出 token（万）", [75.1, 24.5], "{:.1f}"),
-    ("上下文压缩（次）", [46, 0], "{:.0f}"),
-    ("请玩家配合（次）", [0, 17], "{:.0f}"),
+    ("任务时长（分钟）", [117, 60, 38], "{:.0f}"),
+    ("工具调用（次）", [576, 268, 187], "{:.0f}"),
+    ("总 token（百万）", [92.9, 70.6, 43.8], "{:.1f}"),
+    ("输出 token（万）", [75.1, 24.5, 19.9], "{:.1f}"),
+    ("上下文压缩（次）", [46, 0, 0], "{:.0f}"),
+    ("请玩家配合（次）", [0, 17, 5], "{:.0f}"),
 ]
 
 
@@ -130,13 +134,14 @@ def perf_chart(t):
 def runs_chart(t):
     W = 760
     cols, rows = 3, 2
-    pw, ph = 226, 92
-    left, top = 24, 104
-    H = top + rows * ph + 32
-    title = "联合测试 3：同一个任务，两个模型"
+    pw, ph = 226, 104
+    left, top = 24, 84 + 20 * len(RUNS) + 4
+    H = top + rows * ph + 36
+    title = "AI 实测：联合测试 3 与 4"
     body = [text(24, 34, title, t["ink"], 17, weight="600"),
-            text(24, 56, "用 Create 和 Advanced Peripherals 外设写一个工厂控制程序，先在模拟器里测，再到游戏里验收", t["ink2"], 12)]
-    body += legend(24, 84, RUNS, t)
+            text(24, 56, "用 Create 和 Advanced Peripherals 外设写工厂控制程序，先在模拟器里测，再到游戏里验收", t["ink2"], 12)]
+    for i, name in enumerate(RUNS):                  # one legend row per run: the names are long
+        body += legend(24, 84 + 20 * i, [name], {**t, "series": t["series"][i:]})
     bh, gap = 14, 2
     for k, (name, values, fmt) in enumerate(METRICS):
         px = left + (k % cols) * (pw + 16)
@@ -151,7 +156,8 @@ def runs_chart(t):
             body.append(bar(base, x1, y, bh, t["series"][i], t["surface"]))
             body.append(text(x1 + 6, y + bh - 3, fmt.format(v), t["ink2"], 11))
         body.append(f'<line x1="{base:.1f}" y1="{py + 22}" x2="{base:.1f}" y2="{py + 26 + 2 * bh + gap + 4}" stroke="{t["axis"]}" stroke-width="1.5"/>')
-    body.append(text(24, H - 16, "数据来自 dsh 会话记录和客户端统计；每个小图各用自己的刻度。详见 docs/joint-test-factory-report.md。", t["muted"], 11))
+    body.append(text(24, H - 30, "两次测试的任务不同（工厂看板 / 订单产线），只能粗略比较。联合测试 4 的时长只算任务部分，token 是整个会话。", t["muted"], 11))
+    body.append(text(24, H - 14, "数据来自会话记录和客户端统计；每个小图各用自己的刻度。详见 docs/joint-test-factory-report.md、docs/joint-test-orders-report.md。", t["muted"], 11))
     return svg(W, H, body, t, title)
 
 
