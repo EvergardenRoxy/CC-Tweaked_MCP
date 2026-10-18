@@ -1,6 +1,6 @@
 # cct-run：给 AI 用的 CC: Tweaked 测试环境
 
-[![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg?style=for-the-badge)](LICENSE) [![AI Assisted](https://img.shields.io/badge/AI-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](#ai-制作声明)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg?style=for-the-badge)](LICENSE) [![build](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml/badge.svg?branch=multi-version-build)](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml) [![AI Assisted](https://img.shields.io/badge/AI-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](#ai-制作声明)
 
 > **AI 制作声明：cct-run 采用生成式 AI 参与代码编写、测试与文档撰写。** AI 生成或修改的内容由项目维护者审阅、验证并承担最终维护责任。详见[文末](#ai-制作声明)。
 
