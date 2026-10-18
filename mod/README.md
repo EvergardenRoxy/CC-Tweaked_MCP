@@ -227,4 +227,4 @@ Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
 - 只支持直接贴在电脑上的显示器，不支持通过有线网络连接的显示器；海龟的背包和燃料还没有接口。
 - 海龟、口袋电脑和命令电脑都还没有测试过。
 - 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，做过五轮 AI 实测；`cct_live_peripheral`、trace 的 `peripheral` / `method` 和轮换、`cct_live_wait` 对旧画面的处理只在开发服务器上验证过，还没有经过 AI 实测）。
-- 1.20.1/Forge 和 1.21.1/NeoForge 两个变体都在 Windows 的开发服务器上做过端到端检查（接管、事件注入、Lua、屏幕、trace、释放）；NeoForge 1.21.1 还没有在真实客户端和正式服务器上试过。
+- 1.20.1/Forge 和 1.21.1/NeoForge 两个变体都在 Windows 的开发服务器上做过端到端检查（接管、事件注入、Lua、屏幕、trace、释放）。1.21.1 版另外在真实的 NeoForge 客户端里验证过：接管电脑、事件注入、Lua REPL、文件与快照端点、路径拦截、trace、wait 和释放；显示器、有线调制解调器、记录模式、body 端点和正式服务器仍未测试。

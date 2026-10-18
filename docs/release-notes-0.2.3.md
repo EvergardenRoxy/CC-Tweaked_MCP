@@ -60,7 +60,7 @@
 
 - **单元测试**：engine 42、cli 30、mod 的每个变体各 9，共执行 90 次，全部通过（两个 mod 变体跑的是同一套 9 个测试）。新增的测试覆盖了 timeline 越界、fixture 能量上限、trace 坏行、边跑边读、`notes_dropped`、`cct_live_wait` 的四种异常情况、子进程中断清理、UTF-8 配额、快照清单路径和 `checkRelative`。
 - **实机**：在 Windows 11 + Zulu 21、Minecraft 1.20.1 + Forge 47.4.10 的单人游戏里验证了 B0（读/列/写 `C:/...` 全部 400，正常文件读写不受影响）、A7（恶意清单全部 400，正常 save/diff/restore 往返一致），以及通过安装好的 MCP 服务器验证了 A2（旧屏幕文字 + idle 正确返回 idle）、A6（`notes_dropped: 1`）和 A10（`kind` 类型错误）。
-- **双版本 mod**：Forge 1.20.1 和 NeoForge 1.21.1 两个变体都在 Windows 的开发服务器上各做了一遍端到端检查：无令牌 401、带令牌列电脑、接管、注入事件、运行 Lua、读屏幕和 trace、释放。两个 jar 的元数据（`mods.toml` / `neoforge.mods.toml`、`pack_format`、字节码版本 61/65）也逐个核对过。
+- **双版本 mod**：Forge 1.20.1 和 NeoForge 1.21.1 两个变体都在 Windows 的开发服务器上各做了一遍端到端检查：无令牌 401、带令牌列电脑、接管、注入事件、运行 Lua、读屏幕和 trace、释放。两个 jar 的元数据（`mods.toml` / `neoforge.mods.toml`、`pack_format`、字节码版本 61/65）也逐个核对过。1.21.1 版还在真实的 NeoForge 客户端里验证过：接管电脑、事件注入、Lua REPL、文件与快照端点、B0/A7 路径拦截、trace、wait 和释放；NeoForge 正式服务器、显示器、有线调制解调器、记录模式和 body 端点未测。
 - **没有重跑 Linux 冒烟测试**：这一版的测试和实机验证都在 Windows 上完成；0.2.2 的 Linux 结果不再代表这一版。
 - 未覆盖：A8/A12 需要冻结服务器线程或制造主线程竞争，只有代码审查和单元测试；A1/A3/A11 的正常游戏里没有自然触发条件。
 
