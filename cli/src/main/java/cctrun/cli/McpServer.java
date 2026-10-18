@@ -243,7 +243,21 @@ final class McpServer {
                 var process = builder.start();
                 process.getOutputStream().close(); // never let a run read the protocol stream
                 if (!call.attach(process)) return toolResult("cancelled", true);
-                var finished = process.waitFor(request.timeoutSeconds() + CHILD_GRACE_SECONDS, TimeUnit.SECONDS);
+                boolean finished;
+                try {
+                    finished = process.waitFor(request.timeoutSeconds() + CHILD_GRACE_SECONDS, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    // The server is stopping (or the request was interrupted): never leave the child JVM behind.
+                    process.destroyForcibly();
+                    try {
+                        // Windows keeps the redirected stdout/stderr files locked until the process has exited.
+                        process.waitFor(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException again) {
+                        // already stopping; the interrupt flag is set below
+                    }
+                    Thread.currentThread().interrupt();
+                    return toolResult("cancelled", true);
+                }
                 if (!finished) {
                     process.destroyForcibly();
                     return toolResult("cct-run did not finish within " + (request.timeoutSeconds() + CHILD_GRACE_SECONDS) + " s of wall time and was stopped.", true);
@@ -256,8 +270,13 @@ final class McpServer {
                 if (code >= 0 && code <= Main.EX_OUT_OF_MEMORY && !stdout.isEmpty()) return toolResult(stdout, false);
                 return toolResult("cct-run run failed with exit code " + code + " (" + exitMeaning(code) + ").\n" + stderr, true);
             } finally {
-                Files.deleteIfExists(stdoutFile);
-                Files.deleteIfExists(stderrFile);
+                // A just-killed child on Windows may still hold its redirected files: deleting them is best effort.
+                try {
+                    Files.deleteIfExists(stdoutFile);
+                    Files.deleteIfExists(stderrFile);
+                } catch (java.io.IOException ignored) {
+                    // left in the temp directory; harmless
+                }
             }
         } finally {
             if (temp != null) deleteTree(temp);

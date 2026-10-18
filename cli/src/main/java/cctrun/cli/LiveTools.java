@@ -52,6 +52,11 @@ final class LiveTools {
     static final int DEFAULT_TRACE_LIMIT = 50;
     static final int DEFAULT_WAIT = 30, MAX_WAIT = 120;
     static final long POLL_MILLIS = 250;
+    /** Each status poll may wait at most this long, so a frozen game cannot eat the caller's whole timeout. */
+    static final int POLL_REQUEST_TIMEOUT_MS = 5000;
+    /** ... but never less than this, so the last poll before the deadline is not aborted by its own tiny budget. */
+    static final int MIN_POLL_REQUEST_TIMEOUT_MS = 1000;
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     private static final String GAME_DIR = """
         "game_dir": { "type": "string", "description": "Game directory (folder with mods/ and cct-live/). Default: --live / CCT_LIVE_DIR, else the last one that worked." }""";
@@ -478,44 +483,57 @@ final class LiveTools {
             after = first.has("last_seq") ? first.get("last_seq").getAsLong() : 0L;
         }
         var start = System.nanoTime();
+        var deadline = start + timeout * 1_000_000_000L;
         String lastHash = null;
         var hashSince = start;
+        JsonObject lastStatus = null;
         while (true) {
+            var now = System.nanoTime();
+            var remainingMs = (deadline - now) / 1_000_000L;
             var query = new ArrayList<String>();
             if (source != null) query.add("source=" + encode(source));
             if (after != null) query.add("after=" + after);
             if (!kinds.isEmpty()) query.add("kinds=" + encode(String.join(",", kinds)));
-            var status = JsonParser.parseString(get(endpoint, "computers/" + id + "/status" + join(query))).getAsJsonObject();
+            String body;
+            try {
+                // Bound each poll by what is left of the wait: a frozen game must end in "timeout", not a hung tool.
+                body = get(endpoint, "computers/" + id + "/status" + join(query),
+                    Duration.ofMillis(Math.min(POLL_REQUEST_TIMEOUT_MS, Math.max(remainingMs, MIN_POLL_REQUEST_TIMEOUT_MS))));
+            } catch (McpTools.ToolError e) {
+                if (!isUnanswered(e)) throw e;
+                if (System.nanoTime() >= deadline) {
+                    // The endpoint answered before, so this timeout is most likely the shrinking poll budget: still a
+                    // normal timeout, not "did not answer". Only an endpoint that never answered gets the extra note.
+                    return lastStatus != null
+                        ? waitResult("timeout", lastStatus, (System.nanoTime() - start) / 1e9, textOnOldScreen, changed)
+                        : waitTimedOut((System.nanoTime() - start) / 1e9);
+                }
+                continue;
+            }
+            var status = JsonParser.parseString(body).getAsJsonObject();
+            lastStatus = status;
             if (after == null) after = status.has("last_seq") ? status.get("last_seq").getAsLong() : 0L;
 
-            var now = System.nanoTime();
-            if (!changed && !baseline.equals(status.get("screen_hash").getAsString())) changed = true;
+            now = System.nanoTime();
+            var hash = screenHash(status);
+            // A status without screen_hash (an older cct-live, or a monitor that is gone) must not crash the wait.
+            if (!changed && hash != null && !hash.equals(baseline)) changed = true;
             String met = null;
             if (status.has("match")) met = "kind";
-            else if (text != null && screenContains(status, text)) {
+            if (met == null && text != null && screenContains(status, text)) {
                 if (changed) met = "text";
                 else textOnOldScreen = true;
             }
-            else if (idle != null) {
-                var hash = status.get("screen_hash").getAsString();
+            // Not "else if": a leftover text match must not suppress the idle condition (review A2).
+            if (met == null && idle != null && hash != null) {
                 if (!hash.equals(lastHash)) {
                     lastHash = hash;
                     hashSince = now;
                 } else if ((now - hashSince) / 1e9 >= idle) met = "idle";
             }
             var waited = (now - start) / 1e9;
-            if (met == null && waited >= timeout) met = "timeout";
-            if (met != null) {
-                var out = new JsonObject();
-                out.addProperty("met", met);
-                out.addProperty("waited_seconds", Math.round(waited * 10) / 10.0);
-                if (status.has("match")) out.add("match", status.remove("match"));
-                if (met.equals("timeout") && textOnOldScreen && !changed) {
-                    out.addProperty("note", "the text was on the screen, but the screen has not changed since your last action (cct_live_type/click/event/power), so it is left over from before; pass unchanged: true to accept it");
-                }
-                out.add("status", status);
-                return McpServer.toolResult(Main.ascii(out.toString()), false);
-            }
+            if (met == null && now >= deadline) met = "timeout";
+            if (met != null) return waitResult(met, status, waited, textOnOldScreen, changed);
             try {
                 Thread.sleep(POLL_MILLIS);
             } catch (InterruptedException e) {
@@ -523,6 +541,37 @@ final class LiveTools {
                 throw new McpTools.ToolError("cancelled");
             }
         }
+    }
+
+    private static String screenHash(JsonObject status) {
+        return status.has("screen_hash") && !status.get("screen_hash").isJsonNull()
+            ? status.get("screen_hash").getAsString() : null;
+    }
+
+    /** Builds the cct_live_wait answer for a condition that was met (or for a normal timeout). */
+    private static JsonObject waitResult(String met, JsonObject status, double waited, boolean textOnOldScreen, boolean changed) {
+        var out = new JsonObject();
+        out.addProperty("met", met);
+        out.addProperty("waited_seconds", Math.round(waited * 10) / 10.0);
+        if (status.has("match")) out.add("match", status.remove("match"));
+        if ("timeout".equals(met) && textOnOldScreen && !changed) {
+            out.addProperty("note", "the text was on the screen, but the screen has not changed since your last action (cct_live_type/click/event/power), so it is left over from before; pass unchanged: true to accept it");
+        }
+        out.add("status", status);
+        return McpServer.toolResult(Main.ascii(out.toString()), false);
+    }
+
+    private static boolean isUnanswered(McpTools.ToolError e) {
+        return e.getMessage() != null && e.getMessage().contains("did not answer in time");
+    }
+
+    /** What cct_live_wait returns when the endpoint stops answering before any condition could be checked. */
+    private static JsonObject waitTimedOut(double waited) {
+        var out = new JsonObject();
+        out.addProperty("met", "timeout");
+        out.addProperty("waited_seconds", Math.round(waited * 10) / 10.0);
+        out.addProperty("note", "cct-live did not answer the status request in time (is the game paused or frozen?)");
+        return McpServer.toolResult(Main.ascii(out.toString()), false);
     }
 
     /** Remembers each screen's hash before an input action, for cct_live_wait (best effort: errors are ignored). */
@@ -760,19 +809,27 @@ final class LiveTools {
     }
 
     private String get(Endpoint endpoint, String path) throws McpTools.ToolError {
-        return send(endpoint, HttpRequest.newBuilder(endpoint.base().resolve(path)).GET());
+        return get(endpoint, path, REQUEST_TIMEOUT);
+    }
+
+    private String get(Endpoint endpoint, String path, Duration timeout) throws McpTools.ToolError {
+        return send(endpoint, HttpRequest.newBuilder(endpoint.base().resolve(path)).GET(), timeout);
     }
 
     private String post(Endpoint endpoint, String path, JsonObject body) throws McpTools.ToolError {
-        return send(endpoint, HttpRequest.newBuilder(endpoint.base().resolve(path))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8)));
+        return post(endpoint, path, body, REQUEST_TIMEOUT);
     }
 
-    private String send(Endpoint endpoint, HttpRequest.Builder request) throws McpTools.ToolError {
+    private String post(Endpoint endpoint, String path, JsonObject body, Duration timeout) throws McpTools.ToolError {
+        return send(endpoint, HttpRequest.newBuilder(endpoint.base().resolve(path))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8)), timeout);
+    }
+
+    private String send(Endpoint endpoint, HttpRequest.Builder request, Duration timeout) throws McpTools.ToolError {
         HttpResponse<String> response;
         try {
-            response = client.send(request.header("Authorization", "Bearer " + endpoint.token()).timeout(Duration.ofSeconds(15)).build(),
+            response = client.send(request.header("Authorization", "Bearer " + endpoint.token()).timeout(timeout).build(),
                 HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (ConnectException e) {
             throw new McpTools.ToolError("cannot connect to cct-live at " + endpoint.base() + ". Is the world still open? (endpoint.json may be left over from a game that did not close cleanly.)");
@@ -854,7 +911,12 @@ final class LiveTools {
             return out;
         }
         if (!kind.isJsonArray()) throw new McpTools.ToolError("'" + key + "' must be an array of strings");
-        for (JsonElement item : kind.getAsJsonArray()) out.add(item.getAsString());
+        for (JsonElement item : kind.getAsJsonArray()) {
+            if (!item.isJsonPrimitive() || !item.getAsJsonPrimitive().isString()) {
+                throw new McpTools.ToolError("'" + key + "' must be an array of strings");
+            }
+            out.add(item.getAsString());
+        }
         return out;
     }
 

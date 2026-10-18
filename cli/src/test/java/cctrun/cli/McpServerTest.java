@@ -203,4 +203,29 @@ class McpServerTest {
         assertTrue(System.nanoTime() - start < 30_000_000_000L, "the child was stopped long before its 60 s timeout");
         assertEquals("", output.toString(StandardCharsets.US_ASCII), "no response for a cancelled request");
     }
+
+    /** A11: an interrupt while waiting (server shutdown) stops the child and answers "cancelled", not "internal error". */
+    @Test
+    void interruptStopsTheRunningChild() throws Exception {
+        var server = new McpServer(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), dir.resolve("runs"), dir);
+        var run = McpServer.class.getDeclaredMethod("run", JsonObject.class, McpServer.Call.class);
+        run.setAccessible(true);
+        var arguments = JsonParser.parseString("{\"code\":\"while true do sleep(1) end\",\"timeout\":60}").getAsJsonObject();
+        var call = new McpServer.Call();
+        var result = new java.util.concurrent.atomic.AtomicReference<JsonObject>();
+        var thread = new Thread(() -> {
+            try {
+                result.set((JsonObject) run.invoke(server, arguments, call));
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        thread.start();
+        Thread.sleep(2000); // the child JVM is running by now
+        thread.interrupt();
+        thread.join(20_000);
+        assertFalse(thread.isAlive(), "run() returned after the interrupt");
+        var text = result.get().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+        assertEquals("cancelled", text);
+    }
 }
