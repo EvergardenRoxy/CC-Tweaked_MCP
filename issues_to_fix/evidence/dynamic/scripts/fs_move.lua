@@ -1,0 +1,16 @@
+-- E1 probe: fs.move semantics for directory into itself and prefix-sibling cases.
+fs.makeDir("a")
+fs.makeDir("a/b")
+local ok, err = fs.move("a", "a/x")
+print("inside-self", ok, tostring(err))
+print("a exists", fs.exists("a"), "a/x exists", fs.exists("a/x"), "a/b exists", fs.exists("a/b"))
+fs.makeDir("d")
+local ok2, err2 = fs.move("d", "de")
+print("prefix-sibling", ok2, tostring(err2), "d", fs.exists("d"), "de", fs.exists("de"))
+fs.makeDir("f")
+fs.makeDir("f/x")
+local ok3, err3 = fs.move("f/x", "f")
+print("child-to-parent", ok3, tostring(err3))
+-- Game's own move for a missing source, for comparison text
+local ok4, err4 = fs.move("nope", "elsewhere")
+print("missing", ok4, tostring(err4))

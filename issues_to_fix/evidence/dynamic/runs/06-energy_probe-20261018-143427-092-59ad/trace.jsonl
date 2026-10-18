@@ -1,0 +1,17 @@
+{"seq":1,"tick":0,"ms":0.9,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":56.0,"kind":"run_start","program":"energy_probe.lua","args":[],"timeout_s":15}
+{"seq":3,"tick":0,"ms":60.1,"kind":"screen","source":"term","size":[51,19],"lines":{},"cursor":[1,1]}
+{"seq":4,"tick":2,"ms":202.4,"kind":"program_start"}
+{"seq":5,"tick":2,"ms":203.0,"kind":"peripheral_call","id":1,"peripheral":"back","type":"cctrun:energy_cell","method":"getEnergy","args":[],"main_thread":true}
+{"seq":6,"tick":2,"ms":205.8,"kind":"event","name":"setting_changed","args":["motd.enable",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":7,"tick":2,"ms":207.8,"kind":"event","name":"setting_changed","args":["bios.use_multishell",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":8,"tick":3,"ms":209.0,"kind":"peripheral_return","id":1,"peripheral":"back","method":"getEnergy","ok":true,"result":[0]}
+{"seq":9,"tick":3,"ms":209.3,"kind":"screen","source":"term","lines":{"1":"type\ttable"},"cursor":[1,2]}
+{"seq":10,"tick":3,"ms":209.7,"kind":"peripheral_call","id":2,"peripheral":"back","type":"cctrun:energy_cell","method":"getEnergyCapacity","args":[],"main_thread":true}
+{"seq":11,"tick":3,"ms":210.0,"kind":"event","name":"task_complete","args":[1,true]}
+{"seq":12,"tick":4,"ms":259.1,"kind":"peripheral_return","id":2,"peripheral":"back","method":"getEnergyCapacity","ok":true,"result":[0]}
+{"seq":13,"tick":4,"ms":259.3,"kind":"screen","source":"term","lines":{"2":"getEnergy\ttrue\t0"},"cursor":[1,3]}
+{"seq":14,"tick":4,"ms":263.3,"kind":"program_end","ok":true}
+{"seq":15,"tick":4,"ms":263.5,"kind":"event","name":"task_complete","args":[2,true]}
+{"seq":16,"tick":5,"ms":308.2,"kind":"screen","source":"term","lines":{"3":"getEnergyCapacity\ttrue\t0","4":"getMaxEnergy\tfalse\t/energy_probe.lua:5: attempt to","5":"call field '?' (a nil value)","6":"getEnergyStored\tfalse\t/energy_probe.lua:5: attempt","7":"to call field '?' (a nil value)"},"cursor":[1,8]}
+{"seq":17,"tick":5,"ms":363.5,"kind":"run_end","status":"ok","exit_code":0}

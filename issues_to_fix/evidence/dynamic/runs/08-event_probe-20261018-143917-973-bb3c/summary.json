@@ -1,0 +1,82 @@
+{
+  "schema": "cct-run/summary@1",
+  "run_id": "20261018-143917-973-bb3c",
+  "created_at": "2026-10-18T14:39:17.973508Z",
+  "status": "error",
+  "exit_code": 1,
+  "error": {
+    "phase": "syntax",
+    "message": "/event_probe.lua:1: unexpected symbol near <\\239>'",
+    "traceback": null
+  },
+  "duration": {
+    "ticks": 3,
+    "seconds": 0.15,
+    "wall_ms": 280.1
+  },
+  "memory": {
+    "heap_limit_mb": 989,
+    "heap_peak_mb": 62
+  },
+  "screen": {
+    "size": [
+      51,
+      19
+    ],
+    "lines": [
+      "Unexpected character.",
+      "",
+      "Line 1",
+      "ï»¿local ev = os.pullEvent(\"probe\")",
+      "",
+      "This character isn't usable in Lua code."
+    ]
+  },
+  "trace_counts": {
+    "event": 2,
+    "fixture_action": 1,
+    "program_end": 1,
+    "run_end": 1,
+    "run_start": 1,
+    "screen": 2,
+    "trace_start": 1
+  },
+  "notes": [
+    {
+      "ok": false,
+      "phase": "syntax",
+      "message": "/event_probe.lua:1: unexpected symbol near <\\239>'",
+      "traceback": null,
+      "seq": 5,
+      "tick": 2,
+      "kind": "program_end"
+    }
+  ],
+  "input": {
+    "program": {
+      "name": "event_probe.lua",
+      "path": "/event_probe.lua",
+      "sha256": "0fe726019866fe0399581979edc141c29a5f36171f73d12381acb96b82390df5",
+      "bytes": 100
+    },
+    "args": [],
+    "fixture_sha256": "211318ccf986437049360e60b61d9816cdec068dc25c3310b6bb9f61add5d4f7"
+  },
+  "environment": {
+    "tool": "0.2.3",
+    "cc_tweaked": "1.120.2",
+    "minecraft": "1.20.1",
+    "java": "21.0.12.1",
+    "computer_id": 0,
+    "advanced": true,
+    "multishell": false,
+    "http": false,
+    "timeout_s": 15,
+    "time_model": "real-time, 20 ticks/s"
+  },
+  "files": {
+    "trace": "trace.jsonl",
+    "program": "program/event_probe.lua",
+    "fixture": "fixture.json"
+  }
+}

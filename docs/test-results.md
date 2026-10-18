@@ -1,14 +1,16 @@
 # cct-run 测试记录
 
-截至 2026-10-17。机器审查用的完整记录在 `handoff.md` 的 VERIFICATION 一节（V1–V13），这里是给人看的汇总。
+截至 2026-10-18（项目版本 0.2.3，HEAD `bf68ac4`）。机器审查用的完整记录在 `handoff.md` 的 VERIFICATION 一节（V1–V39；0.2.3 相关为 V25–V39，本轮新增 V35–V39），这里是给人看的汇总。外部审查核对的逐条结论见 [`issues_to_fix/verification/verification-table.md`](../issues_to_fix/verification/verification-table.md)。
 
 ## 当前结论
 
 | 项目 | 结果 |
 |---|---|
-| Windows 冒烟测试 | **22/22 通过**（Windows 11、PowerShell 5.1、代码页 936、Zulu 21） |
-| Linux 冒烟测试 | bash 21/21；PowerShell 7 20 项通过、1 项跳过（Linux 上没有可用的 Java 8） |
-| 单元测试 | 54/54 |
+| Windows 冒烟测试 | **22/22 通过**（0.2.2 期结果：Windows 11、PowerShell 5.1、代码页 936、Zulu 21）；**0.2.3 尚未重跑冒烟测试**，见下文 |
+| Linux 冒烟测试 | bash 21/21；PowerShell 7 20 项通过、1 项跳过（Linux 上没有可用的 Java 8）；同为 0.2.2 期结果 |
+| 单元测试 | **81/81 通过**（engine 42 / cli 30 / mod 9；两个 mod 变体各 9，实际执行 90 次）。2026-10-18 在 0.2.3 代码上 `--rerun-tasks` 复跑，0 失败；对应 handoff V29、V32、V35 |
+| 发布版本 | 0.2.3；tag `v0.2.3` = `f31082f`，HEAD `bf68ac4` 比 tag 多 9 个提交（已含 multi-version build + CI，未发版） |
+| 外部审查核对 | 2026-10-18 完成：67 条代码/工程意见中 52 条确认或部分确认、9 条驳回/降级、6 条无法静态验证，另有 24 条新发现；95 条待修 issue 见 `issues_to_fix/INDEX.md` |
 | MCP 服务器 | Windows 冒烟测试和一次 AI 客户端实测通过；Linux 上官方 MCP SDK 客户端验证通过 |
 | AI 实测 | 命令行方式和 MCP 方式的标准任务，AI 回答全部正确 |
 | macOS | 未测试 |
@@ -69,9 +71,29 @@
 
 ## Linux 验证（开发环境）
 
-- 单元测试 54 个：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）。
+- 单元测试 81 个（engine 42 / cli 30 / mod 9；两个 mod 变体各跑 9 个）：运行、错误定位、外设、fixture、trace 查询、节拍、Java 查找、MCP 协议（握手、工具调用、取消）、内存耗尽、`cct_live_*` 工具（对接模拟的 cct-live 接口）、路径规则、快照 manifest、UTF-8 计数。
 - 官方 MCP TypeScript SDK 客户端连接发布包：四个工具、内联 fixture 与定时触摸显示器、两个运行并行、参数错误提示、内存耗尽结果；用 Java 8 启动同样可用。
 - Java 8 自动切换、找不到 Java 17+ 时退出码 69 的提示、`JAVA_OPTS=-Xmx256m` 覆盖内存上限，均已验证。
+
+## 2026-10-18：0.2.3 测试执行与外部审查核对
+
+### 单元测试（本次实测）
+
+- 命令：`.\gradlew.bat --no-daemon --console=plain :engine:test :cli:test :mod-forge:test :mod-neoforge:test --rerun-tasks`
+- 结果：**BUILD SUCCESSFUL in 1m 2s**（20 tasks executed）。
+- 明细（Gradle 的 `build/test-results/test/*.xml`）：engine **42**（Fixture 5、Peripheral 11、Runner 18、Trace 2、TickPacer 2、TraceQuery 4）、cli **30**（Main 8、McpServer 6、LiveTools 12、JavaFinder 4）、mod-forge **9**、mod-neoforge **9**；去重后 81 个测试，实际执行 90 次，**0 失败 / 0 错误 / 0 跳过**。
+- 对应 handoff：V29（81 个总计）、V32（90 次执行）、V35。
+
+### 外部审查核对（2026-10-18）
+
+- 6 条只读核对 lane（engine 运行时 / engine fixture / cli / mod / 构建 CI / 旧 fix plan）+ 动态探针，逐条核对 67 条代码/工程意见：**52 条确认或部分确认、9 条驳回/降级、6 条无法静态验证**，另有 **24 条新发现**。
+- 主要纠正：F1/C2 的「Gson 2.11 有 255 层嵌套上限」不成立（实测 100 万层可解析）；E1 的目录移动风险、F7 的 `ItemStack.count` 竞争、D2 的 Windows 保留设备名安全影响均不成立；H3/H4 由高降为中。
+- 动态探针：20 MB `fs` 写入超过 1 MB 容量仍成功；MCP 正常处理 2 MB / 8 MB 单行；`timeline.event.args` 嵌套 2 万层 → `StackOverflowError`、无 summary；MCP 请求 `id` 嵌套 2 万层 → `send()` 序列化 SOE。
+- 全表与证据：[`issues_to_fix/verification/verification-table.md`](../issues_to_fix/verification/verification-table.md)、`issues_to_fix/evidence/lanes/`、`issues_to_fix/evidence/dynamic/`。这些是核对/探针结果，不改变上面的单元测试与冒烟结论。
+
+### 冒烟状态
+
+- **0.2.3 的 Windows / Linux 冒烟尚未重跑**：上表 22/22 与 21/21 是 0.2.2 期结果。0.2.3 的改动主要是 mod 目录重构、CI 与文档，engine/cli 行为未变，但发布前仍应各重跑一次 `scripts/smoke-test.ps1` / `scripts/smoke-test.sh`（对应 handoff L30/BLD-01）。
 
 ## 尚未解决 / 待测
 
@@ -80,3 +102,6 @@
 3. trace 大小上限与截断、`cct-run clean` 清理旧记录（N4 剩余部分）。
 4. macOS 未测试；PowerShell 7 在 Windows 上未测试。
 5. 程序用 `pcall` 接住内存错误后继续运行时，不会被标记为 `out_of_memory`（`memory.heap_peak_mb` 仍会显示接近上限）。
+6. 0.2.3 的 Windows / Linux 冒烟尚未重跑（当前 22/22、21/21 是 0.2.2 期结果）；发布前应重跑一次。
+7. CI 的 `release` job 尚未用 `v*` tag 实际跑过；`tests`/`mod` 之外的冒烟与安全扫描未接入 CI（见 `issues_to_fix/BLD-01`、`BLD-03`、`BLD-04`）。
+8. 外部审查留下的待修问题集中在 [`issues_to_fix/`](../issues_to_fix/)（95 条）：P0 为 fs 写入配额、`HarnessApi.done` 一次性 token、`endpoint.json` 回环校验、fixture 嵌套深度限制、版本单源 + tag 校验。

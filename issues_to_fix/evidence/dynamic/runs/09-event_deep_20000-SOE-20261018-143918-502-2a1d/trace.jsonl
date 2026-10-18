@@ -1,0 +1,2 @@
+{"seq":1,"tick":0,"ms":0.9,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":49.4,"kind":"run_start","program":"event_probe.lua","args":[],"timeout_s":15}

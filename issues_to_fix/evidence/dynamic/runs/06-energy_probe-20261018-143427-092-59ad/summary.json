@@ -1,0 +1,71 @@
+{
+  "schema": "cct-run/summary@1",
+  "run_id": "20261018-143427-092-59ad",
+  "created_at": "2026-10-18T14:34:27.092791900Z",
+  "status": "ok",
+  "exit_code": 0,
+  "error": null,
+  "duration": {
+    "ticks": 5,
+    "seconds": 0.25,
+    "wall_ms": 363.8
+  },
+  "memory": {
+    "heap_limit_mb": 989,
+    "heap_peak_mb": 59
+  },
+  "screen": {
+    "size": [
+      51,
+      19
+    ],
+    "lines": [
+      "type\ttable",
+      "getEnergy\ttrue\t0",
+      "getEnergyCapacity\ttrue\t0",
+      "getMaxEnergy\tfalse\t/energy_probe.lua:5: attempt to",
+      "call field '?' (a nil value)",
+      "getEnergyStored\tfalse\t/energy_probe.lua:5: attempt",
+      "to call field '?' (a nil value)"
+    ]
+  },
+  "trace_counts": {
+    "event": 4,
+    "peripheral_call": 2,
+    "peripheral_return": 2,
+    "program_end": 1,
+    "program_start": 1,
+    "run_end": 1,
+    "run_start": 1,
+    "screen": 4,
+    "trace_start": 1
+  },
+  "notes": [],
+  "input": {
+    "program": {
+      "name": "energy_probe.lua",
+      "path": "/energy_probe.lua",
+      "sha256": "dfc00d2a913943a370614f9e52f92247bdbab92aeeab7633d320bc0ee82d91c6",
+      "bytes": 340
+    },
+    "args": [],
+    "fixture_sha256": "822f1a6cf523a733fc17619fe626c412647de7028bd4c7a2e89aa71f29f640d0"
+  },
+  "environment": {
+    "tool": "0.2.3",
+    "cc_tweaked": "1.120.2",
+    "minecraft": "1.20.1",
+    "java": "21.0.12.1",
+    "computer_id": 0,
+    "advanced": true,
+    "multishell": false,
+    "http": false,
+    "timeout_s": 15,
+    "time_model": "real-time, 20 ticks/s"
+  },
+  "files": {
+    "trace": "trace.jsonl",
+    "program": "program/energy_probe.lua",
+    "fixture": "fixture.json"
+  }
+}
