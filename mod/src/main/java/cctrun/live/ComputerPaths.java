@@ -28,4 +28,17 @@ final class ComputerPaths {
         }
         return String.join("/", out);
     }
+
+    /**
+     * A path from a file on disk (the snapshot manifest), not from a request: it must be a plain relative path that
+     * {@link #sanitise(String)} leaves unchanged. Restore resolves these under the snapshot's files directory, so
+     * "a//b", "/abs/x", "a\\b" or "C:/x" must be refused before {@code Path.resolve} sees them.
+     */
+    static String checkRelative(String path) {
+        var clean = sanitise(path);
+        if (clean.isEmpty() || !clean.equals(path)) {
+            throw new IllegalArgumentException("not a relative path: " + path);
+        }
+        return clean;
+    }
 }

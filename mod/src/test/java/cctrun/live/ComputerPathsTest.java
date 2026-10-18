@@ -24,6 +24,19 @@ class ComputerPathsTest {
     }
 
     @Test
+    void checkRelativeOnlyAcceptsTheSanitisedForm() {
+        assertEquals("a/b", ComputerPaths.checkRelative("a/b"));
+        assertEquals("startup.lua", ComputerPaths.checkRelative("startup.lua"));
+        // Snapshot manifests are files on disk: every other spelling is refused instead of resolved.
+        assertThrows(IllegalArgumentException.class, () -> ComputerPaths.checkRelative("../x"));
+        assertThrows(IllegalArgumentException.class, () -> ComputerPaths.checkRelative("C:/x"));
+        assertThrows(IllegalArgumentException.class, () -> ComputerPaths.checkRelative("/abs"));
+        assertThrows(IllegalArgumentException.class, () -> ComputerPaths.checkRelative("a\\b"));
+        assertThrows(IllegalArgumentException.class, () -> ComputerPaths.checkRelative("a//b"));
+        assertThrows(IllegalArgumentException.class, () -> ComputerPaths.checkRelative(""));
+    }
+
+    @Test
     void rejectsWindowsDriveLetters() {
         // Regression: "C:/Windows/win.ini" used to reach the host filesystem through WritableFileMount.resolvePath.
         assertThrows(IllegalArgumentException.class, () -> ComputerPaths.sanitise("C:/Windows/win.ini"));

@@ -694,14 +694,19 @@ final class LiveHttp {
 
     private <T> T onServer(Supplier<T> task) {
         var server = session.server();
+        var future = server.submit(task::get);
         try {
-            return server.submit(task::get).get(5, TimeUnit.SECONDS);
+            return future.get(5, TimeUnit.SECONDS);
         } catch (java.util.concurrent.ExecutionException e) {
             if (e.getCause() instanceof RuntimeException r) throw r;
             throw new IllegalStateException(e.getCause());
         } catch (java.util.concurrent.TimeoutException e) {
+            // The server thread is still busy with this request: cancel the queued/running task, but never interrupt
+            // the Minecraft server thread (see the cct-live review A12).
+            future.cancel(false);
             throw new BadRequest(503, "server thread did not respond within 5 s");
         } catch (InterruptedException e) {
+            future.cancel(false);
             Thread.currentThread().interrupt();
             throw new BadRequest(503, "interrupted");
         }

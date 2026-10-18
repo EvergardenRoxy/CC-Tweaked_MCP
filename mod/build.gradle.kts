@@ -55,9 +55,10 @@ dependencies {
     modImplementation("cc.tweaked:cc-tweaked-$mcVersion-forge:$ccTweakedVersion")
     compileOnly("cc.tweaked:cobalt:0.9.9")
 
-    // Plain unit tests for code that does not touch Minecraft (e.g. ComputerFiles.sanitise).
+    // Plain unit tests for code that does not touch Minecraft (e.g. ComputerPaths, SnapshotManifest).
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("com.google.code.gson:gson:2.10.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
