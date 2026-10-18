@@ -5,7 +5,7 @@ package cctrun.engine;
 /** Version strings written into run summaries. */
 public final class Versions {
     /** The tool itself. */
-    public static final String TOOL = "0.2.2";
+    public static final String TOOL = "0.2.3";
     /** The CC: Tweaked core this tool is built against (tag v1.20.1-1.120.2). */
     public static final String CC_TWEAKED = "1.120.2";
     public static final String MINECRAFT = "1.20.1";

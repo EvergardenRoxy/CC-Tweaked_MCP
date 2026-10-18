@@ -32,7 +32,7 @@ class RunnerTest {
         assertEquals("ok", result.status());
         assertEquals(0, result.exitCode());
         assertEquals(List.of(
-            "ComputerCraft 1.120.2 (cct-run 0.2.2)",
+            "ComputerCraft 1.120.2 (cct-run 0.2.3)",
             "3\ta\tb c\tÃ©\"\\", // CC strings are bytes: UTF-8 "é" shows as two characters
             "prog.lua\tnil\tnil\tnil"
         ), screen(result));
