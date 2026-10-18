@@ -107,6 +107,21 @@ class RunnerTest {
         assertEquals(1, result.summary().getAsJsonArray("notes").size());
     }
 
+    /** A6: the summary says how many notes it had to leave out instead of dropping them silently. */
+    @Test
+    void summaryCountsNotesBeyondTheQuota() throws Exception {
+        // Eleven failing peripheral calls make eleven notes: the first ten are kept, one is dropped.
+        var result = run(out, """
+            local left = peripheral.wrap("left")
+            for i = 1, 11 do pcall(left.getItemDetail, 9) end
+            """, """
+            {"peripherals": {"left": {"type": "inventory", "size": 3}}}
+            """, 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals(10, result.summary().getAsJsonArray("notes").size(), String.valueOf(result.summary()));
+        assertEquals(1, result.summary().get("notes_dropped").getAsInt(), String.valueOf(result.summary()));
+    }
+
     @Test
     void timeoutStopsAWaitingProgram() throws Exception {
         var result = run(out, "print('waiting') os.pullEvent('redstone')", null, 1);

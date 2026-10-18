@@ -389,6 +389,7 @@ public final class Runner {
         for (var entry : trace.counts().entrySet()) counts.addProperty(entry.getKey(), entry.getValue());
         out.add("trace_counts", counts);
         out.add("notes", trace.notes());
+        if (trace.droppedNotes() > 0) out.addProperty("notes_dropped", trace.droppedNotes());
 
         var input = new JsonObject();
         var program = new JsonObject();
