@@ -7,7 +7,7 @@ repo: EvergardenRoxy/CC-Tweaked_MCP
 branch: claude/zealous-ramanujan-rrt0qh
 base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D45, V14-V20) + cct_live_* MCP tools
 date: 2026-10-16
-tool_version: 0.2.2 (engine/src/main/java/cctrun/engine/Versions.java)
+tool_version: 0.2.3 (engine/src/main/java/cctrun/engine/Versions.java)
 review_fixes: D50-D57, V25-V31 (2026-10-18, on main; security and crash fixes plus the low-risk A batch from the code review, V28 = in-game check of pass 1, V29 = pass 2 tests, V30 = in-game check of pass 2, V31 = pass-2 CLI/engine checked end to end through the installed MCP server)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
 status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15); on demand with recording mode and attach/lease/chat control handover, overhead measured (D40-D42, V16)

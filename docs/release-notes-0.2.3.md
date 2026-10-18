@@ -1,0 +1,78 @@
+# cct-run 0.2.3
+
+这一版没有新功能，是一次完整的代码审查（engine、cli、mod 三个部分）后的修复版。审查发现的问题里有一个安全漏洞：cct-live 的文件接口原来只拦 `..`，没有拦 Windows 盘符和绝对路径，电脑里的程序可以让宿主机读取（以及写入）电脑目录以外的文件，例如 `C:/Windows/win.ini`。0.2.3 修复了它，并顺带修掉一批会导致崩溃、卡住、悄悄丢数据或卡死整个 MCP 服务器的问题。
+
+逐条的改动记录和验证证据在 [`handoff.md`](../handoff.md) 的 D50-D57、V25-V31。
+
+## 下载
+
+| 文件 | 说明 |
+|---|---|
+| `cct-run-0.2.3.zip` | 命令行工具和 MCP 服务器 |
+| `cct-live-1.20.1-0.2.3.jar` | Forge 1.20.1 mod（可选）。**这一版 mod 有安全修复和稳定性修复，建议升级**；0.2.2 及更早的 mod 没有文件接口的路径拦截 |
+
+系统要求和 0.2.2 相同：cct-run 需要 Java 17+；cct-live 需要 Minecraft 1.20.1、Forge 47.x、CC: Tweaked 1.120.2。
+
+## 安全
+
+- **文件接口不能再逃出电脑目录**（B0）：以前 `cct_live_files` 的路径只检查 `..`，写成 `C:/Windows/win.ini` 这样的绝对路径就能让宿主机读取电脑目录以外的文件（写也有风险）。现在路径里出现 `:` 或以 `..` 开头的段都会返回 400 `':' is not allowed in paths` / `'..' is not allowed in paths`，读、写、列目录都走同一个检查。
+- **快照清单的路径也做同样检查**（A7）：`restore` 会按快照里的清单写文件和建目录，以前清单里的 `../x`、`C:/...`、`/etc`、`a//b` 可以把文件写到快照以外。现在清单必须是纯相对路径，否则整个请求 400，不会执行任何写操作。
+
+## 修复
+
+**cct-run 与 MCP 服务器**
+
+- `cct_live_wait` 更可靠（A1/A2/A3/A10）：
+  - 状态里没有 `screen_hash` 时不再抛 NullPointerException；
+  - `text` 和 `idle_seconds` 同时给出时两个条件都生效，旧屏幕上的文字不会把 idle 判断挤掉；
+  - 每次状态请求最多等 5 秒、整体仍按 `timeout` 走，端点在超时内没回应时返回超时结果并说明原因，不再把整个 MCP 请求拖死；
+  - `kind` 必须是字符串数组，传 `[1]` 会得到明确的 `'kind' must be an array of strings`。
+- **trace 边跑边可读**（A5）：每行写完立即 flush，运行中途（或被 Ctrl+T 终止时）也能读到已经产生的记录。
+- **被丢弃的 notes 会计数**（A6）：运行摘要里 notes 最多保留 10 条，超出的数量写在 `notes_dropped` 里，不再静默丢弃。
+- **cct-live 的 trace 配额按 UTF-8 字节算**（A4）：有中文等非 ASCII 字符时配额不再被低估。
+- **trace 查询容忍坏行**（P7）：`cct_trace` / `cct_screen` / 命令行查询遇到半行或损坏的 JSON 时跳过该行，不再整条查询报错；`cct-run trace` 还会在 stderr 说明跳过了几行。
+- **fixture 校验更严格**（B1/P3）：时间线里改容器格子时，格子编号必须落在容器容量内（默认 27），改能量时数值不能超过容量；不合法的 fixture 会给出 `$.timeline[0].slot: must be between 1 and 3` 这样的错误并以退出码 65 结束，而不是内部异常。
+- **同名 fixture 文件会提醒**（P4）：fixture 里的文件如果覆盖了程序文件，运行摘要的 notes 会出现 `fixture_file_overwritten`。
+- **几处小修正**：`trace` 的 `--limit` 只在确实截断时提示；`--term` 会去掉首尾空白；MCP 对退出码 3（shutdown）的说明补上了；MCP 请求被取消时会杀掉子 JVM 并清理临时文件（A11），不再留下僵尸进程。
+
+**cct-live mod**
+
+- **有线网络遍历不会因为外设插拔而崩**（A8）：迭代用的网络表改为不可变副本。
+- **HTTP 请求超时/中断会取消后台任务**（A12）：不再留下挂着的 Future，也不打断服务器线程。
+- **HTTP 参数校验**：`ticks` 为空或 `-` 返回 400，超过 1 MiB 的 body 返回 413，不再静默接受。
+- **坏行容错**：trace 和屏幕回放遇到损坏纪录时跳过，不影响其余数据。
+- **endpoint.json 一定清理**（P6）：会话关闭时总是删除端点文件，即使写入失败。
+
+## 文档
+
+- README 更新：当前版本、0.2.3 的主要变化、测试情况（81/81）。
+- 完整改动记录和验证证据在 [`handoff.md`](../handoff.md)（D50-D57、V25-V31）；发布包的 `docs/` 里带上本说明。
+
+## 兼容性
+
+- **没有破坏性改动**：fixture 格式、MCP 配置、命令行参数都原样可用，summary/trace 的 schema 不变。
+- 行为变化集中在“以前会悄悄做错”的地方：不合法的 fixture 现在直接报错（以前可能内部崩溃或把能量静默截断），查询会跳过坏行（`cct-run trace` 在 stderr 报告跳过的行数），summary 可能多一个 `notes_dropped` 字段（没有丢弃时不出现），文件/快照接口会拒绝 `:` 和绝对路径。
+- **mod 建议升级**：0.2.2 的 mod 没有 B0 的路径拦截；cct-run 0.2.3 配旧 mod 时，文件接口的路径问题仍然存在。
+
+## 测试情况
+
+- **单元测试**：81 个，全部通过（engine 42、cli 30、mod 9）。新增的测试覆盖了 timeline 越界、fixture 能量上限、trace 坏行、边跑边读、`notes_dropped`、`cct_live_wait` 的四种异常情况、子进程中断清理、UTF-8 配额、快照清单路径和 `checkRelative`。
+- **实机**：在 Windows 11 + Zulu 21、Minecraft 1.20.1 + Forge 47.4.10 的单人游戏里验证了 B0（读/列/写 `C:/...` 全部 400，正常文件读写不受影响）、A7（恶意清单全部 400，正常 save/diff/restore 往返一致），以及通过安装好的 MCP 服务器验证了 A2（旧屏幕文字 + idle 正确返回 idle）、A6（`notes_dropped: 1`）和 A10（`kind` 类型错误）。
+- **没有重跑 Linux 冒烟测试**：这一版的测试和实机验证都在 Windows 上完成；0.2.2 的 Linux 结果不再代表这一版。
+- 未覆盖：A8/A12 需要冻结服务器线程或制造主线程竞争，只有代码审查和单元测试；A1/A3/A11 的正常游戏里没有自然触发条件。
+
+## 安装和升级
+
+1. 用 `cct-run-0.2.3.zip` 替换旧的 cct-run 文件夹；MCP 配置不用改。
+2. 把 `mods/` 里的 cct-live jar 换成 `cct-live-1.20.1-0.2.3.jar`（建议；旧 mod 没有 B0 的路径拦截）。
+3. 重启游戏和 MCP 客户端。
+
+## 已知限制
+
+和 0.2.2 相同：`scripted` 外设只返回 fixture 里写的值，不检查参数类型，也不模拟机器之间的联动；`cct_live_lua` 要在 shell 提示符下运行；macOS 未测试；模拟器不支持海龟、HTTP、真实世界等。
+
+审查里剩下、计划后续处理的项：cct-live trace 的内存上限和轮换竞争（B3/B4）、长会话的 body/session 保留（M2）、快照保存的原子性（M3）、重复 instance 的标识（M4），以及 B 批的小项（run_id 唯一性、body 上限提示等），见 `handoff.md` 的 NEXT N14。
+
+## 许可证
+
+和 0.2.2 相同：本项目代码 MPL-2.0；`harness.lua` 为 CCPL；附带的 CC: Tweaked 及其依赖使用各自的许可证。

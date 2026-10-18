@@ -19,9 +19,9 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)（建议用 1.2.2）会告诉 AI 怎么写 CC 程序、什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
 
-> 当前版本是 **0.2.2**（2026-10），更新内容见 [`docs/release-notes-0.2.2.md`](docs/release-notes-0.2.2.md)；历史版本：[0.2.0](docs/release-notes-0.2.0.md)、[0.1.0](docs/release-notes-0.1.0.md)。cct-live 还是原型。
+> 当前版本是 **0.2.3**（2026-10），更新内容见 [`docs/release-notes-0.2.3.md`](docs/release-notes-0.2.3.md)；历史版本：[0.2.2](docs/release-notes-0.2.2.md)、[0.2.0](docs/release-notes-0.2.0.md)、[0.1.0](docs/release-notes-0.1.0.md)。cct-live 还是原型。
 >
-> 0.2.2 的主要变化：fixture 里写了中文（程序会收到 `?`）时在 `notes` 里提醒；`cct_trace` / `cct_screen` 可以直接用 `run_id`；fixture 容器最多 4096 格；说明里补充了向外设发中文的写法。
+> 0.2.3 是一次代码审查后的修复版，没有新功能：cct-live 的文件接口不再能被绝对路径带到电脑目录以外；`cct_live_wait`、trace 读取、fixture 校验和快照路径都更可靠。建议连同 mod 一起升级。
 
 ---
 
@@ -121,7 +121,8 @@ cct-run guide | version | help | mcp
 | 平台 / 项目 | 结果 |
 |---|---|
 | Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
-| Linux | 单元测试 54/54（0.2.2）；冒烟测试全部通过；官方 MCP SDK 客户端验证通过；Java 17 / 21 / 25 均可运行 |
+| Windows 11（0.2.3 审查修复版） | 单元测试 81/81（engine 42、cli 30、mod 9）；游戏内验证路径拦截、快照路径、`cct_live_wait` 和 `notes_dropped` |
+| Linux | 0.2.2 时单元测试 54/54、冒烟测试全部通过、官方 MCP SDK 客户端验证通过、Java 17 / 21 / 25 均可运行；0.2.3 未重跑 |
 | macOS | 尚未测试 |
 | cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）七次 AI 实测：MPlayer 安装脚本排错 4 轮，联合测试 3（Create 工厂控制中心）2 次，联合测试 4（Create 订单产线）1 次 |
 | AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次模拟器实测四步全部正确，DeepSeek Harness 等客户端实机实测 7 次可用。其他客户端的 MCP 接入结果待反馈 |
