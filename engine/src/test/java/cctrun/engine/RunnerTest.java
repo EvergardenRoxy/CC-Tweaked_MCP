@@ -181,6 +181,34 @@ class RunnerTest {
     }
 
     @Test
+    void fixtureFileWithTheProgramNameIsReportedAsOverwritten() throws Exception {
+        var result = run(out, "print('ok')", "{\"files\": {\"prog.lua\": \"fixture version\"}}", 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals("ok", screen(result).get(0));
+        var notes = result.summary().getAsJsonArray("notes").toString();
+        assertTrue(notes.contains("fixture_file_overwritten"), notes);
+    }
+
+    @Test
+    void timelineItemActionWritesTheSlotItNames() throws Exception {
+        var result = run(out, """
+            sleep(1.5)
+            local back = peripheral.wrap("back")
+            local items = back.list()
+            local count, name = 0, nil
+            for _, item in pairs(items) do count = count + 1 name = item.name end
+            print(count, name)
+            """, """
+            {"peripherals": {"back": {"type": "inventory", "size": 3}},
+             "timeline": [{"tick": 20, "do": "item", "peripheral": "back", "slot": 3,
+                           "item": {"name": "minecraft:stone", "count": 2}}]}
+            """, 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals("1\tminecraft:stone", screen(result).get(0), screen(result).toString());
+        assertEquals(1, trace(result, "fixture_action").size());
+    }
+
+    @Test
     void multishellCanBeEnabled() throws Exception {
         var result = run(out, "print(type(multishell))", "{\"computer\": {\"multishell\": true}}", 10);
         assertEquals(List.of("table"), screen(result));

@@ -5,6 +5,7 @@ package cctrun.engine;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -47,6 +48,21 @@ class TraceQueryTest {
         assertEquals(byArgument, byName);
         var onScreen = TraceQuery.records(result.runDir(), new TraceQuery.Filter(Set.of("screen"), null, null, null, null, "done", 0, 100));
         assertEquals(1, onScreen.size());
+    }
+
+    @Test
+    void malformedLinesAreSkippedInsteadOfFailingTheQuery() throws Exception {
+        var result = run(out, "print('hi')", null, 10);
+        var trace = result.runDir().resolve("trace.jsonl");
+        var expected = Files.readAllLines(trace, java.nio.charset.StandardCharsets.UTF_8).size();
+        // Simulate a JVM killed mid-write: the last line has no closing brace and no newline.
+        Files.writeString(trace, "{\"seq\":999,\"tick\":1,\"kind\":\"event\"", java.nio.charset.StandardCharsets.UTF_8,
+            java.nio.file.StandardOpenOption.APPEND);
+        var query = TraceQuery.read(result.runDir(), new TraceQuery.Filter(null, null, null, null, null, 0, 100));
+        assertEquals(1, query.skipped(), query.toString());
+        assertEquals(expected, query.records().size(), "the complete records before the partial line");
+        // The old entry point keeps working and simply omits the malformed line.
+        assertEquals(expected, TraceQuery.records(result.runDir(), new TraceQuery.Filter(null, null, null, null, null, 0, 100)).size());
     }
 
     private static int firstPrintTick(RunResult result) throws Exception {

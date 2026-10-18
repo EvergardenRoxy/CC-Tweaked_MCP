@@ -292,13 +292,19 @@ public final class Fixture {
             }
             case "energy" -> {
                 allowOnly(spec, path, "tick", "do", "peripheral", "energy");
-                requirePeripheral(spec, path, peripherals, "energy_storage");
-                longValue(require(spec, "energy", path), path + ".energy", 0);
+                // Fail early instead of letting EnergyPeripheral.Storage.setEnergy silently clamp at run time.
+                var storage = requirePeripheral(spec, path, peripherals, "energy_storage");
+                var energy = longValue(require(spec, "energy", path), path + ".energy", 0);
+                var capacity = storage.has("capacity") ? storage.get("capacity").getAsLong() : 100_000;
+                if (energy > capacity) throw new FixtureException(path + ".energy", "must not exceed capacity (" + capacity + ")");
             }
             case "item" -> {
                 allowOnly(spec, path, "tick", "do", "peripheral", "slot", "item");
-                requirePeripheral(spec, path, peripherals, "inventory");
-                integer(require(spec, "slot", path), path + ".slot", 1, MAX_SLOTS);
+                // The slot must fit the inventory this fixture defines, not just the 4096-slot hard limit: the
+                // timeline action runs on the server side and writes the slot index directly (Runner.apply).
+                var inventory = requirePeripheral(spec, path, peripherals, "inventory");
+                var slots = inventory.has("size") ? inventory.get("size").getAsInt() : 27;
+                integer(require(spec, "slot", path), path + ".slot", 1, slots);
                 var item = require(spec, "item", path);
                 if (!item.isJsonNull()) item(item, path + ".item");
             }
@@ -316,11 +322,12 @@ public final class Fixture {
         }
     }
 
-    private static void requirePeripheral(JsonObject spec, String path, Map<ComputerSide, JsonObject> peripherals, String type) throws FixtureException {
+    private static JsonObject requirePeripheral(JsonObject spec, String path, Map<ComputerSide, JsonObject> peripherals, String type) throws FixtureException {
         var name = string(require(spec, "peripheral", path), path + ".peripheral");
         var found = findSpec(name, peripherals);
         if (found == null) throw new FixtureException(path + ".peripheral", "no peripheral named \"" + name + "\" in this fixture");
         if (!type.equals(found.get("type").getAsString())) throw new FixtureException(path + ".peripheral", "\"" + name + "\" is not " + type);
+        return found;
     }
 
     private static JsonObject findSpec(String name, Map<ComputerSide, JsonObject> peripherals) {
