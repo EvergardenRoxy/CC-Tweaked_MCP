@@ -135,7 +135,9 @@ class McpServerTest {
         var q = session(
             call(1, "cct_trace", "{\"kind\":[\"program_end\"]}"),
             call(2, "cct_screen", "{}"),
-            call(3, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":\"program_end\",\"limit\":1}"),
+            // Two matching kinds with limit 1: the trace tool must say there is more. (A single program_end record
+            // with limit 1 is no longer reported as truncated: it is the last one.)
+            call(3, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":[\"program_end\",\"run_end\"],\"limit\":1}"),
             call(4, "cct_trace", "{\"kind\":[\"modem_transmit\"]}"),
             call(5, "cct_screen", "{\"source\":\"monitor_9\"}"),
             call(6, "cct_trace", "{\"run\":\"" + dir.toString().replace("\\", "\\\\") + "\"}"),

@@ -73,6 +73,58 @@ class MainTest {
     }
 
     @Test
+    void traceLimitNoteAppearsOnlyWhenThereAreMoreRecords() throws Exception {
+        var program = dir.resolve("hi.lua");
+        Files.writeString(program, "print('hi')");
+        var runs = dir.resolve("runs").toString();
+        var bytes = new ByteArrayOutputStream();
+        assertEquals(0, Main.dispatch(new String[]{ "run", program.toString(), "--out", runs }, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        var runDir = JsonParser.parseString(bytes.toString(StandardCharsets.UTF_8)).getAsJsonObject().get("run_dir").getAsString();
+
+        bytes.reset();
+        assertEquals(0, Main.dispatch(new String[]{ "trace", runDir, "--limit", "1000" }, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        var total = (int) bytes.toString(StandardCharsets.UTF_8).lines().count();
+
+        // Exactly at the limit is not "more": no note. One fewer: a note.
+        var exact = captureErr(() -> Main.dispatch(new String[]{ "trace", runDir, "--limit", Integer.toString(total) },
+            new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8)));
+        assertTrue(!exact.contains("stopped at --limit"), exact);
+        var fewer = captureErr(() -> Main.dispatch(new String[]{ "trace", runDir, "--limit", Integer.toString(total - 1) },
+            new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8)));
+        assertTrue(fewer.contains("stopped at --limit"), fewer);
+    }
+
+    @Test
+    void termOptionAcceptsSpacesAroundTheX() throws Exception {
+        var program = dir.resolve("size.lua");
+        Files.writeString(program, "print(term.getSize())");
+        var bytes = new ByteArrayOutputStream();
+        assertEquals(0, Main.dispatch(new String[]{ "run", program.toString(), "--term", "26 x 20", "--out", dir.resolve("runs2").toString() },
+            new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        var size = JsonParser.parseString(bytes.toString(StandardCharsets.UTF_8)).getAsJsonObject()
+            .getAsJsonObject("screen").getAsJsonArray("size");
+        assertEquals(26, size.get(0).getAsInt());
+        assertEquals(20, size.get(1).getAsInt());
+    }
+
+    private static String captureErr(Action action) throws Exception {
+        var buffer = new ByteArrayOutputStream();
+        var previous = System.err;
+        System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+        try {
+            action.run();
+        } finally {
+            System.setErr(previous);
+        }
+        return buffer.toString(StandardCharsets.UTF_8);
+    }
+
+    @FunctionalInterface
+    private interface Action {
+        void run() throws Exception;
+    }
+
+    @Test
     void asciiEscapesEveryNonAsciiCharacter() {
         assertEquals("{\"a\":\"plain\"}", Main.ascii("{\"a\":\"plain\"}"));
         assertEquals("{\"a\":\"caf\\u00c3\\u00a9 \\u6d4b \\ud83d\\ude00\"}", Main.ascii("{\"a\":\"cafÃ© 测 😀\"}"));
