@@ -1,19 +1,28 @@
 // SPDX-License-Identifier: MPL-2.0
 
+// NeoForge 21.1 / Minecraft 1.21.1 variant. Shared sources live in mod/src/common; this project only holds the
+// loader shell (CctLive, LiveConfig) and the NeoForge mod metadata.
 plugins {
     id("net.neoforged.moddev") version "2.0.148"
 }
 
-group = "cctrun"
-version = "0.2.3"
-
 val mcVersion = "1.21.1"
-// CC: Tweaked publishes its NeoForge build under the "forge" artifact name for 1.21.1.
 val neoForgeVersion = "21.1.262"
+// CC: Tweaked publishes its NeoForge build under the "forge" artifact name for 1.21.1.
 val ccTweakedVersion = "1.120.2"
 
 base {
-    archivesName = "cct-live-1.21.1"
+    archivesName = "cct-live-$mcVersion"
+}
+
+sourceSets {
+    main {
+        java.srcDir(rootProject.file("mod/src/common/java"))
+        resources.srcDir(rootProject.file("mod/src/common/resources"))
+    }
+    test {
+        java.srcDir(rootProject.file("mod/src/common/test/java"))
+    }
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -49,11 +58,10 @@ neoForge {
 }
 
 dependencies {
-    // The CC: Tweaked 1.21.1 "forge" artifact is a NeoForge mod (META-INF/neoforge.mods.toml,
-    // requires neoforge [21.1.9,21.2)); it contains the core API and the shared classes this mod uses.
-    implementation("cc.tweaked:cc-tweaked-1.21.1-forge:1.120.2")
+    // The CC: Tweaked 1.21.1 "forge" artifact is a NeoForge mod (META-INF/neoforge.mods.toml, requires
+    // neoforge [21.1.9,21.2)); it contains the core API and the shared classes this mod uses.
+    implementation("cc.tweaked:cc-tweaked-$mcVersion-forge:$ccTweakedVersion")
 
-    // Plain unit tests for code that does not touch Minecraft (e.g. ComputerPaths, SnapshotManifest).
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.google.code.gson:gson:2.10.1")

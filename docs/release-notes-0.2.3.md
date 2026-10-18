@@ -9,9 +9,10 @@
 | 文件 | 说明 |
 |---|---|
 | `cct-run-0.2.3.zip` | 命令行工具和 MCP 服务器 |
-| `cct-live-1.20.1-0.2.3.jar` | Forge 1.20.1 mod（可选）。**这一版 mod 有安全修复和稳定性修复，建议升级**；0.2.2 及更早的 mod 没有文件接口的路径拦截 |
+| `cct-live-1.20.1-0.2.3.jar` | Forge 47.x mod（可选）。**这一版 mod 有安全修复和稳定性修复，建议升级**；0.2.2 及更早的 mod 没有文件接口的路径拦截 |
+| `cct-live-1.21.1-0.2.3.jar` | NeoForge 21.1.x mod（可选，Minecraft 1.21.1）。和上一行是同一套代码、同一个 Gradle 工程构建，只有加载器入口和元数据不同 |
 
-系统要求和 0.2.2 相同：cct-run 需要 Java 17+；cct-live 需要 Minecraft 1.20.1、Forge 47.x、CC: Tweaked 1.120.2。
+系统要求：cct-run 需要 Java 17+。cct-live 的 1.20.1 版需要 Minecraft 1.20.1、Forge 47.x、CC: Tweaked 1.120.2，1.21.1 版需要 Minecraft 1.21.1、NeoForge 21.1.x、CC: Tweaked 1.120.2。
 
 ## 安全
 
@@ -46,7 +47,8 @@
 ## 文档
 
 - README 更新：当前版本、0.2.3 的主要变化、测试情况（81/81）。
-- 完整改动记录和验证证据在 [`handoff.md`](../handoff.md)（D50-D57、V25-V31）；发布包的 `docs/` 里带上本说明。
+- 完整改动记录和验证证据在 [`handoff.md`](../handoff.md)（D50-D58、V25-V32）；发布包的 `docs/` 里带上本说明。
+- 同一个 Gradle 工程现在构建 Forge 1.20.1 和 NeoForge 1.21.1 两个版本的 mod（`./gradlew assembleMods`），共享代码在 `mod/src/common/`。
 
 ## 兼容性
 
@@ -56,15 +58,16 @@
 
 ## 测试情况
 
-- **单元测试**：81 个，全部通过（engine 42、cli 30、mod 9）。新增的测试覆盖了 timeline 越界、fixture 能量上限、trace 坏行、边跑边读、`notes_dropped`、`cct_live_wait` 的四种异常情况、子进程中断清理、UTF-8 配额、快照清单路径和 `checkRelative`。
+- **单元测试**：engine 42、cli 30、mod 的每个变体各 9，共执行 90 次，全部通过（两个 mod 变体跑的是同一套 9 个测试）。新增的测试覆盖了 timeline 越界、fixture 能量上限、trace 坏行、边跑边读、`notes_dropped`、`cct_live_wait` 的四种异常情况、子进程中断清理、UTF-8 配额、快照清单路径和 `checkRelative`。
 - **实机**：在 Windows 11 + Zulu 21、Minecraft 1.20.1 + Forge 47.4.10 的单人游戏里验证了 B0（读/列/写 `C:/...` 全部 400，正常文件读写不受影响）、A7（恶意清单全部 400，正常 save/diff/restore 往返一致），以及通过安装好的 MCP 服务器验证了 A2（旧屏幕文字 + idle 正确返回 idle）、A6（`notes_dropped: 1`）和 A10（`kind` 类型错误）。
+- **双版本 mod**：Forge 1.20.1 和 NeoForge 1.21.1 两个变体都在 Windows 的开发服务器上各做了一遍端到端检查：无令牌 401、带令牌列电脑、接管、注入事件、运行 Lua、读屏幕和 trace、释放。两个 jar 的元数据（`mods.toml` / `neoforge.mods.toml`、`pack_format`、字节码版本 61/65）也逐个核对过。
 - **没有重跑 Linux 冒烟测试**：这一版的测试和实机验证都在 Windows 上完成；0.2.2 的 Linux 结果不再代表这一版。
 - 未覆盖：A8/A12 需要冻结服务器线程或制造主线程竞争，只有代码审查和单元测试；A1/A3/A11 的正常游戏里没有自然触发条件。
 
 ## 安装和升级
 
 1. 用 `cct-run-0.2.3.zip` 替换旧的 cct-run 文件夹；MCP 配置不用改。
-2. 把 `mods/` 里的 cct-live jar 换成 `cct-live-1.20.1-0.2.3.jar`（建议；旧 mod 没有 B0 的路径拦截）。
+2. 把 `mods/` 里的 cct-live jar 换成对应版本的 `cct-live-1.20.1-0.2.3.jar`（Minecraft 1.20.1 + Forge）或 `cct-live-1.21.1-0.2.3.jar`（Minecraft 1.21.1 + NeoForge）（建议；旧 mod 没有 B0 的路径拦截）。
 3. 重启游戏和 MCP 客户端。
 
 ## 已知限制

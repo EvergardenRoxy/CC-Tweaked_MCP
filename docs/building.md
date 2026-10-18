@@ -16,13 +16,16 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 
 ## cct-live mod
 
-`mod/` 是独立的 Gradle 构建，上面的命令不会构建它。第一次构建会下载 Minecraft 和 Forge 的开发环境（几百 MB）：
+同一个工程产出两个版本的 mod：Forge 1.20.1 和 NeoForge 1.21.1。第一次构建会下载对应版本的 Minecraft 和加载器开发环境（各几百 MB）：
 
 ```
-./gradlew -p mod build      # 生成 mod/build/libs/cct-live-1.20.1-<版本>.jar；Windows: gradlew.bat -p mod build
+./gradlew :mod-forge:build      # Forge 1.20.1 -> mod/forge/build/libs/cct-live-1.20.1-<版本>.jar
+./gradlew :mod-neoforge:build   # NeoForge 1.21.1 -> mod/neoforge/build/libs/cct-live-1.21.1-<版本>.jar
+./gradlew assembleMods          # 两个都构建，并复制到 build/mods/
+./gradlew :mod-forge:test :mod-neoforge:test   # 纯 JUnit 测试，各 9 个
 ```
 
-详见 [`mod/README.md`](../mod/README.md#构建)。
+共享代码在 `mod/src/common/`，加载器相关部分在 `mod/forge/`、`mod/neoforge/`。上面的 `./gradlew build` 不会构建 mod，也不会下载 Minecraft。详见 [`mod/README.md`](../mod/README.md#构建)。
 
 ## README 里的图
 

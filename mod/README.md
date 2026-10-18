@@ -1,6 +1,6 @@
 # cct-live：让 AI 按需接管游戏里的 CC: Tweaked 电脑（原型）
 
-cct-live 是一个 NeoForge mod（这个分支针对 Minecraft 1.21.1）。装上以后，AI（通过 `cct-run mcp`）可以**按需接管**真实游戏里的 CC: Tweaked 电脑：
+cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：Forge 1.20.1 和 NeoForge 21.1 / Minecraft 1.21.1。装上以后，AI（通过 `cct-run mcp`）可以**按需接管**真实游戏里的 CC: Tweaked 电脑：
 
 - 接管后，mod 在 Java 层记录这台电脑做的每一件事，格式和 cct-run 的 trace 相同；
 - AI 可以向它输入文字、发送事件、开关机。
@@ -19,21 +19,30 @@ cct-live 是一个 NeoForge mod（这个分支针对 Minecraft 1.21.1）。装�
 
 ## 版本
 
-只支持 **Minecraft 1.21.1 + NeoForge 21.1.x + CC: Tweaked 1.120.2**。这个 mod 用到了 CC: Tweaked 的内部类，所以 `neoforge.mods.toml` 把 CC: Tweaked 的版本锁定在 1.120.2，版本不对时 NeoForge 会拒绝加载。
+支持两个组合，逻辑代码是同一份，只有加载器入口和元数据不同：
 
-CC: Tweaked 在 1.21.1 没有单独的 `-neoforge` 产物：官方的 `cc-tweaked-1.21.1-forge` 就是一个 NeoForge mod（jar 里是 `META-INF/neoforge.mods.toml`，要求 NeoForge `[21.1.9,21.2)`）。`main` 分支的 1.20.1/Forge 构建仍然保留在 `main` 上。
+| 游戏 | 加载器 | CC: Tweaked | 产物 |
+|---|---|---|---|
+| Minecraft 1.20.1 | Forge 47.x | 1.120.2 | `cct-live-1.20.1-<版本>.jar` |
+| Minecraft 1.21.1 | NeoForge 21.1.x | 1.120.2 | `cct-live-1.21.1-<版本>.jar` |
+
+这个 mod 用到了 CC: Tweaked 的内部类，所以两个版本的元数据都把 CC: Tweaked 锁定在 1.120.2，版本不对时加载器会拒绝加载。CC: Tweaked 在 1.21.1 没有单独的 `-neoforge` 产物：官方的 `cc-tweaked-1.21.1-forge` 就是一个 NeoForge mod（jar 里是 `META-INF/neoforge.mods.toml`，要求 NeoForge `[21.1.9,21.2)`）。
+
+两个版本共用 `mod/src/common/` 里的 18 个 Java 类和资源，只有加载器相关的两个类（`CctLive.java`、`LiveConfig.java`）和元数据分别放在 `mod/forge/`、`mod/neoforge/`。
 
 ## 构建
 
-需要 JDK 21 或更高版本（NeoForge 1.21.1 要求 Java 21）。第一次构建会下载 Minecraft 和 NeoForge 的开发环境（几百 MB），如果本机没有 Java 21，还会自动下载一个。
+需要 JDK 21 或更高版本（Gradle wrapper 本身要 17-25；Forge 1.20.1 变体编译到 Java 17，NeoForge 1.21.1 变体编译到 Java 21）。第一次构建会下载对应版本的 Minecraft 和加载器开发环境（几百 MB）。
 
 ```
-./gradlew -p mod build          # 在仓库根目录执行；Windows: gradlew.bat -p mod build
+./gradlew :mod-forge:build      # Forge 1.20.1 -> mod/forge/build/libs/cct-live-1.20.1-<版本>.jar
+./gradlew :mod-neoforge:build   # NeoForge 1.21.1 -> mod/neoforge/build/libs/cct-live-1.21.1-<版本>.jar
+./gradlew assembleMods          # 构建两个版本，并把两个 jar 复制到 build/mods/
 ```
 
-生成的文件：`mod/build/libs/cct-live-1.21.1-<版本>.jar`。
+上面的命令都在仓库根目录执行（Windows 用 `gradlew.bat`）。测试：`./gradlew :mod-forge:test :mod-neoforge:test`，两个变体跑同一套纯 JUnit 测试（各 9 个，不加载 Minecraft 类）。
 
-`mod/` 是独立的 Gradle 构建，根目录的 `./gradlew build`（cct-run 本体）不会构建它，也不会下载 Minecraft。
+`mod/` 是根 Gradle 构建的一部分（`:mod-forge`、`:mod-neoforge` 两个子项目），但根目录的 `./gradlew build`（cct-run 本体）不会构建它们，也不会下载 Minecraft。
 
 ## 安装
 
@@ -218,3 +227,4 @@ Invoke-RestMethod -Headers $h -Method Post "$u/computers/0/detach"
 - 只支持直接贴在电脑上的显示器，不支持通过有线网络连接的显示器；海龟的背包和燃料还没有接口。
 - 海龟、口袋电脑和命令电脑都还没有测试过。
 - 测试过的环境：Linux 上的 Forge 47.4.10 开发服务器和正式服务器，以及 Windows 单人游戏（PCL2 启动器，做过五轮 AI 实测；`cct_live_peripheral`、trace 的 `peripheral` / `method` 和轮换、`cct_live_wait` 对旧画面的处理只在开发服务器上验证过，还没有经过 AI 实测）。
+- 1.20.1/Forge 和 1.21.1/NeoForge 两个变体都在 Windows 的开发服务器上做过端到端检查（接管、事件注入、Lua、屏幕、trace、释放）；NeoForge 1.21.1 还没有在真实客户端和正式服务器上试过。
