@@ -280,13 +280,13 @@ final class LiveSession {
     }
 
     private void close() {
-        if (http != null) {
-            http.stop();
-            try {
-                Files.deleteIfExists(endpointFile());
-            } catch (IOException e) {
-                CctLive.LOG.warn("cct-live: could not remove {}", endpointFile(), e);
-            }
+        if (http != null) http.stop();
+        // Remove endpoint.json even if the HTTP server was off or failed to bind: a leftover file would point
+        // cct-run mcp at a URL nobody listens on.
+        try {
+            Files.deleteIfExists(endpointFile());
+        } catch (IOException e) {
+            CctLive.LOG.warn("cct-live: could not remove {}", endpointFile(), e);
         }
         for (var attachment : attachments()) detach(attachment.computer(), "closed");
         for (var trace : traces.values()) trace.close();

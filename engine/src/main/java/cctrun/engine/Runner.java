@@ -87,6 +87,14 @@ public final class Runner {
         try (var trace = new Trace(runDir.resolve("trace.jsonl"), clock)) {
             var mount = new MemoryMount(DISK_CAPACITY);
             for (var file : fixture.files.entrySet()) addFile(mount, file.getKey(), file.getValue());
+            // The program is written after the fixture files, so a same-named fixture file would be replaced
+            // silently. Say so in summary.notes instead of leaving the fixture author guessing.
+            if (fixture.files.containsKey(storedName)) {
+                var data = new JsonObject();
+                data.addProperty("path", "/" + storedName);
+                data.addProperty("note", "the fixture file was replaced by the program source");
+                trace.note("fixture_file_overwritten", data);
+            }
             addFile(mount, storedName, spec.programSource());
             addFile(mount, "startup.lua", harness(storedName, spec.args()));
 
@@ -182,7 +190,27 @@ public final class Runner {
             clock.setTick(tick);
             if (tick >= maxTicks) return "timeout";
 
-            for (var action : fixture.timeline) if (action.tick() == tick) apply(action, computer, built, trace);
+            for (var action : fixture.timeline) {
+                if (action.tick() != tick) continue;
+                try {
+                    apply(action, computer, built, trace);
+                } catch (RuntimeException e) {
+                    // A fixture action that fails at run time (bad slot, wrong type, ...) must not kill the whole
+                    // process: record it, make the run end as an error, and still write summary.json.
+                    var data = new JsonObject();
+                    data.addProperty("ok", false);
+                    data.addProperty("action", action.action());
+                    data.addProperty("path", action.path());
+                    data.addProperty("error", String.valueOf(e));
+                    trace.note("fixture_action_error", data);
+                    api.ok = false;
+                    api.phase = "fixture";
+                    api.message = "timeline action " + action.path() + " failed: " + e;
+                    api.screen = terminal.lines();
+                    api.finished = true;
+                    return "error";
+                }
+            }
 
             computer.tick();
             mainThread.tick();
@@ -361,6 +389,7 @@ public final class Runner {
         for (var entry : trace.counts().entrySet()) counts.addProperty(entry.getKey(), entry.getValue());
         out.add("trace_counts", counts);
         out.add("notes", trace.notes());
+        if (trace.droppedNotes() > 0) out.addProperty("notes_dropped", trace.droppedNotes());
 
         var input = new JsonObject();
         var program = new JsonObject();

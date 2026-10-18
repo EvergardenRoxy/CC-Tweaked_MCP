@@ -39,6 +39,33 @@ class FixtureTest {
     }
 
     @Test
+    void timelineEnergyMustFitTheCapacity() throws Exception {
+        assertEquals("$.timeline[0].energy: must not exceed capacity (100)",
+            error("{\"peripherals\": {\"left\": {\"type\": \"energy_storage\", \"capacity\": 100}},"
+                + " \"timeline\": [{\"tick\": 1, \"do\": \"energy\", \"peripheral\": \"left\", \"energy\": 101}]}"));
+        Fixture.parse("{\"peripherals\": {\"left\": {\"type\": \"energy_storage\", \"capacity\": 100}},"
+            + " \"timeline\": [{\"tick\": 1, \"do\": \"energy\", \"peripheral\": \"left\", \"energy\": 100}]}");
+    }
+
+    @Test
+    void timelineItemSlotMustFitTheInventory() throws Exception {
+        // Regression: the slot used to be checked against the 4096 hard limit only, so Runner.apply wrote out of
+        // bounds at run time (ArrayIndexOutOfBoundsException, no summary).
+        assertEquals("$.timeline[0].slot: must be between 1 and 3",
+            error("{\"peripherals\": {\"back\": {\"type\": \"inventory\", \"size\": 3}},"
+                + " \"timeline\": [{\"tick\": 1, \"do\": \"item\", \"peripheral\": \"back\", \"slot\": 4,"
+                + " \"item\": {\"name\": \"minecraft:stone\", \"count\": 1}}]}"));
+        // The last slot of the inventory is allowed, as is a peripheral on a wired network.
+        Fixture.parse("{\"peripherals\": {\"back\": {\"type\": \"inventory\", \"size\": 3}},"
+            + " \"timeline\": [{\"tick\": 1, \"do\": \"item\", \"peripheral\": \"back\", \"slot\": 3,"
+            + " \"item\": {\"name\": \"minecraft:stone\", \"count\": 1}}]}");
+        Fixture.parse("{\"peripherals\": {\"back\": {\"type\": \"wired_modem\", \"network\":"
+            + " {\"chest_0\": {\"type\": \"inventory\", \"size\": 9}}}},"
+            + " \"timeline\": [{\"tick\": 1, \"do\": \"item\", \"peripheral\": \"chest_0\", \"slot\": 9,"
+            + " \"item\": null}]}");
+    }
+
+    @Test
     void reservedFilesAndDuplicateNetworkNamesAreRejected() {
         assertEquals("$.files[\"/startup.lua\"]: reserved: cct-run runs the program from /startup.lua",
             error("{\"files\": {\"/startup.lua\": \"\"}}"));

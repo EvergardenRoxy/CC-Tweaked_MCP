@@ -135,11 +135,15 @@ class McpServerTest {
         var q = session(
             call(1, "cct_trace", "{\"kind\":[\"program_end\"]}"),
             call(2, "cct_screen", "{}"),
-            call(3, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":\"program_end\",\"limit\":1}"),
+            // Two matching kinds with limit 1: the trace tool must say there is more. (A single program_end record
+            // with limit 1 is no longer reported as truncated: it is the last one.)
+            call(3, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":[\"program_end\",\"run_end\"],\"limit\":1}"),
             call(4, "cct_trace", "{\"kind\":[\"modem_transmit\"]}"),
             call(5, "cct_screen", "{\"source\":\"monitor_9\"}"),
             call(6, "cct_trace", "{\"run\":\"" + dir.toString().replace("\\", "\\\\") + "\"}"),
-            call(7, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"contains\":\"INDEX LOCAL\"}"));
+            call(7, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"contains\":\"INDEX LOCAL\"}"),
+            // Exactly at the limit, with only one matching record: no "there is more" note (the old code always added it).
+            call(8, "cct_trace", "{\"run\":" + JsonParser.parseString("\"" + error.get("run_dir").getAsString().replace("\\", "\\\\") + "\"") + ",\"kind\":[\"program_end\"],\"limit\":1}"));
         assertFalse(isError(q.get("1")));
         assertTrue(text(q.get("1")).contains("\"kind\":\"program_end\""));
         assertTrue(text(q.get("2")).contains("\"lines\""));
@@ -151,6 +155,14 @@ class McpServerTest {
         assertTrue(text(q.get("6")).contains("not a run directory"));
         assertFalse(isError(q.get("7")));
         assertTrue(text(q.get("7")).contains("attempt to index local"), text(q.get("7")));
+        assertFalse(text(q.get("8")).contains("stopped at limit"), text(q.get("8")));
+    }
+
+    @Test
+    void exitMeaningNamesShutdownAndReboot() throws Exception {
+        var method = McpServer.class.getDeclaredMethod("exitMeaning", int.class);
+        method.setAccessible(true);
+        assertEquals("shutdown or reboot by the program", method.invoke(null, 3));
     }
 
     /** Field test (computer 7): on Chinese Windows a fixture error under D:\\...\\测试 became "internal error: MalformedInputException". */
@@ -190,5 +202,30 @@ class McpServerTest {
         assertFalse(server.isAlive(), "server finished after the cancelled run");
         assertTrue(System.nanoTime() - start < 30_000_000_000L, "the child was stopped long before its 60 s timeout");
         assertEquals("", output.toString(StandardCharsets.US_ASCII), "no response for a cancelled request");
+    }
+
+    /** A11: an interrupt while waiting (server shutdown) stops the child and answers "cancelled", not "internal error". */
+    @Test
+    void interruptStopsTheRunningChild() throws Exception {
+        var server = new McpServer(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), dir.resolve("runs"), dir);
+        var run = McpServer.class.getDeclaredMethod("run", JsonObject.class, McpServer.Call.class);
+        run.setAccessible(true);
+        var arguments = JsonParser.parseString("{\"code\":\"while true do sleep(1) end\",\"timeout\":60}").getAsJsonObject();
+        var call = new McpServer.Call();
+        var result = new java.util.concurrent.atomic.AtomicReference<JsonObject>();
+        var thread = new Thread(() -> {
+            try {
+                result.set((JsonObject) run.invoke(server, arguments, call));
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        thread.start();
+        Thread.sleep(2000); // the child JVM is running by now
+        thread.interrupt();
+        thread.join(20_000);
+        assertFalse(thread.isAlive(), "run() returned after the interrupt");
+        var text = result.get().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+        assertEquals("cancelled", text);
     }
 }

@@ -34,6 +34,8 @@ public final class Trace implements Closeable {
     private final AtomicLong callIds = new AtomicLong();
     private final Map<String, Integer> counts = new TreeMap<>();
     private final JsonArray notes = new JsonArray();
+    /** Notes left out after {@link #MAX_NOTES}; the summary reports the count instead of silently losing them. */
+    private int droppedNotes;
     private long seq;
     private boolean closed;
 
@@ -67,6 +69,8 @@ public final class Trace implements Closeable {
         try {
             out.write(GSON.toJson(line));
             out.write('\n');
+            // A killed run must still leave every earlier record readable: no buffered tail.
+            out.flush();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -81,6 +85,8 @@ public final class Trace implements Closeable {
             note.addProperty("tick", clock.tick());
             note.addProperty("kind", kind);
             notes.add(note);
+        } else {
+            droppedNotes++;
         }
     }
 
@@ -90,6 +96,11 @@ public final class Trace implements Closeable {
 
     synchronized JsonArray notes() {
         return notes.deepCopy();
+    }
+
+    /** How many notes the summary had to leave out (only the first {@link #MAX_NOTES} are kept). */
+    synchronized int droppedNotes() {
+        return droppedNotes;
     }
 
     @Override

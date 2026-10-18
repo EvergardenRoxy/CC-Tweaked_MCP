@@ -34,6 +34,10 @@ class LiveToolsTest {
     private HttpServer fake;
     /** "METHOD path?query body" of every request the fake endpoint received. */
     private final List<String> requests = Collections.synchronizedList(new ArrayList<>());
+    /** The status reply up to (not including) its closing brace; tests shorten it to model an older endpoint. */
+    private volatile String statusJson = "{\"last_seq\":5,\"lines\":[\"hello\",\"Ready.\"],\"screen_hash\":\"ab\"";
+    /** Milliseconds the fake endpoint takes to answer /status (0 = immediately). */
+    private volatile long statusDelayMillis;
 
     private Path game() throws Exception {
         fake = HttpServer.create(new InetSocketAddress(InetAddress.getByAddress(new byte[]{127, 0, 0, 1}), 0), 0);
@@ -47,10 +51,17 @@ class LiveToolsTest {
                 status = 401;
                 reply = "{\"error\":\"missing or wrong token\"}";
             } else if (uri.getPath().endsWith("/status")) {
+                if (statusDelayMillis > 0) {
+                    try {
+                        Thread.sleep(statusDelayMillis);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
                 status = 200;
                 var match = uri.getRawQuery() != null && uri.getRawQuery().contains("kinds=printed_error")
                     ? ",\"match\":{\"seq\":6,\"kind\":\"printed_error\",\"text\":\"boom\"}" : "";
-                reply = "{\"last_seq\":5,\"lines\":[\"hello\",\"Ready.\"],\"screen_hash\":\"ab\"" + match + "}";
+                reply = statusJson + match + "}";
             } else if (uri.getPath().endsWith("/files") && uri.getRawQuery() != null && uri.getRawQuery().startsWith("op=stat")) {
                 status = 200;
                 reply = "{\"exists\":false}";
@@ -307,5 +318,55 @@ class LiveToolsTest {
         Files.writeString(game.resolve("cct-live/token.txt"), "secret\n");
         r = session(game, "cct_live_computers {}");
         assertTrue(text(r.get("1")).contains("Is the world still open?"), text(r.get("1")));
+    }
+
+    /** A1: a status reply without screen_hash must not crash cct_live_wait (older cct-live / a gone monitor). */
+    @Test
+    void waitToleratesAStatusWithoutScreenHash() throws Exception {
+        var tools = new LiveTools(game(), dir);
+        // A click stores the baseline hash, so the old code NPE'd on the next status without one.
+        tools.call("cct_live_click", JsonParser.parseString("{\"computer\":1,\"x\":1,\"y\":1}").getAsJsonObject());
+        statusJson = "{\"last_seq\":5,\"lines\":[\"hello\"]";
+        var result = tools.call("cct_live_wait", JsonParser.parseString(
+            "{\"computer\":1,\"text\":\"never there\",\"idle_seconds\":0.5,\"timeout\":1}").getAsJsonObject());
+        assertFalse(result.get("isError").getAsBoolean(), text(result));
+        assertEquals("timeout", JsonParser.parseString(text(result)).getAsJsonObject().get("met").getAsString());
+    }
+
+    /** A2: a text match left over from before the action must not stop the idle condition from being checked. */
+    @Test
+    void waitUsesIdleEvenWhenTheTextIsLeftFromBefore() throws Exception {
+        var tools = new LiveTools(game(), dir);
+        tools.call("cct_live_click", JsonParser.parseString("{\"computer\":1,\"x\":1,\"y\":1}").getAsJsonObject());
+        var start = System.nanoTime();
+        var result = tools.call("cct_live_wait", JsonParser.parseString(
+            "{\"computer\":1,\"text\":\"hello\",\"idle_seconds\":1,\"timeout\":4}").getAsJsonObject());
+        var out = JsonParser.parseString(text(result)).getAsJsonObject();
+        assertEquals("idle", out.get("met").getAsString(), text(result));
+        // The old code waited for the whole timeout because the stale text match hid the idle branch.
+        assertTrue(System.nanoTime() - start < 3_000_000_000L, "idle fired well before the 4 s timeout");
+    }
+
+    /** A3: a frozen endpoint must end the wait as "timeout" instead of blocking the tool for the HTTP timeout. */
+    @Test
+    void waitEndsWhenTheEndpointStopsAnswering() throws Exception {
+        var tools = new LiveTools(game(), dir);
+        statusDelayMillis = 5000;
+        var start = System.nanoTime();
+        var result = tools.call("cct_live_wait", JsonParser.parseString(
+            "{\"computer\":1,\"text\":\"never\",\"unchanged\":true,\"timeout\":1}").getAsJsonObject());
+        assertFalse(result.get("isError").getAsBoolean(), text(result));
+        var out = JsonParser.parseString(text(result)).getAsJsonObject();
+        assertEquals("timeout", out.get("met").getAsString(), text(result));
+        assertTrue(out.get("note").getAsString().contains("did not answer"), text(result));
+        assertTrue(System.nanoTime() - start < 2_500_000_000L, "bounded by the wait timeout, not 5 s or 15 s");
+    }
+
+    /** A10: a kind array with a non-string element is a bad argument, not a 500 from getAsString(). */
+    @Test
+    void waitRejectsNonStringKinds() throws Exception {
+        var r = session(game(), "cct_live_wait {\"computer\":1,\"kind\":[1],\"timeout\":1}");
+        assertTrue(r.get("1").get("isError").getAsBoolean(), text(r.get("1")));
+        assertTrue(text(r.get("1")).contains("array of strings"), text(r.get("1")));
     }
 }

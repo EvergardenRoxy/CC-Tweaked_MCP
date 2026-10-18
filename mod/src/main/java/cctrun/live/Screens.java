@@ -26,7 +26,12 @@ final class Screens {
             for (var it = lines.iterator(); it.hasNext(); ) {
                 var line = it.next();
                 if (line.isBlank() || !line.contains("\"kind\":\"screen\"")) continue;
-                var record = JsonParser.parseString(line).getAsJsonObject();
+                JsonObject record;
+                try {
+                    record = JsonParser.parseString(line).getAsJsonObject();
+                } catch (RuntimeException e) {
+                    continue; // partial line from a concurrent write: not part of the screen history
+                }
                 if (!"screen".equals(record.get("kind").getAsString())) continue;
                 if (record.get("tick").getAsLong() > tick) break;
                 if (!source.equals(record.has("source") ? record.get("source").getAsString() : "term")) continue;

@@ -107,6 +107,21 @@ class RunnerTest {
         assertEquals(1, result.summary().getAsJsonArray("notes").size());
     }
 
+    /** A6: the summary says how many notes it had to leave out instead of dropping them silently. */
+    @Test
+    void summaryCountsNotesBeyondTheQuota() throws Exception {
+        // Eleven failing peripheral calls make eleven notes: the first ten are kept, one is dropped.
+        var result = run(out, """
+            local left = peripheral.wrap("left")
+            for i = 1, 11 do pcall(left.getItemDetail, 9) end
+            """, """
+            {"peripherals": {"left": {"type": "inventory", "size": 3}}}
+            """, 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals(10, result.summary().getAsJsonArray("notes").size(), String.valueOf(result.summary()));
+        assertEquals(1, result.summary().get("notes_dropped").getAsInt(), String.valueOf(result.summary()));
+    }
+
     @Test
     void timeoutStopsAWaitingProgram() throws Exception {
         var result = run(out, "print('waiting') os.pullEvent('redstone')", null, 1);
@@ -178,6 +193,51 @@ class RunnerTest {
         // 25 lines plus the cursor's empty line on a 19-line screen: lines 1-7 scroll off.
         assertEquals(List.of("line 1", "line 2", "line 3", "line 4", "line 5", "line 6", "line 7"), output);
         assertEquals("line 8", screen(result).get(0));
+    }
+
+    @Test
+    void brokenTimelineActionEndsTheRunWithASummary() throws Exception {
+        var fixture = Fixture.parse("{\"peripherals\": {\"back\": {\"type\": \"inventory\", \"size\": 3}}}");
+        // Bypass validation on purpose: the runner's backstop must still write summary.json, not throw.
+        fixture.timeline.add(new Fixture.TimelineAction(2, "item",
+            com.google.gson.JsonParser.parseString("{\"tick\": 2, \"do\": \"item\", \"peripheral\": \"back\", \"slot\": 5,"
+                + " \"item\": {\"name\": \"minecraft:stone\"}}").getAsJsonObject(),
+            "$.timeline[0]"));
+        var result = Runner.run(new RunSpec("prog.lua", "print('start') sleep(1)", List.of(), fixture, null, 5, null, null, out));
+        assertEquals("error", result.status(), String.valueOf(result));
+        assertEquals(1, result.exitCode());
+        assertEquals("fixture", error(result).get("phase").getAsString());
+        assertTrue(error(result).get("message").getAsString().contains("$.timeline[0]"));
+        assertEquals(1, trace(result, "fixture_action_error").size());
+        assertTrue(java.nio.file.Files.isRegularFile(result.runDir().resolve("summary.json")));
+    }
+
+    @Test
+    void fixtureFileWithTheProgramNameIsReportedAsOverwritten() throws Exception {
+        var result = run(out, "print('ok')", "{\"files\": {\"prog.lua\": \"fixture version\"}}", 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals("ok", screen(result).get(0));
+        var notes = result.summary().getAsJsonArray("notes").toString();
+        assertTrue(notes.contains("fixture_file_overwritten"), notes);
+    }
+
+    @Test
+    void timelineItemActionWritesTheSlotItNames() throws Exception {
+        var result = run(out, """
+            sleep(1.5)
+            local back = peripheral.wrap("back")
+            local items = back.list()
+            local count, name = 0, nil
+            for _, item in pairs(items) do count = count + 1 name = item.name end
+            print(count, name)
+            """, """
+            {"peripherals": {"back": {"type": "inventory", "size": 3}},
+             "timeline": [{"tick": 20, "do": "item", "peripheral": "back", "slot": 3,
+                           "item": {"name": "minecraft:stone", "count": 2}}]}
+            """, 10);
+        assertEquals("ok", result.status(), String.valueOf(result));
+        assertEquals("1\tminecraft:stone", screen(result).get(0), screen(result).toString());
+        assertEquals(1, trace(result, "fixture_action").size());
     }
 
     @Test

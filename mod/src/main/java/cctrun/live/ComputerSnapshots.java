@@ -4,7 +4,6 @@ package cctrun.live;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import dan200.computercraft.api.filesystem.WritableMount;
 import dan200.computercraft.shared.computer.core.ServerComputer;
 
@@ -126,18 +125,11 @@ final class ComputerSnapshots {
         return out;
     }
 
-    private record Manifest(TreeMap<String, String> files, TreeSet<String> dirs, String saved) {
-    }
-
-    private static Manifest manifest(Path dir) throws IOException {
+    private static SnapshotManifest manifest(Path dir) throws IOException {
         var file = dir.resolve(MANIFEST);
         if (!Files.exists(file)) throw new IllegalArgumentException("no snapshot '" + dir.getFileName() + "' (save one first)");
-        var json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
-        var files = new TreeMap<String, String>();
-        for (var e : json.getAsJsonObject("files").entrySet()) files.put(e.getKey(), e.getValue().getAsString());
-        var dirs = new TreeSet<String>();
-        for (var e : json.getAsJsonArray("dirs")) dirs.add(e.getAsString());
-        return new Manifest(files, dirs, json.get("saved").getAsString());
+        // A snapshot manifest is plain data: SnapshotManifest checks every path before anything resolves it (review A7).
+        return SnapshotManifest.parse(Files.readString(file, StandardCharsets.UTF_8));
     }
 
     /** What differs from the snapshot: added / removed / changed files (paths), added / removed directories. */
@@ -154,7 +146,7 @@ final class ComputerSnapshots {
         return out;
     }
 
-    private static boolean describe(JsonObject out, Manifest snap, Tree now) {
+    private static boolean describe(JsonObject out, SnapshotManifest snap, Tree now) {
         var added = new TreeSet<>(now.files().keySet());
         added.removeAll(snap.files().keySet());
         var removed = new TreeSet<>(snap.files().keySet());

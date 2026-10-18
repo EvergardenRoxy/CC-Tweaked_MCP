@@ -26,13 +26,15 @@ import java.util.TreeSet;
  */
 public final class WiredModemPeripheral extends DispatchPeripheral {
     private final String localName;
-    private final Map<String, IPeripheral> network = Collections.synchronizedMap(new LinkedHashMap<>());
+    /** Fixed after construction: an unmodifiable copy, so iteration needs no lock and cannot race a writer. */
+    private final Map<String, IPeripheral> network;
     private final Set<Integer> openChannels = Collections.synchronizedSet(new TreeSet<>());
 
     public WiredModemPeripheral(String localName, Map<String, DispatchPeripheral> remote, Trace trace) {
         super("modem", Set.of("peripheral_hub"), trace);
         this.localName = localName;
-        network.putAll(remote);
+        // LinkedHashMap copy keeps getNamesRemote in fixture order; unmodifiable makes attach/detach iteration safe.
+        this.network = Collections.unmodifiableMap(new LinkedHashMap<>(remote));
 
         method(false, (c, ctx, a) -> values(false), "isWireless");
         method(false, (c, ctx, a) -> values(localName), "getNameLocal");

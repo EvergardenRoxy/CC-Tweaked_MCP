@@ -208,7 +208,7 @@ final class McpServer {
         try {
             return switch (name) {
                 case McpTools.RUN -> run(arguments, call);
-                case McpTools.TRACE -> inProcess(McpTools.traceArgs(arguments, outDir), McpTools.traceLimit(arguments));
+                case McpTools.TRACE -> trace(arguments);
                 case McpTools.SCREEN -> inProcess(McpTools.screenArgs(arguments, outDir), -1);
                 case McpTools.GUIDE -> guide(arguments);
                 default -> {
@@ -243,7 +243,21 @@ final class McpServer {
                 var process = builder.start();
                 process.getOutputStream().close(); // never let a run read the protocol stream
                 if (!call.attach(process)) return toolResult("cancelled", true);
-                var finished = process.waitFor(request.timeoutSeconds() + CHILD_GRACE_SECONDS, TimeUnit.SECONDS);
+                boolean finished;
+                try {
+                    finished = process.waitFor(request.timeoutSeconds() + CHILD_GRACE_SECONDS, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    // The server is stopping (or the request was interrupted): never leave the child JVM behind.
+                    process.destroyForcibly();
+                    try {
+                        // Windows keeps the redirected stdout/stderr files locked until the process has exited.
+                        process.waitFor(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException again) {
+                        // already stopping; the interrupt flag is set below
+                    }
+                    Thread.currentThread().interrupt();
+                    return toolResult("cancelled", true);
+                }
                 if (!finished) {
                     process.destroyForcibly();
                     return toolResult("cct-run did not finish within " + (request.timeoutSeconds() + CHILD_GRACE_SECONDS) + " s of wall time and was stopped.", true);
@@ -256,8 +270,13 @@ final class McpServer {
                 if (code >= 0 && code <= Main.EX_OUT_OF_MEMORY && !stdout.isEmpty()) return toolResult(stdout, false);
                 return toolResult("cct-run run failed with exit code " + code + " (" + exitMeaning(code) + ").\n" + stderr, true);
             } finally {
-                Files.deleteIfExists(stdoutFile);
-                Files.deleteIfExists(stderrFile);
+                // A just-killed child on Windows may still hold its redirected files: deleting them is best effort.
+                try {
+                    Files.deleteIfExists(stdoutFile);
+                    Files.deleteIfExists(stderrFile);
+                } catch (java.io.IOException ignored) {
+                    // left in the temp directory; harmless
+                }
             }
         } finally {
             if (temp != null) deleteTree(temp);
@@ -268,6 +287,7 @@ final class McpServer {
         return switch (code) {
             case Main.EX_USAGE -> "usage error";
             case Main.EX_DATAERR -> "bad input";
+            case 3 -> "shutdown or reboot by the program";
             case 69 -> "no Java 17+";
             case Main.EX_SOFTWARE -> "internal error";
             default -> "unexpected";
@@ -306,6 +326,29 @@ final class McpServer {
         var headings = new StringBuilder("No section " + section + ". Sections:");
         for (var part : parts) if (part.startsWith("## ")) headings.append("\n").append(part.lines().findFirst().orElse(""));
         return toolResult(headings.toString(), true);
+    }
+
+    /**
+     * cct_trace: ask the CLI for one record more than the caller wants, so the "stopped at limit" note is only
+     * added when there really is another record (it used to be added whenever the result was exactly at the limit).
+     */
+    private JsonObject trace(JsonObject arguments) throws McpTools.ToolError {
+        var limit = McpTools.traceLimit(arguments);
+        var argv = McpTools.traceArgs(arguments, outDir);
+        var canPeek = limit < 100_000;
+        if (canPeek) {
+            var at = argv.lastIndexOf("--limit");
+            if (at >= 0 && at + 1 < argv.size()) argv.set(at + 1, Integer.toString(limit + 1));
+        }
+        var json = inProcess(argv, -1);
+        if (json.get("isError").getAsBoolean()) return json;
+        var text = json.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString();
+        var lines = text.isEmpty() ? new String[0] : text.split("\n", -1);
+        var hasMore = canPeek && lines.length > limit;
+        if (hasMore) text = String.join("\n", java.util.Arrays.copyOf(lines, limit));
+        if (text.isBlank()) text = "(no matching trace records)";
+        if (hasMore) text += "\n(stopped at limit " + limit + "; call again with offset increased by " + limit + " for more)";
+        return toolResult(text, false);
     }
 
     private JsonObject inProcess(List<String> argv, int limit) {

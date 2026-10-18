@@ -197,9 +197,14 @@ public final class Main {
         }
         Set<String> kindSet = kinds == null ? null : Arrays.stream(kinds.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
 
-        var records = TraceQuery.records(runDir, new TraceQuery.Filter(kindSet, from, to, peripheral, source, args.option("--contains"), offset, limit));
+        // Ask for one record more than requested, so "there is more" is known without reading the trace twice.
+        var result = TraceQuery.read(runDir, new TraceQuery.Filter(kindSet, from, to, peripheral, source, args.option("--contains"), offset, limit + 1));
+        var records = new ArrayList<>(result.records());
+        var hasMore = records.size() > limit;
+        if (hasMore) records.subList(limit, records.size()).clear();
         for (var record : records) out.println(ascii(COMPACT.toJson(record)));
-        if (records.size() == limit) System.err.println("cct-run: stopped at --limit " + limit + "; use --offset " + (offset + limit) + " for more");
+        if (result.skipped() > 0) System.err.println("cct-run: skipped " + result.skipped() + " malformed trace line(s)");
+        if (hasMore) System.err.println("cct-run: stopped at --limit " + limit + "; use --offset " + (offset + limit) + " for more");
         return 0;
     }
 
@@ -329,8 +334,9 @@ public final class Main {
         var parts = value.toLowerCase().split("x");
         if (parts.length == 2) {
             try {
-                var w = Integer.parseInt(parts[0]);
-                var h = Integer.parseInt(parts[1]);
+                // Trim like Fixture.parseSize, so "--term \"26 x 20\"" is accepted in both places.
+                var w = Integer.parseInt(parts[0].trim());
+                var h = Integer.parseInt(parts[1].trim());
                 if (w >= 1 && w <= 255 && h >= 1 && h <= 255) return new int[]{ w, h };
             } catch (NumberFormatException ignored) {
             }

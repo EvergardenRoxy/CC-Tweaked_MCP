@@ -105,7 +105,7 @@ final class ComputerTrace {
         if (closed) return;
         try {
             // Rough size of the record (seq, tick and ms add a few dozen characters): rotate before it is numbered.
-            var estimate = GSON.toJson(data).length() + kind.length() + 64;
+            var estimate = Utf8.length(GSON.toJson(data)) + Utf8.length(kind) + 64;
             if (bytes > 0 && bytes + estimate > maxBytes / 2) rotate(tick, ms);
             write(line(tick, ms, kind, data));
         } catch (IOException e) {
@@ -131,7 +131,8 @@ final class ComputerTrace {
         var text = GSON.toJson(line);
         out.write(text);
         out.write('\n');
-        bytes += text.length() + 1;
+        // The trace is UTF-8 and max_bytes is a byte budget: count bytes, not chars.
+        bytes += Utf8.length(text) + 1;
     }
 
     /**
