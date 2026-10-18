@@ -1,0 +1,110 @@
+# Builds every artifact of this repository on GitHub Actions.
+#
+# Jobs:
+#   tests  - engine + cli (72 tests, no Minecraft download)
+#   mod    - cct-live for Forge 1.20.1 and for NeoForge 1.21.1, one job per variant (9 tests each)
+#   release- only on a v* tag: builds the dist zip and both mod jars and attaches them to a GitHub release
+#
+# The mod jobs need JDK 21 to configure both variants; :mod-forge still compiles to Java 17 (see handoff.md D58).
+# The first mod build of a cache misses downloads the Minecraft/loader dev environment of that variant (several
+# hundred MB), so those jobs are slower than the engine/cli job and have a longer timeout.
+
+name: build
+
+on:
+  push:
+    branches: [main, "1018", multi-version-build, neoforge-1.21.1]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: engine and cli
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build and test
+        run: ./gradlew --no-daemon --console=plain build
+      - name: Upload the test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: "**/build/reports/tests/**"
+          if-no-files-found: ignore
+
+  mod:
+    name: cct-live (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [forge, neoforge]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build and test the mod
+        run: ./gradlew --no-daemon --console=plain :mod-${{ matrix.variant }}:build
+        env:
+          GRADLE_OPTS: -Xmx3g
+      - name: Upload the mod jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: cct-live-${{ matrix.variant }}
+          path: mod/${{ matrix.variant }}/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [tests, mod]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build the release assets
+        run: ./gradlew --no-daemon --console=plain :cli:distZip assembleMods
+        env:
+          GRADLE_OPTS: -Xmx3g
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="docs/release-notes-${GITHUB_REF_NAME#v}.md"
+          assets=(cli/build/distributions/*.zip build/mods/*.jar)
+          if [ -f "$notes" ]; then
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$notes" "${assets[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes "${assets[@]}"
+          fi

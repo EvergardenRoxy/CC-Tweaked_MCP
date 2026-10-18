@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MPL-2.0
+
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MPL-2.0"
+
+[[mods]]
+modId="cctlive"
+version="${version}"
+displayName="cct-live"
+description='''
+Observes CC: Tweaked computers from the Java side and exposes them to AI tools over a local endpoint (prototype).
+'''
+
+[[dependencies.cctlive]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.9,21.2)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.cctlive]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1,1.21.2)"
+    ordering="NONE"
+    side="BOTH"
+
+# Built against CC: Tweaked internals (ServerContext.luaMachine, ServerComputer), so the version is pinned.
+[[dependencies.cctlive]]
+    modId="computercraft"
+    type="required"
+    versionRange="[${cctVersion}]"
+    ordering="AFTER"
+    side="BOTH"

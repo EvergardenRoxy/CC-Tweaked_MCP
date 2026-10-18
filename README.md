@@ -1,6 +1,6 @@
 # cct-run：给 AI 用的 CC: Tweaked 测试环境
 
-[![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg?style=for-the-badge)](LICENSE) [![AI Assisted](https://img.shields.io/badge/AI-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](#ai-制作声明)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg?style=for-the-badge)](LICENSE) [![build](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml/badge.svg?branch=multi-version-build)](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml) [![AI Assisted](https://img.shields.io/badge/AI-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](#ai-制作声明)
 
 > **AI 制作声明：cct-run 采用生成式 AI 参与代码编写、测试与文档撰写。** AI 生成或修改的内容由项目维护者审阅、验证并承担最终维护责任。详见[文末](#ai-制作声明)。
 
@@ -10,7 +10,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - 按真实时间运行，每秒 20 刻。
 - 每次运行都会输出 JSON 摘要（结果、错误和行号、最终屏幕），并把全过程记录到 trace 文件里。
 
-模拟器测不到的内容（海龟、HTTP、真实的模组外设和真实世界），可以交给可选的 **cct-live mod**：它是一个 Forge 1.20.1 mod，在玩家同意后，让 AI 接管正在运行的游戏里的真实电脑，查看它的运行记录，也可以操作它。不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)。
+模拟器测不到的内容（海龟、HTTP、真实的模组外设和真实世界），可以交给可选的 **cct-live mod**：同一个 Gradle 工程构建 **Forge 1.20.1** 和 **NeoForge 21.1 / Minecraft 1.21.1** 两个版本，在玩家同意后，让 AI 接管正在运行的游戏里的真实电脑，查看它的运行记录，也可以操作它。不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)。
 
 有两种接入方式：
 
@@ -122,6 +122,8 @@ cct-run guide | version | help | mcp
 |---|---|
 | Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
 | Windows 11（0.2.3 审查修复版） | 单元测试 81/81（engine 42、cli 30、mod 9）；游戏内验证路径拦截、快照路径、`cct_live_wait` 和 `notes_dropped` |
+| Windows 11（双版本 mod 构建） | 单元测试 90 次（engine 42、cli 30、mod 的 1.20.1/1.21.1 两个变体各 9）；两个 mod 变体都在开发服务器上端到端通过：401/200、接管、事件、Lua、屏幕、trace、释放；1.21.1 版还在真实的 NeoForge 客户端里验证了接管、事件注入、Lua REPL、文件与快照端点、路径拦截、trace、wait 和释放（显示器、有线调制解调器、记录模式、body 端点未测） |
+| Linux（GitHub Actions，0.2.3） | 每次推送自动构建并测试：engine 42 + cli 30（`./gradlew build`）、两个 mod 变体各 9 个测试；`v*` 标签额外构建发布包并创建 GitHub Release。见 [`docs/building.md`](docs/building.md#自动构建github-actions) |
 | Linux | 0.2.2 时单元测试 54/54、冒烟测试全部通过、官方 MCP SDK 客户端验证通过、Java 17 / 21 / 25 均可运行；0.2.3 未重跑 |
 | macOS | 尚未测试 |
 | cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）七次 AI 实测：MPlayer 安装脚本排错 4 轮，联合测试 3（Create 工厂控制中心）2 次，联合测试 4（Create 订单产线）1 次 |
@@ -174,7 +176,7 @@ cct-run guide | version | help | mcp
 
 ## 从源码构建
 
-需要 JDK 17 或更高版本：`./gradlew build` 编译并运行测试，`./gradlew :cli:distZip` 生成发布包。**完整说明见 [从源码构建](docs/building.md)**，包括 cct-live mod 的构建和 README 图表的生成。
+需要 JDK 17 或更高版本：`./gradlew build` 编译并运行测试，`./gradlew :cli:distZip` 生成发布包，`./gradlew assembleMods` 生成两个版本的 cct-live mod（Forge 1.20.1、NeoForge 1.21.1）。**完整说明见 [从源码构建](docs/building.md)**，包括 mod 的各版本构建命令和 README 图表的生成。
 
 ---
 
