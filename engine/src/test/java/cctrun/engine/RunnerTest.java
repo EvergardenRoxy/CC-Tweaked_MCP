@@ -181,6 +181,23 @@ class RunnerTest {
     }
 
     @Test
+    void brokenTimelineActionEndsTheRunWithASummary() throws Exception {
+        var fixture = Fixture.parse("{\"peripherals\": {\"back\": {\"type\": \"inventory\", \"size\": 3}}}");
+        // Bypass validation on purpose: the runner's backstop must still write summary.json, not throw.
+        fixture.timeline.add(new Fixture.TimelineAction(2, "item",
+            com.google.gson.JsonParser.parseString("{\"tick\": 2, \"do\": \"item\", \"peripheral\": \"back\", \"slot\": 5,"
+                + " \"item\": {\"name\": \"minecraft:stone\"}}").getAsJsonObject(),
+            "$.timeline[0]"));
+        var result = Runner.run(new RunSpec("prog.lua", "print('start') sleep(1)", List.of(), fixture, null, 5, null, null, out));
+        assertEquals("error", result.status(), String.valueOf(result));
+        assertEquals(1, result.exitCode());
+        assertEquals("fixture", error(result).get("phase").getAsString());
+        assertTrue(error(result).get("message").getAsString().contains("$.timeline[0]"));
+        assertEquals(1, trace(result, "fixture_action_error").size());
+        assertTrue(java.nio.file.Files.isRegularFile(result.runDir().resolve("summary.json")));
+    }
+
+    @Test
     void fixtureFileWithTheProgramNameIsReportedAsOverwritten() throws Exception {
         var result = run(out, "print('ok')", "{\"files\": {\"prog.lua\": \"fixture version\"}}", 10);
         assertEquals("ok", result.status(), String.valueOf(result));

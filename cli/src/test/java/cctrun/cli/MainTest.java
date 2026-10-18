@@ -95,6 +95,21 @@ class MainTest {
     }
 
     @Test
+    void traceReportsMalformedLinesItSkipped() throws Exception {
+        var program = dir.resolve("hi.lua");
+        Files.writeString(program, "print('hi')");
+        var runs = dir.resolve("runs").toString();
+        var bytes = new ByteArrayOutputStream();
+        assertEquals(0, Main.dispatch(new String[]{ "run", program.toString(), "--out", runs }, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        var runDir = JsonParser.parseString(bytes.toString(StandardCharsets.UTF_8)).getAsJsonObject().get("run_dir").getAsString();
+        Files.writeString(Path.of(runDir).resolve("trace.jsonl"), "{\"seq\":999,\"tick\":1,\"kind\":\"event\"",
+            StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.APPEND);
+        var err = captureErr(() -> Main.dispatch(new String[]{ "trace", runDir, "--limit", "1000" },
+            new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8)));
+        assertTrue(err.contains("skipped 1 malformed trace line(s)"), err);
+    }
+
+    @Test
     void termOptionAcceptsSpacesAroundTheX() throws Exception {
         var program = dir.resolve("size.lua");
         Files.writeString(program, "print(term.getSize())");
