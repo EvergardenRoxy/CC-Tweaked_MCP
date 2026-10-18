@@ -10,7 +10,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 - 按真实时间运行，每秒 20 刻。
 - 每次运行都会输出 JSON 摘要（结果、错误和行号、最终屏幕），并把全过程记录到 trace 文件里。
 
-模拟器测不到的内容（海龟、HTTP、真实的模组外设和真实世界），可以交给可选的 **cct-live mod**：它是一个 Forge 1.20.1 mod，在玩家同意后，让 AI 接管正在运行的游戏里的真实电脑，查看它的运行记录，也可以操作它。不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)。
+模拟器测不到的内容（海龟、HTTP、真实的模组外设和真实世界），可以交给可选的 **cct-live mod**：它是一个 mod（`main` 分支：Forge 1.20.1；`neoforge-1.21.1` 分支：NeoForge 21.1 / Minecraft 1.21.1），在玩家同意后，让 AI 接管正在运行的游戏里的真实电脑，查看它的运行记录，也可以操作它。不需要在电脑里运行 Lua 脚本，也不需要转发服务器。见 [`mod/README.md`](mod/README.md)。
 
 有两种接入方式：
 

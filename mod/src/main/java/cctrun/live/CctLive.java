@@ -9,15 +9,15 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,19 +37,18 @@ public final class CctLive {
     public static final String MOD_ID = "cctlive";
     static final Logger LOG = LoggerFactory.getLogger("cct-live");
 
-    @SuppressWarnings("removal") // ModLoadingContext.get() is how Forge 47 registers configs
-    public CctLive() {
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, LiveConfig.SPEC);
+    public CctLive(ModContainer container) {
+        container.registerConfig(ModConfig.Type.COMMON, LiveConfig.SPEC);
 
         // Read by ServerContext's constructor, i.e. on every server start (each world in single player).
         ServerContext.luaMachine = LiveMachine.factory(ServerContext.luaMachine);
         // Every computer gets the __cctlive bridge used by rom/autorun/cctlive.lua (shipped in this jar's data pack).
         ComputerCraftAPI.registerAPIFactory(computer -> new BridgeApi());
 
-        MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
-        MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
-        MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
-        MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        NeoForge.EVENT_BUS.addListener(this::onServerStarted);
+        NeoForge.EVENT_BUS.addListener(this::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(this::onServerTick);
+        NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
     }
 
     private void onServerStarted(ServerStartedEvent event) {
@@ -66,8 +65,7 @@ public final class CctLive {
         LiveSession.stop();
     }
 
-    private void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    private void onServerTick(ServerTickEvent.Post event) {
         var session = LiveSession.current();
         if (session != null) session.tick();
     }

@@ -1,6 +1,6 @@
 # cct-live：让 AI 按需接管游戏里的 CC: Tweaked 电脑（原型）
 
-cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以**按需接管**真实游戏里的 CC: Tweaked 电脑：
+cct-live 是一个 NeoForge mod（这个分支针对 Minecraft 1.21.1）。装上以后，AI（通过 `cct-run mcp`）可以**按需接管**真实游戏里的 CC: Tweaked 电脑：
 
 - 接管后，mod 在 Java 层记录这台电脑做的每一件事，格式和 cct-run 的 trace 相同；
 - AI 可以向它输入文字、发送事件、开关机。
@@ -19,17 +19,19 @@ cct-live 是一个 Forge mod。装上以后，AI（通过 `cct-run mcp`）可以
 
 ## 版本
 
-只支持 **Minecraft 1.20.1 + Forge 47.x + CC: Tweaked 1.120.2**。这个 mod 用到了 CC: Tweaked 的内部类，所以 `mods.toml` 把 CC: Tweaked 的版本锁定在 1.120.2，版本不对时 Forge 会拒绝加载。
+只支持 **Minecraft 1.21.1 + NeoForge 21.1.x + CC: Tweaked 1.120.2**。这个 mod 用到了 CC: Tweaked 的内部类，所以 `neoforge.mods.toml` 把 CC: Tweaked 的版本锁定在 1.120.2，版本不对时 NeoForge 会拒绝加载。
+
+CC: Tweaked 在 1.21.1 没有单独的 `-neoforge` 产物：官方的 `cc-tweaked-1.21.1-forge` 就是一个 NeoForge mod（jar 里是 `META-INF/neoforge.mods.toml`，要求 NeoForge `[21.1.9,21.2)`）。`main` 分支的 1.20.1/Forge 构建仍然保留在 `main` 上。
 
 ## 构建
 
-需要 JDK 17 或更高版本。第一次构建会下载 Minecraft 和 Forge 的开发环境（几百 MB），如果本机没有 Java 17，还会自动下载一个。
+需要 JDK 21 或更高版本（NeoForge 1.21.1 要求 Java 21）。第一次构建会下载 Minecraft 和 NeoForge 的开发环境（几百 MB），如果本机没有 Java 21，还会自动下载一个。
 
 ```
 ./gradlew -p mod build          # 在仓库根目录执行；Windows: gradlew.bat -p mod build
 ```
 
-生成的文件：`mod/build/libs/cct-live-1.20.1-<版本>.jar`。
+生成的文件：`mod/build/libs/cct-live-1.21.1-<版本>.jar`。
 
 `mod/` 是独立的 Gradle 构建，根目录的 `./gradlew build`（cct-run 本体）不会构建它，也不会下载 Minecraft。
 

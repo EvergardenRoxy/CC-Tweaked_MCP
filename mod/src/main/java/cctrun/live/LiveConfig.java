@@ -2,24 +2,24 @@
 
 package cctrun.live;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** config/cctlive-common.toml. Read when a world opens; changes apply from the next world load. */
 final class LiveConfig {
-    static final ForgeConfigSpec SPEC;
-    static final ForgeConfigSpec.BooleanValue HTTP_ENABLED;
-    static final ForgeConfigSpec.IntValue HTTP_PORT;
-    static final ForgeConfigSpec.BooleanValue TRACE_SCREENS;
-    static final ForgeConfigSpec.IntValue TRACE_MAX_MB;
-    static final ForgeConfigSpec.IntValue TRACE_MAX_STRING;
-    static final ForgeConfigSpec.BooleanValue RECORDER_ENABLED;
-    static final ForgeConfigSpec.IntValue RECORDER_SIZE;
-    static final ForgeConfigSpec.IntValue LEASE_SECONDS;
-    static final ForgeConfigSpec.BooleanValue CHAT;
-    static final ForgeConfigSpec.BooleanValue FILES_WRITE;
+    static final ModConfigSpec SPEC;
+    static final ModConfigSpec.BooleanValue HTTP_ENABLED;
+    static final ModConfigSpec.IntValue HTTP_PORT;
+    static final ModConfigSpec.BooleanValue TRACE_SCREENS;
+    static final ModConfigSpec.IntValue TRACE_MAX_MB;
+    static final ModConfigSpec.IntValue TRACE_MAX_STRING;
+    static final ModConfigSpec.BooleanValue RECORDER_ENABLED;
+    static final ModConfigSpec.IntValue RECORDER_SIZE;
+    static final ModConfigSpec.IntValue LEASE_SECONDS;
+    static final ModConfigSpec.BooleanValue CHAT;
+    static final ModConfigSpec.BooleanValue FILES_WRITE;
 
     static {
-        var b = new ForgeConfigSpec.Builder();
+        var b = new ModConfigSpec.Builder();
         b.push("http");
         HTTP_ENABLED = b.comment("Serve the local HTTP endpoint (always bound to 127.0.0.1; requests need the token in cct-live/token.txt).")
             .define("enabled", true);
