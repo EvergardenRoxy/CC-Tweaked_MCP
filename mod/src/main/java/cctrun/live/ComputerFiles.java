@@ -27,15 +27,9 @@ final class ComputerFiles {
     private ComputerFiles() {
     }
 
-    /** "/a/./b/" -> "a/b"; rejects ".." so a request cannot leave the computer's directory. */
+    /** See {@link ComputerPaths#sanitise(String)}: rejects ".." and Windows drive letters before any mount call. */
     static String sanitise(String path) {
-        var out = new ArrayList<String>();
-        for (var part : (path == null ? "" : path).replace('\\', '/').split("/")) {
-            if (part.isEmpty() || part.equals(".")) continue;
-            if (part.equals("..")) throw new IllegalArgumentException("'..' is not allowed in paths");
-            out.add(part);
-        }
-        return String.join("/", out);
+        return ComputerPaths.sanitise(path);
     }
 
     private static boolean isRom(String path) {

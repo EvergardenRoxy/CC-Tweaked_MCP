@@ -568,6 +568,7 @@ final class LiveHttp {
         long fromTick = 0, toTick = Long.MAX_VALUE;
         if (query.containsKey("ticks")) {
             var range = query.get("ticks").trim();
+            if (range.isEmpty() || range.equals("-")) throw new BadRequest(400, "ticks must be N, A-B, A- or -B");
             try {
                 var dash = range.indexOf('-');
                 if (dash < 0) fromTick = toTick = Long.parseLong(range);
@@ -591,11 +592,18 @@ final class LiveHttp {
 
         var records = new JsonArray();
         var matched = 0;
+        var skipped = 0;
         try (var lines = computerTrace.lines()) {
             for (var it = lines.iterator(); it.hasNext(); ) {
                 var line = it.next();
                 if (line.isBlank()) continue;
-                var record = JsonParser.parseString(line).getAsJsonObject();
+                JsonObject record;
+                try {
+                    record = JsonParser.parseString(line).getAsJsonObject();
+                } catch (RuntimeException e) {
+                    skipped++; // partial line from a concurrent write or rotation: skip it, keep the rest
+                    continue;
+                }
                 var kind = record.get("kind").getAsString();
                 if (!kinds.isEmpty() && !kinds.contains(kind)) continue;
                 if (excluded.contains(kind)) continue;
@@ -625,6 +633,7 @@ final class LiveHttp {
         out.addProperty("attached", attachment != null);
         out.addProperty("tick", session.tickCount());
         out.addProperty("matched", matched);
+        if (skipped > 0) out.addProperty("skipped", skipped);
         if (computerTrace.rotations() > 0) out.addProperty("first_seq", computerTrace.firstSeq());
         if (summary) {
             var kindsOut = new JsonObject();
@@ -728,7 +737,19 @@ final class LiveHttp {
     }
 
     private static JsonObject body(HttpExchange exchange) throws IOException {
-        var text = new String(exchange.getRequestBody().readNBytes(64 * 1024), StandardCharsets.UTF_8);
+        var declared = exchange.getRequestHeaders().getFirst("Content-Length");
+        if (declared != null) {
+            try {
+                if (Long.parseLong(declared) > ComputerFiles.MAX_READ) {
+                    throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes");
+                }
+            } catch (NumberFormatException ignored) {
+                // The length check below uses the bytes actually read.
+            }
+        }
+        var bytes = exchange.getRequestBody().readNBytes(ComputerFiles.MAX_READ + 1);
+        if (bytes.length > ComputerFiles.MAX_READ) throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes");
+        var text = new String(bytes, StandardCharsets.UTF_8);
         try {
             var parsed = JsonParser.parseString(text.isBlank() ? "{}" : text);
             if (!parsed.isJsonObject()) throw new BadRequest(400, "body must be a JSON object");
