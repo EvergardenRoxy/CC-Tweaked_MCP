@@ -1,0 +1,46 @@
+{"seq":1,"tick":0,"ms":1.0,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":57.8,"kind":"run_start","program":"debug_probe.lua","args":[],"timeout_s":30}
+{"seq":3,"tick":0,"ms":62.6,"kind":"screen","source":"term","size":[51,19],"lines":{},"cursor":[1,1]}
+{"seq":4,"tick":3,"ms":229.5,"kind":"program_start"}
+{"seq":5,"tick":3,"ms":234.4,"kind":"output","source":"term","text":"debug_type\ttable"}
+{"seq":6,"tick":3,"ms":235.0,"kind":"output","source":"term","text":"DEBUGFN\tgetlocal\tfunction"}
+{"seq":7,"tick":3,"ms":235.6,"kind":"output","source":"term","text":"DEBUGFN\tsetlocal\tfunction"}
+{"seq":8,"tick":3,"ms":238.3,"kind":"output","source":"term","text":"DEBUGFN\tgetupvalue\tfunction"}
+{"seq":9,"tick":3,"ms":238.8,"kind":"output","source":"term","text":"DEBUGFN\tsetupvalue\tfunction"}
+{"seq":10,"tick":3,"ms":239.1,"kind":"output","source":"term","text":"DEBUGFN\tgetregistry\tfunction"}
+{"seq":11,"tick":3,"ms":239.5,"kind":"output","source":"term","text":"DEBUGFN\tsethook\tfunction"}
+{"seq":12,"tick":3,"ms":240.1,"kind":"output","source":"term","text":"DEBUGFN\tgethook\tfunction"}
+{"seq":13,"tick":3,"ms":240.6,"kind":"output","source":"term","text":"DEBUGFN\tgetinfo\tfunction"}
+{"seq":14,"tick":3,"ms":241.0,"kind":"output","source":"term","text":"DEBUGFN\ttraceback\tfunction"}
+{"seq":15,"tick":3,"ms":241.3,"kind":"output","source":"term","text":"DEBUGFN\tgetmetatable\tfunction"}
+{"seq":16,"tick":3,"ms":241.7,"kind":"output","source":"term","text":"DEBUGFN\tsetmetatable\tfunction"}
+{"seq":17,"tick":3,"ms":242.0,"kind":"output","source":"term","text":"DEBUGFN\tupvalueid\tfunction"}
+{"seq":18,"tick":3,"ms":242.3,"kind":"output","source":"term","text":"DEBUGFN\tgetfenv\tfunction"}
+{"seq":19,"tick":3,"ms":242.6,"kind":"output","source":"term","text":"DEBUGFN\tsetfenv\tfunction"}
+{"seq":20,"tick":3,"ms":242.9,"kind":"output","source":"term","text":"REG\t_LOADED\ttable\ttable: 7a46d025"}
+{"seq":21,"tick":3,"ms":243.1,"kind":"output","source":"term","text":"REG\tcc_try_barrier\tfunction\tfunction: 2eb5b184"}
+{"seq":22,"tick":3,"ms":243.4,"kind":"output","source":"term","text":"REGISTRY\t2\tthreads\t0"}
+{"seq":23,"tick":3,"ms":243.7,"kind":"output","source":"term","text":"GETLOCAL_THREAD\ttrue\ta\t10"}
+{"seq":24,"tick":3,"ms":244.1,"kind":"output","source":"term","text":"LOCAL\t1\t1\tt\tfunction\tfunction: 207be4a4"}
+{"seq":25,"tick":3,"ms":244.4,"kind":"output","source":"term","text":"LOCAL\t1\t2\treg\ttable\ttable: 16b203be"}
+{"seq":26,"tick":3,"ms":244.6,"kind":"output","source":"term","text":"LOCAL\t1\t3\tn\tnumber\t2"}
+{"seq":27,"tick":3,"ms":245.4,"kind":"output","source":"term","text":"LOCAL\t1\t4\tthreads\tnumber\t0"}
+{"seq":28,"tick":3,"ms":245.6,"kind":"output","source":"term","text":"LOCAL\t1\t5\tco\tthread\tthread: 59839de7"}
+{"seq":29,"tick":3,"ms":245.9,"kind":"output","source":"term","text":"LOCAL\t1\t6\tok\tboolean\ttrue"}
+{"seq":30,"tick":3,"ms":246.3,"kind":"output","source":"term","text":"LOCAL\t1\t7\tname\tstring\ta"}
+{"seq":31,"tick":3,"ms":246.6,"kind":"output","source":"term","text":"LOCAL\t1\t8\tval\tnumber\t10"}
+{"seq":32,"tick":3,"ms":246.9,"kind":"output","source":"term","text":"LOCAL\t1\t9\t(for index)\tnumber\t1"}
+{"seq":33,"tick":3,"ms":247.2,"kind":"output","source":"term","text":"LOCAL\t1\t10\t(for limit)\tnumber\t12"}
+{"seq":34,"tick":3,"ms":247.5,"kind":"output","source":"term","text":"LOCAL\t1\t11\t(for step)\tnumber\t1"}
+{"seq":35,"tick":3,"ms":247.8,"kind":"output","source":"term","text":"LOCAL\t1\t12\tlvl\tnumber\t1"}
+{"seq":36,"tick":3,"ms":248.0,"kind":"output","source":"term","text":"LOCAL\t1\t13\ti\tnumber\t13"}
+{"seq":37,"tick":3,"ms":251.8,"kind":"output","source":"term","text":"LOCAL\t1\t14\t(*temporary)\tfunction\tfunction: 208b542e"}
+{"seq":38,"tick":3,"ms":252.1,"kind":"output","source":"term","text":"LOCAL\t1\t15\t(*temporary)\tnumber\t1"}
+{"seq":39,"tick":3,"ms":256.1,"kind":"output","source":"term","text":"LOCAL\t1\t16\t(*temporary)\tnumber\t16"}
+{"seq":40,"tick":3,"ms":256.4,"kind":"output","source":"term","text":"LOCAL\t1\t17\t(*temporary)\tstring\tLOCAL"}
+{"seq":41,"tick":3,"ms":256.6,"kind":"output","source":"term","text":"LOCAL\t1\t18\t(*temporary)\tnumber\t1"}
+{"seq":42,"tick":3,"ms":256.7,"kind":"program_end","ok":false,"phase":"runtime","message":"/debug_probe.lua:29: bad argument #1 (level out of range)","traceback":"stack traceback:\n\t[C]: in field 'getlocal'\n\t/debug_probe.lua:29: in local 'f'\n\t...internal/exception.lua:99: in function <...internal/exception.lua:99>"}
+{"seq":43,"tick":3,"ms":257.3,"kind":"event","name":"setting_changed","args":["motd.enable",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":44,"tick":3,"ms":257.6,"kind":"event","name":"setting_changed","args":["bios.use_multishell",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":45,"tick":4,"ms":259.8,"kind":"screen","source":"term","lines":{"1":"LOCAL\t1\t19\t(*temporary)\tnumber\t18","2":"LOCAL\t1\t20\t(*temporary)\tstring\t(*temporary)","3":"LOCAL\t1\t21\t(*temporary)\tstring\tstring","4":"LOCAL\t1\t22\t(*temporary)\tfunction\tfunction: 33d40a1c","5":"LOCAL\t1\t23\t(*temporary)\tstring\tfunction: 33d40a1c","6":"LOCAL\t1\t24\t(*temporary)\tnumber\t1","7":"LOCAL\t1\t25\t(*temporary)\tnumber\t50","8":"LOCAL\t1\t26\t(*temporary)\tnil\tnil","9":"LOCAL\t2\t1\tparent\ttable\ttable: 767dd524","10":"LOCAL\t2\t2\tf\tfunction\tfunction: 408c38f8","11":"LOCAL\t2\t3\t(*temporary)\tfunction\tfunction: 3adc2ee3","12":"LOCAL\t2\t4\t(*temporary)\tfunction\tfunction: 408c38f8","13":"LOCAL\t2\t5\t(*temporary)\tnil\tnil","14":"/debug_probe.lua:29: bad argument #1 (level out of","15":"range)","16":"Line 29","17":"    local nm, v = debug.getlocal(lvl, i)","18":"                                "},"cursor":[1,19]}
+{"seq":46,"tick":4,"ms":310.4,"kind":"run_end","status":"error","exit_code":1}

@@ -1,0 +1,9 @@
+{"seq":1,"tick":0,"ms":1.0,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":50.8,"kind":"run_start","program":"fs_write.lua","args":[],"timeout_s":60}
+{"seq":3,"tick":0,"ms":55.0,"kind":"screen","source":"term","size":[51,19],"lines":{},"cursor":[1,1]}
+{"seq":4,"tick":2,"ms":198.6,"kind":"program_start"}
+{"seq":5,"tick":4,"ms":274.0,"kind":"program_end","ok":true}
+{"seq":6,"tick":4,"ms":274.6,"kind":"event","name":"setting_changed","args":["motd.enable",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":7,"tick":4,"ms":274.8,"kind":"event","name":"setting_changed","args":["bios.use_multishell",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":8,"tick":5,"ms":302.9,"kind":"screen","source":"term","lines":{"1":"size\t20971520","2":"free\tunlimited","3":"capacity\t1000000","4":"free2\tunlimited"},"cursor":[1,5]}
+{"seq":9,"tick":5,"ms":364.0,"kind":"run_end","status":"ok","exit_code":0}

@@ -1,0 +1,68 @@
+{
+  "schema": "cct-run/summary@1",
+  "run_id": "20261018-143418-093-8d3d",
+  "created_at": "2026-10-18T14:34:18.093441300Z",
+  "status": "ok",
+  "exit_code": 0,
+  "error": null,
+  "duration": {
+    "ticks": 4,
+    "seconds": 0.2,
+    "wall_ms": 330.7
+  },
+  "memory": {
+    "heap_limit_mb": 989,
+    "heap_peak_mb": 56
+  },
+  "screen": {
+    "size": [
+      51,
+      19
+    ],
+    "lines": [
+      "inside-self\tfalse\t/fs_move2.lua:4: Can't move a",
+      "directory inside itself",
+      "a\ttrue\ta/x\tfalse\ta/b\ttrue",
+      "prefix-sibling\ttrue\tnil\td\tfalse\tde\ttrue",
+      "child-to-parent\tfalse\t/fs_move2.lua:12: File exists",
+      "f\ttrue\tf/x\ttrue",
+      "prefix-file\ttrue\tnil\ta.log\tfalse\ta.log.1\ttrue"
+    ]
+  },
+  "trace_counts": {
+    "event": 2,
+    "program_end": 1,
+    "program_start": 1,
+    "run_end": 1,
+    "run_start": 1,
+    "screen": 2,
+    "trace_start": 1
+  },
+  "notes": [],
+  "input": {
+    "program": {
+      "name": "fs_move2.lua",
+      "path": "/fs_move2.lua",
+      "sha256": "fc87349c159198a71517430f6b18300fd351bee5f906569aa3ee15f6bc6d2f5c",
+      "bytes": 835
+    },
+    "args": [],
+    "fixture_sha256": null
+  },
+  "environment": {
+    "tool": "0.2.3",
+    "cc_tweaked": "1.120.2",
+    "minecraft": "1.20.1",
+    "java": "21.0.12.1",
+    "computer_id": 0,
+    "advanced": true,
+    "multishell": false,
+    "http": false,
+    "timeout_s": 30,
+    "time_model": "real-time, 20 ticks/s"
+  },
+  "files": {
+    "trace": "trace.jsonl",
+    "program": "program/fs_move2.lua"
+  }
+}

@@ -1,0 +1,41 @@
+{"seq":1,"tick":0,"ms":1.4,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":61.0,"kind":"run_start","program":"inventory_probe.lua","args":[],"timeout_s":20}
+{"seq":3,"tick":0,"ms":64.9,"kind":"screen","source":"term","size":[51,19],"lines":{},"cursor":[1,1]}
+{"seq":4,"tick":2,"ms":198.8,"kind":"program_start"}
+{"seq":5,"tick":2,"ms":199.5,"kind":"peripheral_call","id":1,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":[1],"main_thread":true}
+{"seq":6,"tick":2,"ms":202.2,"kind":"event","name":"setting_changed","args":["motd.enable",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":7,"tick":2,"ms":202.6,"kind":"event","name":"setting_changed","args":["bios.use_multishell",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":8,"tick":3,"ms":222.8,"kind":"peripheral_return","id":1,"peripheral":"back","method":"getItemDetail","ok":true,"result":[{"displayName":"Stone","name":"minecraft:stone","count":5,"maxCount":64,"tags":{}}]}
+{"seq":9,"tick":3,"ms":223.1,"kind":"screen","source":"term","lines":{"1":"type\ttable"},"cursor":[1,2]}
+{"seq":10,"tick":3,"ms":224.2,"kind":"peripheral_call","id":2,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":[1.5],"main_thread":true}
+{"seq":11,"tick":3,"ms":224.5,"kind":"event","name":"task_complete","args":[1,true]}
+{"seq":12,"tick":4,"ms":270.1,"kind":"peripheral_return","id":2,"peripheral":"back","method":"getItemDetail","ok":true,"result":[{"displayName":"Stone","name":"minecraft:stone","count":5,"maxCount":64,"tags":{}}]}
+{"seq":13,"tick":4,"ms":270.4,"kind":"screen","source":"term","lines":{"2":"getItemDetail\t1\ttrue\ttable\ttable: 14e218b0"},"cursor":[1,3]}
+{"seq":14,"tick":4,"ms":274.5,"kind":"peripheral_call","id":3,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":[1],"main_thread":true}
+{"seq":15,"tick":4,"ms":274.8,"kind":"event","name":"task_complete","args":[2,true]}
+{"seq":16,"tick":5,"ms":314.9,"kind":"peripheral_return","id":3,"peripheral":"back","method":"getItemDetail","ok":true,"result":[{"displayName":"Stone","name":"minecraft:stone","count":5,"maxCount":64,"tags":{}}]}
+{"seq":17,"tick":5,"ms":315.2,"kind":"screen","source":"term","lines":{"3":"getItemDetail\t1.5\ttrue\ttable\ttable: 3a670f07"},"cursor":[1,4]}
+{"seq":18,"tick":5,"ms":315.9,"kind":"peripheral_call","id":4,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":["1"],"main_thread":true}
+{"seq":19,"tick":5,"ms":316.1,"kind":"event","name":"task_complete","args":[3,true]}
+{"seq":20,"tick":6,"ms":366.6,"kind":"peripheral_return","id":4,"peripheral":"back","method":"getItemDetail","ok":false,"error":"bad argument #1 (number expected, got string)"}
+{"seq":21,"tick":6,"ms":366.9,"kind":"screen","source":"term","lines":{"4":"getItemDetail\t1\ttrue\ttable\ttable: 4bdc2bc7"},"cursor":[1,5]}
+{"seq":22,"tick":6,"ms":369.1,"kind":"peripheral_call","id":5,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":[0],"main_thread":true}
+{"seq":23,"tick":6,"ms":369.4,"kind":"event","name":"task_complete","args":[4,false,"bad argument #1 (number expected, got string)"]}
+{"seq":24,"tick":7,"ms":415.7,"kind":"peripheral_return","id":5,"peripheral":"back","method":"getItemDetail","ok":false,"error":"Slot out of range (between 1 and 3)"}
+{"seq":25,"tick":7,"ms":415.9,"kind":"screen","source":"term","lines":{"5":"getItemDetail\t1\tfalse\tstring\tbad argument #1","6":"(number expected, got string)"},"cursor":[1,7]}
+{"seq":26,"tick":7,"ms":416.8,"kind":"peripheral_call","id":6,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":[-1],"main_thread":true}
+{"seq":27,"tick":7,"ms":417.1,"kind":"event","name":"task_complete","args":[5,false,"Slot out of range (between 1 and 3)"]}
+{"seq":28,"tick":8,"ms":463.9,"kind":"peripheral_return","id":6,"peripheral":"back","method":"getItemDetail","ok":false,"error":"Slot out of range (between 1 and 3)"}
+{"seq":29,"tick":8,"ms":464.1,"kind":"screen","source":"term","lines":{"7":"getItemDetail\t0\tfalse\tstring\tSlot out of range","8":"(between 1 and 3)"},"cursor":[1,9]}
+{"seq":30,"tick":8,"ms":465.0,"kind":"peripheral_call","id":7,"peripheral":"back","type":"minecraft:chest","method":"getItemDetail","args":[4],"main_thread":true}
+{"seq":31,"tick":8,"ms":465.1,"kind":"event","name":"task_complete","args":[6,false,"Slot out of range (between 1 and 3)"]}
+{"seq":32,"tick":9,"ms":513.9,"kind":"peripheral_return","id":7,"peripheral":"back","method":"getItemDetail","ok":false,"error":"Slot out of range (between 1 and 3)"}
+{"seq":33,"tick":9,"ms":514.1,"kind":"screen","source":"term","lines":{"9":"getItemDetail\t-1\tfalse\tstring\tSlot out of range","10":"(between 1 and 3)"},"cursor":[1,11]}
+{"seq":34,"tick":9,"ms":514.9,"kind":"peripheral_call","id":8,"peripheral":"back","type":"minecraft:chest","method":"size","args":[],"main_thread":true}
+{"seq":35,"tick":9,"ms":515.1,"kind":"event","name":"task_complete","args":[7,false,"Slot out of range (between 1 and 3)"]}
+{"seq":36,"tick":10,"ms":563.4,"kind":"peripheral_return","id":8,"peripheral":"back","method":"size","ok":true,"result":[3]}
+{"seq":37,"tick":10,"ms":563.6,"kind":"screen","source":"term","lines":{"11":"getItemDetail\t4\tfalse\tstring\tSlot out of range","12":"(between 1 and 3)"},"cursor":[1,13]}
+{"seq":38,"tick":10,"ms":563.9,"kind":"program_end","ok":true}
+{"seq":39,"tick":10,"ms":564.0,"kind":"event","name":"task_complete","args":[8,true]}
+{"seq":40,"tick":11,"ms":625.7,"kind":"screen","source":"term","lines":{"13":"size\t3"},"cursor":[1,14]}
+{"seq":41,"tick":11,"ms":687.1,"kind":"run_end","status":"ok","exit_code":0}

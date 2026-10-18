@@ -1,0 +1,118 @@
+{
+  "schema": "cct-run/summary@1",
+  "run_id": "20261018-143430-664-a32f",
+  "created_at": "2026-10-18T14:34:30.664407400Z",
+  "status": "ok",
+  "exit_code": 0,
+  "error": null,
+  "duration": {
+    "ticks": 11,
+    "seconds": 0.55,
+    "wall_ms": 687.5
+  },
+  "memory": {
+    "heap_limit_mb": 989,
+    "heap_peak_mb": 62
+  },
+  "screen": {
+    "size": [
+      51,
+      19
+    ],
+    "lines": [
+      "type\ttable",
+      "getItemDetail\t1\ttrue\ttable\ttable: 14e218b0",
+      "getItemDetail\t1.5\ttrue\ttable\ttable: 3a670f07",
+      "getItemDetail\t1\ttrue\ttable\ttable: 4bdc2bc7",
+      "getItemDetail\t1\tfalse\tstring\tbad argument #1",
+      "(number expected, got string)",
+      "getItemDetail\t0\tfalse\tstring\tSlot out of range",
+      "(between 1 and 3)",
+      "getItemDetail\t-1\tfalse\tstring\tSlot out of range",
+      "(between 1 and 3)",
+      "getItemDetail\t4\tfalse\tstring\tSlot out of range",
+      "(between 1 and 3)",
+      "size\t3"
+    ]
+  },
+  "trace_counts": {
+    "event": 10,
+    "peripheral_call": 8,
+    "peripheral_return": 8,
+    "program_end": 1,
+    "program_start": 1,
+    "run_end": 1,
+    "run_start": 1,
+    "screen": 10,
+    "trace_start": 1
+  },
+  "notes": [
+    {
+      "id": 4,
+      "peripheral": "back",
+      "method": "getItemDetail",
+      "ok": false,
+      "error": "bad argument #1 (number expected, got string)",
+      "seq": 20,
+      "tick": 6,
+      "kind": "peripheral_return"
+    },
+    {
+      "id": 5,
+      "peripheral": "back",
+      "method": "getItemDetail",
+      "ok": false,
+      "error": "Slot out of range (between 1 and 3)",
+      "seq": 24,
+      "tick": 7,
+      "kind": "peripheral_return"
+    },
+    {
+      "id": 6,
+      "peripheral": "back",
+      "method": "getItemDetail",
+      "ok": false,
+      "error": "Slot out of range (between 1 and 3)",
+      "seq": 28,
+      "tick": 8,
+      "kind": "peripheral_return"
+    },
+    {
+      "id": 7,
+      "peripheral": "back",
+      "method": "getItemDetail",
+      "ok": false,
+      "error": "Slot out of range (between 1 and 3)",
+      "seq": 32,
+      "tick": 9,
+      "kind": "peripheral_return"
+    }
+  ],
+  "input": {
+    "program": {
+      "name": "inventory_probe.lua",
+      "path": "/inventory_probe.lua",
+      "sha256": "d29418c77076c44713161acfb19df4230892cb62c5b58aa58f094136b2ee9b3e",
+      "bytes": 358
+    },
+    "args": [],
+    "fixture_sha256": "eeca7bfd41293c6f15611ea189cd584382eafefab5a459e598651bb1b7ca15fc"
+  },
+  "environment": {
+    "tool": "0.2.3",
+    "cc_tweaked": "1.120.2",
+    "minecraft": "1.20.1",
+    "java": "21.0.12.1",
+    "computer_id": 0,
+    "advanced": true,
+    "multishell": false,
+    "http": false,
+    "timeout_s": 20,
+    "time_model": "real-time, 20 ticks/s"
+  },
+  "files": {
+    "trace": "trace.jsonl",
+    "program": "program/inventory_probe.lua",
+    "fixture": "fixture.json"
+  }
+}

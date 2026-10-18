@@ -1,0 +1,10 @@
+{"seq":1,"tick":0,"ms":1.0,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":53.2,"kind":"run_start","program":"fs_move.lua","args":[],"timeout_s":30}
+{"seq":3,"tick":0,"ms":57.0,"kind":"screen","source":"term","size":[51,19],"lines":{},"cursor":[1,1]}
+{"seq":4,"tick":2,"ms":201.6,"kind":"program_start"}
+{"seq":5,"tick":3,"ms":205.5,"kind":"screen","source":"term","lines":{"1":"/fs_move.lua:4: Can't move a directory inside","2":"itself"},"cursor":[1,3]}
+{"seq":6,"tick":3,"ms":208.9,"kind":"program_end","ok":false,"phase":"runtime","message":"/fs_move.lua:4: Can't move a directory inside itself","traceback":"stack traceback:\n\t[C]: in field 'move'\n\t/fs_move.lua:4: in local 'f'\n\t...internal/exception.lua:99: in function <...internal/exception.lua:99>"}
+{"seq":7,"tick":3,"ms":211.7,"kind":"event","name":"setting_changed","args":["motd.enable",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":8,"tick":3,"ms":211.9,"kind":"event","name":"setting_changed","args":["bios.use_multishell",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":9,"tick":4,"ms":255.1,"kind":"screen","source":"term","lines":{"3":"Line 4","4":"local ok, err = fs.move(\"a\", \"a/x\")","5":"                       "},"cursor":[1,6]}
+{"seq":10,"tick":4,"ms":312.5,"kind":"run_end","status":"error","exit_code":1}

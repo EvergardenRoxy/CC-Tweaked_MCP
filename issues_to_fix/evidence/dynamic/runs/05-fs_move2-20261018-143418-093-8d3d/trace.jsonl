@@ -1,0 +1,9 @@
+{"seq":1,"tick":0,"ms":0.9,"kind":"trace_start","schema":"cct-run/trace@1"}
+{"seq":2,"tick":0,"ms":55.5,"kind":"run_start","program":"fs_move2.lua","args":[],"timeout_s":30}
+{"seq":3,"tick":0,"ms":59.6,"kind":"screen","source":"term","size":[51,19],"lines":{},"cursor":[1,1]}
+{"seq":4,"tick":3,"ms":208.4,"kind":"program_start"}
+{"seq":5,"tick":3,"ms":215.9,"kind":"program_end","ok":true}
+{"seq":6,"tick":3,"ms":216.5,"kind":"event","name":"setting_changed","args":["motd.enable",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":7,"tick":3,"ms":216.7,"kind":"event","name":"setting_changed","args":["bios.use_multishell",false,true],"harness":true,"note":"caused by cct-run's default settings, not by the program"}
+{"seq":8,"tick":4,"ms":269.1,"kind":"screen","source":"term","lines":{"1":"inside-self\tfalse\t/fs_move2.lua:4: Can't move a","2":"directory inside itself","3":"a\ttrue\ta/x\tfalse\ta/b\ttrue","4":"prefix-sibling\ttrue\tnil\td\tfalse\tde\ttrue","5":"child-to-parent\tfalse\t/fs_move2.lua:12: File exists","6":"f\ttrue\tf/x\ttrue","7":"prefix-file\ttrue\tnil\ta.log\tfalse\ta.log.1\ttrue"},"cursor":[1,8]}
+{"seq":9,"tick":4,"ms":330.3,"kind":"run_end","status":"ok","exit_code":0}
