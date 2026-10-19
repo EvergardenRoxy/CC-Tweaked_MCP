@@ -105,6 +105,11 @@ public final class JsonValues {
 
     /** A fixture's JSON value as a Lua value: numbers are doubles, arrays are 1-based tables, objects tables. */
     public static Object toLua(JsonElement value) {
+        JsonLimits.check(value);
+        return toLuaChecked(value);
+    }
+
+    private static Object toLuaChecked(JsonElement value) {
         if (value == null || value.isJsonNull()) return null;
         if (value.isJsonPrimitive()) {
             var p = value.getAsJsonPrimitive();
@@ -115,11 +120,11 @@ public final class JsonValues {
         if (value.isJsonArray()) {
             var out = new java.util.HashMap<Object, Object>();
             var array = value.getAsJsonArray();
-            for (var i = 0; i < array.size(); i++) out.put((double) (i + 1), toLua(array.get(i)));
+            for (var i = 0; i < array.size(); i++) out.put((double) (i + 1), toLuaChecked(array.get(i)));
             return out;
         }
         var out = new java.util.HashMap<Object, Object>();
-        for (var entry : value.getAsJsonObject().entrySet()) out.put(entry.getKey(), toLua(entry.getValue()));
+        for (var entry : value.getAsJsonObject().entrySet()) out.put(entry.getKey(), toLuaChecked(entry.getValue()));
         return out;
     }
 }

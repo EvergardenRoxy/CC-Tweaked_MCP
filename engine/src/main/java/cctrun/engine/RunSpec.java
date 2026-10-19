@@ -23,10 +23,14 @@ public record RunSpec(String programName, String programSource, List<String> arg
                       int timeoutSeconds, int[] termSize, Boolean advanced, Path outDir) {
     public RunSpec {
         Objects.requireNonNull(programName);
+        var name = Path.of(programName).getFileName();
+        if (name == null || name.toString().isBlank() || name.toString().equals(".") || name.toString().equals("..")) {
+            throw new IllegalArgumentException("programName must have a non-empty file name other than '.' or '..'");
+        }
         Objects.requireNonNull(programSource);
         args = List.copyOf(args);
         Objects.requireNonNull(fixture);
-        if (timeoutSeconds < 1) throw new IllegalArgumentException("timeoutSeconds must be >= 1");
+        if (timeoutSeconds < 1 || timeoutSeconds > 3600) throw new IllegalArgumentException("timeoutSeconds must be 1..3600");
         Objects.requireNonNull(outDir);
     }
 }

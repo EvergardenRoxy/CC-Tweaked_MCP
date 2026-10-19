@@ -32,6 +32,8 @@ import java.util.Set;
 public final class Fixture {
     /** Largest inventory: a full-size Create item vault has 1620 slots; larger modded storage fits too. */
     static final int MAX_SLOTS = 4096;
+    static final int DEFAULT_INVENTORY_SIZE = 27;
+    static final long DEFAULT_ENERGY_CAPACITY = 100_000;
     private static final Set<String> TOP_KEYS = Set.of("schema", "computer", "files", "peripherals", "redstone", "timeline");
 
     final JsonObject raw;
@@ -72,12 +74,17 @@ public final class Fixture {
     }
 
     public static Fixture parse(String json) throws FixtureException {
+        if (json.length() > JsonLimits.MAX_BYTES || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > JsonLimits.MAX_BYTES) {
+            throw new FixtureException("$", "fixture exceeds " + JsonLimits.MAX_BYTES + " UTF-8 bytes");
+        }
         JsonElement root;
         try {
             root = JsonParser.parseString(json);
         } catch (JsonParseException e) {
             throw new FixtureException("$", "not valid JSON: " + e.getMessage());
         }
+        try { JsonLimits.check(root); }
+        catch (IllegalArgumentException e) { throw new FixtureException("$", e.getMessage()); }
         var obj = object(root, "$");
         for (var key : obj.keySet()) if (!TOP_KEYS.contains(key)) throw new FixtureException("$." + key, "unknown key (allowed: " + TOP_KEYS + ")");
         if (obj.has("schema") && !Versions.FIXTURE_SCHEMA.equals(string(obj.get("schema"), "$.schema"))) {
@@ -158,6 +165,7 @@ public final class Fixture {
             }
         }
 
+        timeline.sort(java.util.Comparator.comparingInt(TimelineAction::tick)); // stable: retain same-tick fixture order
         return new Fixture(obj, computerId, label, advanced, multishell, term, files, peripherals, redstone, timeline);
     }
 
@@ -166,7 +174,7 @@ public final class Fixture {
         switch (type) {
             case "inventory" -> {
                 allowOnly(spec, path, "type", "block", "size", "items");
-                var size = spec.has("size") ? integer(spec.get("size"), path + ".size", 1, MAX_SLOTS) : 27;
+                var size = spec.has("size") ? integer(spec.get("size"), path + ".size", 1, MAX_SLOTS) : DEFAULT_INVENTORY_SIZE;
                 if (spec.has("block")) string(spec.get("block"), path + ".block");
                 if (spec.has("items")) {
                     var items = object(spec.get("items"), path + ".items");
@@ -185,7 +193,7 @@ public final class Fixture {
             }
             case "energy_storage" -> {
                 allowOnly(spec, path, "type", "block", "energy", "capacity");
-                var capacity = spec.has("capacity") ? longValue(spec.get("capacity"), path + ".capacity", 0) : 100_000;
+                var capacity = spec.has("capacity") ? longValue(spec.get("capacity"), path + ".capacity", 0) : DEFAULT_ENERGY_CAPACITY;
                 var energy = spec.has("energy") ? longValue(spec.get("energy"), path + ".energy", 0) : 0;
                 if (energy > capacity) throw new FixtureException(path + ".energy", "must not exceed capacity");
                 if (spec.has("block")) string(spec.get("block"), path + ".block");
@@ -295,7 +303,7 @@ public final class Fixture {
                 // Fail early instead of letting EnergyPeripheral.Storage.setEnergy silently clamp at run time.
                 var storage = requirePeripheral(spec, path, peripherals, "energy_storage");
                 var energy = longValue(require(spec, "energy", path), path + ".energy", 0);
-                var capacity = storage.has("capacity") ? storage.get("capacity").getAsLong() : 100_000;
+                var capacity = storage.has("capacity") ? storage.get("capacity").getAsLong() : DEFAULT_ENERGY_CAPACITY;
                 if (energy > capacity) throw new FixtureException(path + ".energy", "must not exceed capacity (" + capacity + ")");
             }
             case "item" -> {
@@ -303,7 +311,7 @@ public final class Fixture {
                 // The slot must fit the inventory this fixture defines, not just the 4096-slot hard limit: the
                 // timeline action runs on the server side and writes the slot index directly (Runner.apply).
                 var inventory = requirePeripheral(spec, path, peripherals, "inventory");
-                var slots = inventory.has("size") ? inventory.get("size").getAsInt() : 27;
+                var slots = inventory.has("size") ? inventory.get("size").getAsInt() : DEFAULT_INVENTORY_SIZE;
                 integer(require(spec, "slot", path), path + ".slot", 1, slots);
                 var item = require(spec, "item", path);
                 if (!item.isJsonNull()) item(item, path + ".item");
@@ -361,7 +369,7 @@ public final class Fixture {
         var type = spec.get("type").getAsString();
         switch (type) {
             case "inventory" -> {
-                var size = spec.has("size") ? spec.get("size").getAsInt() : 27;
+                var size = spec.has("size") ? spec.get("size").getAsInt() : DEFAULT_INVENTORY_SIZE;
                 var inventory = new Inventory(size, 64);
                 if (spec.has("items")) {
                     for (var entry : spec.getAsJsonObject("items").entrySet()) {
@@ -371,7 +379,7 @@ public final class Fixture {
                 return new InventoryPeripheral(blockOr(spec, "minecraft:chest"), inventory, trace);
             }
             case "energy_storage" -> {
-                var capacity = spec.has("capacity") ? spec.get("capacity").getAsLong() : 100_000;
+                var capacity = spec.has("capacity") ? spec.get("capacity").getAsLong() : DEFAULT_ENERGY_CAPACITY;
                 var energy = spec.has("energy") ? spec.get("energy").getAsLong() : 0;
                 return new EnergyPeripheral(blockOr(spec, "cctrun:energy_cell"), new EnergyPeripheral.Storage(energy, capacity), trace);
             }
@@ -407,7 +415,7 @@ public final class Fixture {
                 var localName = spec.has("local_name") ? spec.get("local_name").getAsString() : "computer_0";
                 return new WiredModemPeripheral(localName, remote, trace);
             }
-            default -> throw new IllegalStateException("validated earlier: " + type);
+            default -> throw new IllegalStateException("invalid fixture peripheral " + name + ".type: " + type);
         }
     }
 
@@ -438,7 +446,7 @@ public final class Fixture {
         try {
             return item(element, "$");
         } catch (FixtureException e) {
-            throw new IllegalStateException("validated earlier", e);
+            throw new IllegalStateException("invalid fixture at " + e.getMessage(), e);
         }
     }
 
@@ -516,9 +524,10 @@ public final class Fixture {
 
     private static long longValue(JsonElement e, String path, long min) throws FixtureException {
         if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) throw new FixtureException(path, "expected a number");
-        var d = e.getAsDouble();
-        if (d != Math.rint(d)) throw new FixtureException(path, "expected a whole number");
-        if (d < min) throw new FixtureException(path, "must be at least " + min);
-        return (long) d;
+        final long value;
+        try { value = e.getAsBigDecimal().longValueExact(); }
+        catch (ArithmeticException | NumberFormatException ex) { throw new FixtureException(path, "expected a whole number between " + min + " and " + Long.MAX_VALUE); }
+        if (value < min) throw new FixtureException(path, "must be at least " + min);
+        return value;
     }
 }

@@ -12,6 +12,10 @@ local path = __CCTRUN_PATH__
 local args = { [0] = path, __CCTRUN_ARGS__ }
 local report = __cctrun
 _G.__cctrun = nil -- keep the reporting API out of the program's globals
+local token = __CCTRUN_TOKEN__
+local tostring, printError, traceback = tostring, printError, debug.traceback
+local pullEventRaw = os.pullEventRaw
+local pcall = pcall
 
 term.clear()
 term.setCursorPos(1, 1)
@@ -31,6 +35,10 @@ end
 local exception = require "cc.internal.exception"
 
 local file = fs.open(path, "r")
+if not file then
+    report.done(token, false, "setup", "cannot open program file: " .. path, nil)
+    while true do pullEventRaw() end
+end
 local contents = file.readAll() or ""
 file.close()
 
@@ -45,10 +53,10 @@ if not func then
     else
         printError(err)
     end
-    report.done(false, "syntax", tostring(err), nil)
+    report.done(token, false, "syntax", tostring(err), nil)
     -- Wait for the runner to stop the computer. Shutting down here would clear the screen and reset
     -- redstone outputs, which a program ending in game does not do.
-    while true do os.pullEventRaw() end
+    while true do pullEventRaw() end
 end
 
 if settings.get("bios.strict_globals", false) then
@@ -60,13 +68,14 @@ end
 report.start()
 local ok, perr, co = exception.try(func, table.unpack(args, 1, #args))
 if ok then
-    report.done(true, nil, nil, nil)
+    report.done(token, true, nil, nil, nil)
 else
     if perr and perr ~= "" then
-        printError(perr)
-        exception.report(perr, co)
+        pcall(printError, perr)
+        pcall(exception.report, perr, co)
     end
-    local traceback = co and debug.traceback(co) or nil
-    report.done(false, "runtime", tostring(perr), traceback)
+    local traceOk, trace = pcall(traceback, co)
+    local messageOk, message = pcall(tostring, perr)
+    report.done(token, false, "runtime", messageOk and message or "program raised an unprintable error", traceOk and trace or nil)
 end
-while true do os.pullEventRaw() end -- see above
+while true do pullEventRaw() end -- see above
