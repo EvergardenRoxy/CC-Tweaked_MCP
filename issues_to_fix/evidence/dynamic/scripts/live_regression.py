@@ -105,6 +105,22 @@ def main():
             header=f'POST {base}event HTTP/1.1\r\nHost: 127.0.0.1:{parsed.port}\r\nAuthorization: Bearer {token}\r\nContent-Length: 100\r\n\r\nx'
             sock.sendall(header.encode());assert sock.recv(200)==b'','slow body was not disconnected'
         assert req('GET','/computers')[0]==200
+        # A rejected or ignored body must also be drained under a deadline, before response headers.
+        # Two rejected partial requests used to occupy both workers inside HttpExchange.close().
+        for host,authorisation,method,path,count in [
+            ('127.0.0.1:'+str(parsed.port),'wrong','POST',base+'event',2),
+            ('evil.invalid',token,'POST',base+'event',1),
+            ('127.0.0.1:'+str(parsed.port),token,'GET','/computers',1)]:
+            sockets=[]
+            try:
+                for _ in range(count):
+                    sock=socket.create_connection(('127.0.0.1',parsed.port),timeout=8);sock.settimeout(8)
+                    sock.sendall(f'{method} {path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: Bearer {authorisation}\r\nContent-Length: 100\r\n\r\nx'.encode());sockets.append(sock)
+                for sock in sockets:assert sock.recv(200)==b'', 'unconsumed slow body was not closed before response'
+            finally:
+                for sock in sockets:sock.close()
+            assert req('GET','/computers')[0]==200
+        report['rejected_or_ignored_slow_bodies_recovered']=True
     check('http-413-and-slow-body-recovery',body_limits)
     # Exercise Lua/peripheral call ids across a reboot, then draw enough changing full screens to rotate.
     simple="local p=peripheral.find('inventory') if p then p.size() end print('REGRESSION_READY')\n"
