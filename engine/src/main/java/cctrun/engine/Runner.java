@@ -38,7 +38,9 @@ import java.util.concurrent.TimeUnit;
  * a run directory: {@code summary.json}, {@code trace.jsonl}, {@code program/<name>} and
  * {@code fixture.json}.
  * <p>
- * Designed for one run per JVM (the CLI exits afterwards): {@link CoreConfig} is global state.
+ * Designed for one run per JVM (the CLI exits afterwards): {@link CoreConfig} is global state and is not restored.
+ * Repeated/concurrent embedded runs are not a supported isolation boundary. ComputerContext.close is bounded
+ * to 50 ms; computer threads can still be winding down when this method returns. Use child JVMs, as MCP does.
  */
 public final class Runner {
     public static final int TPS = 20;
@@ -52,7 +54,7 @@ public final class Runner {
     private static final int START_GRACE_TICKS = 10;
     private static final int MIN_TICKS_FOR_RATE = 40;
     private static final long MB = 1024 * 1024;
-    /** CC: Tweaked's default computer_space_limit. Reported by fs.getFreeSpace; writes are not limited (see handoff.md). */
+    /** CC: Tweaked's default computer_space_limit, enforced by RootMount. */
     private static final long DISK_CAPACITY = 1_000_000;
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
 
@@ -60,6 +62,15 @@ public final class Runner {
     }
 
     public static RunResult run(RunSpec spec) throws IOException {
+        var interrupted = new boolean[]{Thread.interrupted()};
+        try { return runInternal(spec, interrupted); }
+        finally {
+            if (Thread.interrupted()) interrupted[0] = true;
+            if (interrupted[0]) Thread.currentThread().interrupt();
+        }
+    }
+
+    private static RunResult runInternal(RunSpec spec, boolean[] interrupted) throws IOException {
         var created = Instant.now();
         var runDir = RunState.directory(spec.outDir());
         RunState.started(runDir);
@@ -98,7 +109,9 @@ public final class Runner {
             var reportToken = java.util.UUID.randomUUID().toString();
             addFile(mount, "startup.lua", harness(storedName, spec.args(), reportToken));
 
-            var rootMount = new RootMount(mount);
+            final RootMount rootMount;
+            try { rootMount = new RootMount(mount); }
+            catch (IOException e) { throw new RunInputException("program, harness and fixture files exceed the simulated disk capacity (" + DISK_CAPACITY + " bytes)", e); }
             var env = new RunnerEnvironment(rootMount);
             var terminal = TracingTerminal.create(size[0], size[1], advanced, "term", trace);
             var mainThread = new MainThread(MainThreadConfig.DEFAULT);
@@ -129,8 +142,11 @@ public final class Runner {
             }
 
             var pacer = TickPacer.realTime(TPS);
-            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer);
-            if (machines.failures.outOfMemory) outcome = "out_of_memory";
+            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer, interrupted);
+            if (machines.failures.outOfMemory) {
+                outcome = "out_of_memory";
+                if (api.message == null) { api.phase = "runtime"; api.message = "Java VM reported an OutOfMemoryError"; }
+            }
 
             var timeoutState = outcome.equals("timeout") ? machines.executionState() : null;
             // The VM only has a state to print while Lua code is running, not while it waits for an event.
@@ -152,7 +168,7 @@ public final class Runner {
             try {
                 if (!context.close(50, TimeUnit.MILLISECONDS)) trace.record("context_close_pending", new JsonObject());
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                interrupted[0] = true;
             }
 
             var exitCode = switch (outcome) {
@@ -175,7 +191,7 @@ public final class Runner {
             disk.addProperty("free_bytes", rootMount.getRemainingSpace());
             disk.addProperty("written_bytes", rootMount.writtenBytes());
             summary.add("disk", disk);
-            if (Thread.currentThread().isInterrupted()) summary.addProperty("termination_reason", "interrupted");
+            if (interrupted[0]) summary.addProperty("termination_reason", "interrupted");
             trace.close();
             Files.writeString(runDir.resolve("summary.json"), Trace.GSON.newBuilder().setPrettyPrinting().create().toJson(summary) + "\n", StandardCharsets.UTF_8);
             RunState.update(runDir, "finished", outcome);
@@ -185,7 +201,7 @@ public final class Runner {
 
     /** Tick loop. Returns ok | error | timeout | shutdown | reboot. */
     private static String loop(RunSpec spec, Clock clock, Trace trace, Computer computer, MainThread mainThread, TracingTerminal terminal,
-                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture, TickPacer pacer) {
+                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture, TickPacer pacer, boolean[] interrupted) {
         var maxTicks = spec.timeoutSeconds() * TPS;
         var everOn = false;
         var bootTick = 0;
@@ -203,6 +219,11 @@ public final class Runner {
         computer.turnOn();
         for (var tick = 0; ; tick++) {
             clock.setTick(tick);
+            if (interrupted[0] || Thread.currentThread().isInterrupted()) {
+                Thread.interrupted(); interrupted[0] = true;
+                var reason = new JsonObject(); reason.addProperty("reason", "interrupted"); trace.note("run_interrupted", reason);
+                return "timeout";
+            }
             if (tick >= maxTicks) return "timeout";
 
             while (nextAction != null && nextAction.tick() <= tick) {
@@ -274,7 +295,7 @@ public final class Runner {
                 var reason = new JsonObject();
                 reason.addProperty("reason", "interrupted");
                 trace.note("run_interrupted", reason);
-                Thread.currentThread().interrupt();
+                interrupted[0] = true; // restore only after writing summary/state; NIO writes otherwise abort
                 return "timeout";
             }
         }

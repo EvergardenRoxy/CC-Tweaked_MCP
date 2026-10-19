@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** A stack of items in a fake inventory. Two stacks merge when name, nbt and damage are equal. */
+/** A stack of items in a fake inventory. All mutable count access is confined to the Runner main thread,
+ * including main-thread peripheral calls and timeline updates. Do not add off-thread access without locking.
+ * Two stacks merge when name, nbt and damage are equal. */
 public final class ItemStack {
     final String name;
     int count;

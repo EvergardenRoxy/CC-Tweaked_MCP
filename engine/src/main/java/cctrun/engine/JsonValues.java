@@ -13,7 +13,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Map;
 
-/** Converts values crossing the Lua/Java boundary into bounded JSON for the trace. */
+/** Converts Lua/Java values into bounded trace JSON. Numbers use Lua double precision; integral values below
+ * 1e15 are formatted as longs, larger values as doubles, and NaN/Infinity as strings. This is display evidence,
+ * not a lossless Java serialization. Strings/collections/depth have independent preview limits. */
 public final class JsonValues {
     static final int MAX_STRING = 200;
     static final int MAX_ENTRIES = 50;

@@ -47,6 +47,13 @@ public final class RunState {
         catch (IOException ignored) { System.err.println("cct-run: could not update run state"); }
     }
 
+    public static boolean terminal(Path dir) {
+        try {
+            var state=JsonParser.parseString(Files.readString(dir.resolve("state.json"))).getAsJsonObject().get("state").getAsString();
+            return state.equals("failed") || state.equals("finished");
+        } catch(IOException | RuntimeException e) { return false; }
+    }
+
     public static synchronized void update(Path dir, String state, String reason) throws IOException {
         var target = dir.resolve("state.json");
         var out = Files.exists(target) ? JsonParser.parseString(Files.readString(target)).getAsJsonObject() : new JsonObject();
