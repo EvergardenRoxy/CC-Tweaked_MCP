@@ -1,7 +1,7 @@
 # mod issues（cct-live：Minecraft 游戏内 HTTP 服务）
 
 基线：`bf68ac4`（v0.2.3；共享代码在 `mod/src/common/java/cctrun/live/`，平台层在 `mod/forge|neoforge/`）。
-字段定义见 `README.md`；只收录核对后确实存在且未修复的问题。
+字段定义见 `README.md`；保留原始核对条目，当前修复状态以 status/fixed_in 字段为准。
 
 ---
 
@@ -11,7 +11,7 @@
 id: MOD-01
 title: "kinds 索引随记录总数无上限增长；rotate 只切文件不裁剪；status/wait 扫描 O(N-after)"
 severity: medium
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-M1, LEGACY-B3]
@@ -28,6 +28,11 @@ fix: |
   kinds 改为以 firstSeq 为基线的窗口（rotate 丢弃已落盘旧段并记录 baseSeq），或按 kind 维护 seq 列表/流式扫文件。
 tests: |
   可加纯 JUnit：rotate 后 kinds 窗口与 countsAfter/firstAfter 一致性。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  kinds 只保留双段窗口，first_seq 后 long 运算再安全索引；counts/firstAfter 不含轮转丢弃段。RecorderSafetyTest 窗口压力与真实双版本轮转通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-02 — 平台层 CctLive/LiveConfig 与两份构建脚本高度重复
@@ -100,7 +105,7 @@ tests: |
 id: MOD-04
 title: "反射绑定 peripheralWrappers / RemotePeripheralWrapper.peripheral / ServerComputer.terminal，版本漂移即 ExceptionInInitializerError"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [REVIEW-M4, LEGACY-L-reflect]
@@ -121,6 +126,11 @@ fix: |
   集中到 CcInternals 适配类 + 启动自检，失败时禁用对应功能并给版本提示。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  CcInternals 集中可选反射字段与类型检查，缺失能力诊断后降级，不抛静态初始化错误；精确版本 pin 保留。故意缺失字段测试及两版真实 terminal/wired 能力通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-05 — HTTP/trace 层无自动化测试（平台层测试已接入）
@@ -129,7 +139,7 @@ tests: |
 id: MOD-05
 title: "mod 仅 3 类 9 个 @Test；HTTP 鉴权/Host/413、trace 轮转、JsonValues、Ring、Screens.replay 无测试"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-M5, LEGACY-L27, LEGACY-L28]
@@ -149,6 +159,11 @@ fix: |
   为 ComputerTrace rotate、LiveHttp 鉴权/Host/413、JsonValues、Ring、Screens.replay 补 JUnit 或抽出可测层。
 tests: |
   现有 9 个 @Test 不覆盖上述路径。
+fixed_in: 7a4b269522e24cc2504df598327e294e12703327
+fixed_at: 2026-10-19
+resolution: |
+  补 HTTP auth/Host/慢 body、Trace/Ring/JsonValues/Screens/快照等纯 JUnit，真实双版本验证 413、接管/租约、回放及 endpoint 清理。当前覆盖与平台边界见两份 final JSON，不虚报 Windows/macOS。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-06 — Host 校验放行 host==null
@@ -157,7 +172,7 @@ tests: |
 id: MOD-06
 title: "hostAllowed 在 Host 缺失时返回 true（纵深防御缺口）"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [REVIEW-L1, LEGACY-L-host]
@@ -172,6 +187,11 @@ fix: |
   host 为 null 也拒绝（HTTP/1.1 合法请求必带 Host）。
 tests: |
   需 HTTP 客户端级测试。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  HttpPolicy 对缺 Host 与非 loopback Host 拒绝，Bearer 常量时间比较；单测和两版真实 HTTP/1.0 缺 Host/401/403 通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-07 — token.txt 未设 POSIX 0600
@@ -180,7 +200,7 @@ tests: |
 id: MOD-07
 title: "token.txt 以默认权限落盘，POSIX 多用户机同机用户可读"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [REVIEW-L2, LEGACY-L-token-perm]
@@ -195,6 +215,11 @@ fix: |
   POSIX 平台创建后 setPosixFilePermissions(0600)，或在文档标明风险。
 tests: |
   平台相关，可跳过。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  POSIX token 创建即 0600，已有文件权限收紧；Windows 不调用 POSIX API。RecorderSafetyTest 与两版 Linux 真实权限检查通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-08 — 2 线程执行器 + body 无读取超时
@@ -203,7 +228,7 @@ tests: |
 id: MOD-08
 title: "固定 2 线程处理请求，body 读取无超时；持 token 的慢速 POST 可占满线程池"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-L3, LEGACY-L-2threads]
@@ -218,6 +243,11 @@ fix: |
   增加读超时，或加大线程池并按端点隔离。
 tests: |
   none
+fixed_in: 7a4b269522e24cc2504df598327e294e12703327
+fixed_at: 2026-10-19
+resolution: |
+  所有响应前执行 body 5 秒总期限，包含拒绝鉴权/Host、GET、未知路径与忽略 body 的端点；超限有界排空，慢 body 在发响应头前关闭连接，不设置全局 JVM HTTP 参数。已实测复现两条拒绝请求卡死两个 worker，单 worker 回归及两版新脚本验证回收。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-09 — trace/回放端点全文件读取
@@ -226,7 +256,7 @@ tests: |
 id: MOD-09
 title: "trace/回放端点每次全文件读取并逐行解析，长会话延迟随文件增大"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-L4]
@@ -243,6 +273,11 @@ fix: |
   用 kinds/seq 索引或分段偏移定位；至少到 limit 即停。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  recordAt 在锁内流式读避免整个 trace 深拷贝；分页只做一条 lookahead 即停止，matched_at_least 明示下界，summary 才精确计数。轮转/读取回归与游戏 trace/回放通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-10 — 错误分类混乱、坏 manifest 拖垮 list
@@ -251,7 +286,7 @@ tests: |
 id: MOD-10
 title: "客户端错误多落 500 且回显 e.getMessage()；一个坏 manifest 中断整个 snapshot list"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-L5]
@@ -268,6 +303,11 @@ fix: |
   按错误类型分状态码；list 内 per-entry try/catch 并计 skipped。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  内部失败返回泛化信息，日志留详细诊断；snapshot list 对坏条目单独 skipped 并继续列有效项。两版坏 manifest 与有效快照混合验证通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-11 — 字符/字节口径与大整数精度、双重序列化
@@ -276,7 +316,7 @@ tests: |
 id: MOD-11
 title: "截断按字符、预算按字节；>2^53 整数丢精度；recordAt 双重序列化"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-L6, LEGACY-L-datalength]
@@ -295,6 +335,11 @@ fix: |
   明确文档口径；大整数按需字符串化；估算用廉价长度；dataLength 改用 Utf8.length。
 tests: |
   Utf8Test 可复用。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  核实 Lua 字符串每字符一字节，不错误改成 UTF-8 长度；文档记录 double/预览语义；trace 只序列化实际写入行，去掉重复长度估算。JsonValuesTest/Utf8Test 与双版本记录通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-12 — 会话目录秒级碰撞 / endpoint.json 残留
@@ -303,7 +348,7 @@ tests: |
 id: MOD-12
 title: "会话目录名 yyyyMMdd-HHmmss 秒级碰撞；崩溃时 endpoint.json 残留"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: mod
 origin: [REVIEW-L7, REVIEW-NEW-2]
@@ -320,6 +365,11 @@ fix: |
   目录名加毫秒/随机后缀或已存在加 -2；start 时校验 pid/port 并删除陈旧 endpoint.json。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  session 名用毫秒+UUID，首次 attach 排他创建，不破坏 dormant；endpoint 原子发布、仅清理 dead pid 或 owned session。纯文件测试、首轮 dormant 与最终关闭清理通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-13 — READ_ONLY 白名单是名称启发式
@@ -374,7 +424,7 @@ tests: |
 id: MOD-15
 title: "recordAt 只解析匹配行且无 catch；并发写入/轮换的半行可致 JsonSyntaxException→500"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [REVIEW-NEW-3]
@@ -389,6 +439,11 @@ fix: |
   同 trace() 一样 catch RuntimeException 并计 skipped。
 tests: |
   none
+fixed_in: fbb6c72d76b81150b41a6875d6b5bcaf73ba26cb
+fixed_at: 2026-10-19
+resolution: |
+  recordAt 使用 TraceRecords 容错验证，坏行不再导致 status match 500；RecorderSafetyTest、TraceRecords/replay 回归与真实 trace 检查通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-16 — screen_hash 32 位 + seq/tick 强转 int
@@ -397,7 +452,7 @@ tests: |
 id: MOD-16
 title: "screen_hash 为 32 位可碰撞；summary 把 seq/tick 强转 int，>2^31 回绕"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [REVIEW-NEW-4, LEGACY-L-hash, LEGACY-L-ticks-int]
@@ -412,6 +467,11 @@ fix: |
   改 64 位哈希；pair 改用 long 参数。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  screen_hash 使用包括尺寸/文字/fg/bg 的 SHA-256；seq/tick 经 HTTP/MCP 全路径保留 long。digest 单测、Long.MAX_VALUE 参数回归和实机调用通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-17 — trace 轮换与读取竞争，写失败一次后永久停写
@@ -420,7 +480,7 @@ tests: |
 id: MOD-17
 title: "lines() 懒打开流与 rotate 竞争；recordAt IOException 后 closed=true 永久停写"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [LEGACY-B4]
@@ -436,6 +496,11 @@ fix: |
   读方在锁内取段并用独立句柄/临时副本读、容忍旧段缺失；rotate 失败重试；写失败记录并下次重开 writer 且补 trace_error。
 tests: |
   需实机并发压力。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  锁内复制不可变磁盘读快照，读完清理；完整 write 后才提交 seq/index，失败截断、暴露 trace_health、退避重试并补 trace_error。注入部分写入/并发轮转单测和两版压力通过；Windows 未实测。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-18 — body 文件与 sessions 目录从不清理
@@ -469,7 +534,7 @@ tests: |
 id: MOD-19
 title: "快照 save() 先删后拷，中途失败会留下无 manifest 的目录并丢掉旧快照"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [LEGACY-M3]
@@ -484,6 +549,11 @@ fix: |
   写 <dir>.tmp，成功后整体替换（old→.old、tmp→dir、删 .old），失败清 tmp。
 tests: |
   需实机/挂载级验证（可先抽路径纯逻辑测试）。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  先复制并按实际复制内容生成 hash/校验 manifest，再 old->backup/stage->target 可恢复切换；失败保留旧副本，list 恢复中断切换。SnapshotStoreTest 与两版 mount save/diff/restore 通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-20 — 重复电脑 ID 时 trace/快照目录冲突
@@ -517,7 +587,7 @@ tests: |
 id: MOD-21
 title: "history = ring.drain(...) 早于 synchronized(trace) 与 attached.put，窗口内新记录丢失/乱序"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [LEGACY-L-drain]
@@ -532,6 +602,11 @@ fix: |
   把 drain 放进 trace 锁内，或发布 attachment 后再 drain 一次。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  record 选 ring/attachment 与 attach drain/publish 共用 ring monitor，包含已在途写线程。NeoForge recording 真实 handover 连续事件验证通过；Ring 容量/排空回归通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-22 — 区块卸载被当成电脑移除
@@ -540,7 +615,7 @@ tests: |
 id: MOD-22
 title: "registry 查不到即 detach(computer, 'removed')，区块卸载误报电脑被移除"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [LEGACY-L-unload]
@@ -555,6 +630,11 @@ fix: |
   区分 unload 与真正移除（同一 UUID 重新加载时保留/恢复）。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  registry 消失统一报告 unavailable/unloaded，避免误称电脑已破坏；reload 不自动恢复 AI 控制。两版真实 forceload 卸载/重载与 detach reason 验证通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-23 — peripheral call id 每 VM 一个
@@ -563,7 +643,7 @@ tests: |
 id: MOD-23
 title: "peripheral call id 每 VM 一个，reboot 后从 1 重来，跨 reboot 的 call/return 不再唯一"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [LEGACY-L-callid]
@@ -578,6 +658,11 @@ fix: |
   call id 改用 session 级计数或加 epoch 前缀。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  外设调用 id 来自 session 级原子计数，跨 VM reboot 保持唯一；两版真实两次 reboot 后 trace call ids 去重检查通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## MOD-24 — side 名与网络名同 map，重名静默覆盖
@@ -586,7 +671,7 @@ tests: |
 id: MOD-24
 title: "available() 先放 side 再 putAll(remote)，重名键静默覆盖"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: mod
 origin: [LEGACY-L-available-collision]
@@ -601,4 +686,9 @@ fix: |
   冲突时报错，或给网络名加前缀区分。
 tests: |
   none
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  PeripheralNames 对不同目标重名报歧义，对语义相等的同物理外设 wrapper 保留合法别名。纯单测与两电脑共享 wired modem 的实机 chest 查询通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```

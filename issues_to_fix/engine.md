@@ -12,7 +12,7 @@
 id: ENG-RT-01
 title: "fs 写入不受 DISK_CAPACITY 限制，可写爆 1GB 堆；OOM 只能按 Cobalt 文案归因"
 severity: high
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-H2, REVIEW-L-Oom]
@@ -35,6 +35,11 @@ tests: |
   新增 engine 测试：写入超过 capacity 后 getSize 与 fs.getFreeSpace 行为；OOM marker 不再依赖字符串。
 verify: |
   动态：cct-run run 写 20MB 程序（见 D:/AI/DSH/cc-t/CC-Tweaked_MCP/issues_to_fix/evidence/dynamic/fs_write.lua）。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  RootMount 对创建/增长/追加/seek/截断/删除/改名及打开句柄实施容量配额，summary.disk 区分 free 与累计写入；VmFailures 在 Lua 文案转换前观察真实 Java OOM。RootMountTest、MainTest.heapExhaustionIsItsOwnStatus、InputSafetyTest 的伪造错误回归通过；删除句柄差异见 DV17。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-02 — debug 工具箱完整可用；受测程序可篡改 `_G` 影响 harness 收尾与状态归因
@@ -43,7 +48,7 @@ verify: |
 id: ENG-RT-02
 title: "debug 库对受测程序完整可用；程序可写 _G 篡改 harness 收尾全局并伪造 out_of_memory/timeout"
 severity: high
-status: open
+status: fixed
 confidence: partial
 module: engine-runtime
 origin: [REVIEW-H1, REVIEW-NEW-1, REVIEW-L-Oom]
@@ -75,6 +80,11 @@ fix: |
 tests: |
   动态探针：debug 函数表 + registry 遍历 + _G 篡改（D:/AI/DSH/cc-t/CC-Tweaked_MCP/issues_to_fix/evidence/dynamic/debug_probe2.lua）。
   建议加一条 Java 测试：done 二次调用被拒绝。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  harness 提前捕获收尾函数并保护调用，完成报告需 token 且只接受一次；OOM 不再按文案分类。InputSafetyTest 的 globals 篡改/伪造 OOM/重复报告测试通过。保持完整 debug，未声称恶意程序隔离。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-03 — 环境中断被报成 timeout
@@ -83,7 +93,7 @@ tests: |
 id: ENG-RT-03
 title: "tick 循环 InterruptedException 返回 timeout，与程序超时共用 exit_code=2"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-E2, LEGACY-L-pacer-interrupt]
@@ -101,6 +111,11 @@ fix: |
   新增 interrupted/cancelled 状态（独立 exit code 或 summary.interrupted=true），或在 run_end 记录原因。
 tests: |
   对 Runner 线程发 interrupt，断言状态与 exit_code。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  保留 timeout/exit 2，附 termination_reason=interrupted 和 run_interrupted；写完 summary/state 后恢复线程 interrupt。InputSafetyTest.interruptedRunWritesItsCauseAndRestoresTheInterruptFlag 通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-04 — context.close 不等线程退出（库嵌入泄漏）
@@ -109,7 +124,7 @@ tests: |
 id: ENG-RT-04
 title: "context.close(50ms) 后放弃等待计算机线程，仅记 note"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: engine-runtime
 origin: [REVIEW-E3]
@@ -125,6 +140,11 @@ fix: |
   javadoc 明确 embedding 限制，或 close 等待并在失败时 fail loud；可提供 closeAll()。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  Runner Javadoc 明示每 JVM 一次 run、close(50ms) 后线程仍可能收尾，嵌入调用不提供隔离；保留已有 CLI/MCP 进程模型。文档核对通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-05 — harness `fs.open` 无 nil 检查
@@ -133,7 +153,7 @@ tests: |
 id: ENG-RT-05
 title: "harness.lua fs.open(path) 无 nil 检查，程序文件缺失时报 nil index"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-E4]
@@ -151,6 +171,11 @@ fix: |
   `if not file then report.done(false, "setup", "program file missing: "..path, nil) end`。
 tests: |
   none
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  harness 对 fs.open 返回 nil 提供 setup 错误并等待 runner 收尾，避免索引 nil 后退回 shell 超时。代码核对；Runner 正常/语法/运行时回归通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-06 — CoreConfig 进程级静态跨 run 残留
@@ -159,7 +184,7 @@ tests: |
 id: ENG-RT-06
 title: "CoreConfig.httpEnabled/defaultComputerSettings 为进程级静态，跨 run 无恢复"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-L-Cfg]
@@ -174,6 +199,11 @@ fix: |
   run 前后保存/恢复 CoreConfig，或文档声明进程级副作用并加运行期断言。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  Runner Javadoc 与 limitations 记录 CoreConfig 进程级副作用及不支持重复/并发嵌入隔离；不改变一 run 一 JVM 的既有决定。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-07 — maxTicks 的 int 溢出（库调用面）
@@ -182,7 +212,7 @@ tests: |
 id: ENG-RT-07
 title: "maxTicks = timeoutSeconds * 20 为 int 乘法，超大 timeout 溢出"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-L-Ovf]
@@ -202,6 +232,11 @@ fix: |
   RunSpec 增加合理上限或 Math.multiplyExact/long。
 tests: |
   none
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  RunSpec 限定 timeoutSeconds 为 1..3600，防止 ticks 乘法溢出。InputSafetyTest 拒绝 Integer.MAX_VALUE；既有 timeout 回归通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-08 — Trace close 后静默丢记录
@@ -256,7 +291,7 @@ tests: |
 id: ENG-RT-10
 title: "TraceQuery 假定 tick/kind 字段必存在，缺失即 NPE 且不计 skipped"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-L-TQ]
@@ -272,6 +307,11 @@ fix: |
   统一 has()/isJsonPrimitive 校验并计入 skipped。
 tests: |
   none
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  TraceQuery 在过滤/回放前校验字段类型、尺寸和行号，坏对象与坏 JSON 统一计 skipped。InputSafetyTest.missingAndWrongTraceFieldsDoNotAbortQueriesOrReplay 通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-11 — storedName 对畸形 programName 不设防
@@ -280,7 +320,7 @@ tests: |
 id: ENG-RT-11
 title: "storedName 对空名/'..'/Windows 保留名不设防（仅库 API）"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: engine-runtime
 origin: [REVIEW-L-Name, REVIEW-NEW-3]
@@ -298,6 +338,11 @@ fix: |
   RunSpec 校验非空且拒绝 ../Windows 保留名。
 tests: |
   none
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  RunSpec 按宿主 Path 检查有效末段，拒绝空白、根路径、点与点点；未引入被审查驳回的 Windows 保留名假设。InputSafetyTest 边界通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-12 — Clock tick/ms 亚毫秒错位
@@ -378,7 +423,7 @@ tests: |
 id: ENG-RT-15
 title: "RecordingMachine 的 MachineResult 错误不参与 Runner 状态判定，保护链外 OOM 呈现为 timeout/shutdown"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [REVIEW-NEW-4]
@@ -395,6 +440,11 @@ fix: |
   Runner 读取 MachineResult error 并映射状态。
 tests: |
   none
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  RecordingMachine 观察保护调用外 OOM 与非正常 MachineResult，Runner 统一归因并保留原始错误通道；类型 OOM、语法/运行时/无 yield/关机重启回归通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-16 — run_id 随机段仅 4 位十六进制
@@ -403,7 +453,7 @@ tests: |
 id: ENG-RT-16
 title: "run_id 随机段仅 4 位十六进制且 createDirectories 不检查冲突"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [LEGACY-L-runid]
@@ -418,6 +468,11 @@ fix: |
   随机段扩到 8 位以上，createDirectory + 冲突重试。
 tests: |
   抽 helper 单测冲突重试。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  UUID 随机空间与原子 createDirectory/冲突重试结合；InputSafetyTest 确定性制造第一次同名并验证不覆盖。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-RT-17 — 被杀/超时运行无 summary、无 killed 标记
@@ -426,7 +481,7 @@ tests: |
 id: ENG-RT-17
 title: "被杀/超时运行没有 summary，也没有 killed/state 标记"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: engine-runtime
 origin: [LEGACY-B7]
@@ -443,6 +498,11 @@ fix: |
   启动时写 state:running 小文件、结束时更新；MCP 杀进程后补 killed:true + 原因。
 tests: |
   none
+fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_at: 2026-10-19
+resolution: |
+  原子 state.json 和父子进程精确 reservation，记录 pid/start identity；取消确认子进程终止后补 failed/cancelled。RunStateTest 与 McpServerTest 通过。外部强杀可能残留最后已知 running，不保证 summary。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-01 — 默认值在 validate/build 两阶段重复、靠异常字符串耦合
@@ -451,7 +511,7 @@ tests: |
 id: ENG-FX-01
 title: "默认值 27/100_000 在 validate 与 build 各重复 3 处，build 阶段靠 IllegalStateException 耦合"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: engine-fixture
 origin: [REVIEW-F2, REVIEW-NEW-3]
@@ -468,6 +528,11 @@ fix: |
   抽 DEFAULT_INVENTORY_SIZE / DEFAULT_ENERGY_CAPACITY 常量两阶段共用；build 阶段异常补 JSON 路径。
 tests: |
   FixtureTest.timelineItemSlotMustFitTheInventory 已覆盖一条回归。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  fixture 校验与构建共用 inventory/energy 默认常量，精确数值解析异常带 JSON 路径；FixtureTest 的 timeline 槽位/容量与 InputSafetyTest 边界通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-02 — timeline args 深嵌套可致 StackOverflowError（无 summary）
@@ -476,7 +541,7 @@ tests: |
 id: ENG-FX-02
 title: "event.args 只校验是数组；深嵌套经 JsonValues.toLua 递归触发 StackOverflowError，进程崩溃且无 summary"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: engine-fixture
 origin: [REVIEW-F4, REVIEW-NEW-1]
@@ -501,6 +566,11 @@ fix: |
   在 Fixture.parse 对 args 做深度/节点数上限校验；给 toLua/noteWideText 加同一 MAX_DEPTH；Runner/Main 捕获 Error 并写 summary。
 tests: |
   none
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  JsonLimits 迭代限制输入深度/节点/字节，在 deepCopy、宽字符检查和 toLua 递归前拒绝。InputSafetyTest 覆盖 20000 层拒绝和合法边界；不复用展示深度 4。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-03 — longValue 只查下限，Infinity/超范围静默饱和
@@ -509,7 +579,7 @@ tests: |
 id: ENG-FX-03
 title: "longValue 只查下限；Infinity 与超 Long 范围的值静默饱和，且 validate/build 取值不一致"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-fixture
 origin: [REVIEW-F3]
@@ -527,6 +597,11 @@ fix: |
   longValue 增加 max 与 Double.isFinite 检查；build 阶段复用 validate 的解析结果而不是重读 JSON。
 tests: |
   无；加 1e999、Long.MAX+1、NaN 用例。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  BigDecimal.longValueExact 校验整数和 long 范围，两阶段复用同一解析规则。InputSafetyTest 拒绝 1e999、Long.MAX+1、小数/负值并接受 Long.MAX。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-04 — timeline 不排序、每 tick 全表扫描、超 timeout 动作静默丢弃
@@ -535,7 +610,7 @@ tests: |
 id: ENG-FX-04
 title: "timeline 不排序不查重、每 tick 全表线性扫描；tick 超过 timeout 的动作静默丢弃"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: engine-fixture
 origin: [REVIEW-F5, REVIEW-NEW-2]
@@ -553,6 +628,11 @@ fix: |
   parse 期对 tick>timeout 的条目告警/notes；按 tick 排序或建索引；限制 timeline 条数。
 tests: |
   PeripheralTest.energyFluidAndTimelineChanges 覆盖同 tick 多条。
+fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_at: 2026-10-19
+resolution: |
+  timeline 稳定排序、tick 循环用迭代器推进，同 tick 原顺序保留；超出 timeout 的动作给有界 note，整体输入节点上限约束规模。顺序与既有能量/流体动作回归通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-05 — 外设 RuntimeException 细节写入对客户端可见的 trace
@@ -587,7 +667,7 @@ tests: |
 id: ENG-FX-06
 title: "trace 数值转换：≥1e15 整数转 double、NaN/Infinity 转字符串，类 javadoc 未说明"
 severity: info
-status: open
+status: fixed
 confidence: partial
 module: engine-fixture
 origin: [REVIEW-F8]
@@ -603,6 +683,11 @@ fix: |
   在 JsonValues javadoc 与 handoff TRACE_FORMAT 记录规则。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  JsonValues Javadoc、guide、handoff TRACE_FORMAT 明确 double、大整数精度、非有限数字符串、字符串/容器预览边界；mod JsonValuesTest 同步验证字节与非有限值语义。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-07 — ItemStack 详情用 HashMap，trace 键序非插入序
@@ -634,7 +719,7 @@ tests: |
 id: ENG-FX-08
 title: "args.getInt 对小数截断为整数（1.5→1）且无测试；复用 CC:T 默认实现故与游戏语义一致"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: engine-fixture
 origin: [REVIEW-F10]
@@ -650,6 +735,11 @@ fix: |
   保持现状；补小数参数测试并在 guide/handoff 说明截断行为。
 tests: |
   无小数参数用例。
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  保留上游 IArguments.getInt 小数截断；新增 PeripheralTest.fractionalInventorySlotUsesTheUpstreamIntegerConversion，并在 guide/handoff 区分方法参数与 exact-integer fixture。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## ENG-FX-09 — ItemStack.count 线程约束未文档化（当前无竞争）
@@ -658,7 +748,7 @@ tests: |
 id: ENG-FX-09
 title: "ItemStack.count 非 volatile、线程约束未文档化；当前线程模型下无竞争"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: engine-fixture
 origin: [REVIEW-F7, REVIEW-NEW-5]
@@ -679,5 +769,10 @@ fix: |
   在 Inventory/ItemStack 注明所有访问必须在主线程，或统一持锁/volatile。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  Inventory 与 ItemStack Javadoc 明确主线程访问约束，未因已驳回的竞争假设增加无关锁。PeripheralTest 回归通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 

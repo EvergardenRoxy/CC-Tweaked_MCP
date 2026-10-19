@@ -1,0 +1,27 @@
+{
+  "verified_at": "2026-10-19T03:31:39.042571+00:00",
+  "source_commit": "05d21039575f6708bec2b4fc1bab1363750fc744",
+  "checks": {
+    "junit_modules_passed": true,
+    "zip_docs_verification_script_permissions_ascii_lf": true,
+    "class_major_versions": {
+      "cctrun/cli/Launcher.class": 52,
+      "cctrun/cli/Main.class": 61,
+      "cctrun/engine/Runner.class": 61,
+      "forge": 61,
+      "neoforge": 65
+    },
+    "game_reports_match_current_module_sources_and_endpoints_removed": true,
+    "actual_java17_packaged_run_and_state": true,
+    "actionlint_1_7_12_and_diff_check": true,
+    "release_prepare_only_all_checksums_match": true,
+    "version_match_accepted": true,
+    "version_mismatch_refused": true
+  },
+  "limits": [
+    "Windows/macOS not run",
+    "Production deployment not run",
+    "GitHub tag publication not run",
+    "120-second wall-grace kill not forced"
+  ]
+}
