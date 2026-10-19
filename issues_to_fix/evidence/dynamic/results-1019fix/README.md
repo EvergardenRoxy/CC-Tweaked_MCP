@@ -63,3 +63,5 @@ RELEASE_TAG=v0.2.3 ./gradlew verifyReleaseVersion
 首次 GitHub 冷缓存构建暴露 BOM 的 POM/Gradle module 路径与本地暖缓存不同：Kotlin BOM 2.3.21 POM、JUnit BOM 5.7.1/5.7.2/5.9.0/5.9.3/5.10.0/5.10.1 module，以及刷新依赖后出现的 JUnit BOM 5.11.4 POM。新增八项 metadata 校验值均从 Maven Central 核对，且与 CI 的 NeoForged 镜像字节一致；来源与 SHA256 见 `dependency-metadata-verified.json`。不调整依赖版本、不忽略工件、不关闭 strict。
 
 严格校验补验命令：`./gradlew build :mod-forge:build :mod-neoforge:build assembleMods --dependency-verification strict --refresh-dependencies`，本地成功；测试任务可复用既有结果，报告保留原时间。GitHub 最新实际执行状态另记。
+
+GitHub 实测还确认已有 CodeQL Default setup 会拒绝 Advanced 配置重复提交 SARIF；扫描查询本身成功。补充工作流保留手动构建/分析，改为 `upload: never`、不上传数据库，并要求保存 `codeql-sarif` 构建产物；不关闭 Default setup，不忽略分析失败。

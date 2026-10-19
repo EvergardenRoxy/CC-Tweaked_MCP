@@ -53,7 +53,9 @@ bash scripts/smoke-test.sh /absolute/path/to/cct-run/bin/cct-run
 
 版本只定义在 `engine/src/main/java/cctrun/engine/Versions.java` 的 `TOOL`；Gradle 读取同一值。`./gradlew -q printVersion` 可查询，`RELEASE_TAG=v<版本> ./gradlew verifyReleaseVersion` 可离线验证发布门禁，不创建标签或发布。
 
-Gradle wrapper 固定发行包 SHA-256；Actions 固定提交；`gradle/verification-metadata.xml` 校验依赖字节。更新依赖时在可信下载来源核对新校验值后提交元数据，不关闭校验来绕过失败。安全工作流包括依赖审查与 CodeQL，Dependabot 定期提供更新。CodeQL 目前覆盖 engine/cli；Minecraft 运行场景按[测试说明](testing.md)另验。CI 不等于 Windows/macOS 客户端或生产服务器实测。
+Gradle wrapper 固定发行包 SHA-256；Actions 固定提交；`gradle/verification-metadata.xml` 校验依赖字节。更新依赖时在可信下载来源核对新校验值后提交元数据，不关闭校验来绕过失败。安全工作流包括依赖审查与 CodeQL，Dependabot 定期提供更新。
+
+仓库现有 GitHub CodeQL Default setup 继续管理 Code Scanning。本工作流额外手动构建并分析 engine/cli，把 SARIF 保存为 `codeql-sarif` CI 产物，供下载审阅；不向 Code Scanning 重复上传冲突的 Advanced 配置，也不改动仓库的 Default setup。Minecraft 运行场景按[测试说明](testing.md)另验。CI 不等于 Windows/macOS 客户端或生产服务器实测。
 
 ## README 里的图
 
