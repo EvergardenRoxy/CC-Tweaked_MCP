@@ -19,7 +19,8 @@
    cct-run\
      bin\cct-run.bat      bin\cct-run
      lib\*.jar
-     examples\            scripts\            docs\testing.md  docs\agent-guide.md
+     examples\            scripts\
+     docs\README.md       docs\testing\guide.md  docs\guides\agent-guide.md
      LICENSE  LICENSES\   THIRD-PARTY-NOTICES.md
    ```
 2. **确认 Java（17 或更高）**：在 PowerShell 里运行：

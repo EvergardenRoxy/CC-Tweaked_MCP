@@ -1,0 +1,124 @@
+{
+  "materials_archive_sha256": "f89a0cfd9e512dc8f5c62a887104d1a8dbc1ee493588407338da165f8e0b4c99",
+  "session_archive_sha256": "b0c407a95acf79d0d6bba68b8c56cd6baa74324e376c242b63332169a2e89b70",
+  "effective_conditions_seq": {
+    "initial_prompt": 263,
+    "ask_before_trial_and_error": 302,
+    "single_depot_single_deployer_stop_by_aux_supply": 382,
+    "extra_chinese_display_requirement": 263,
+    "offline_live_drill_explicitly_skipped": 4108
+  },
+  "last_write_payload_comparison": {
+    "app.lua": {
+      "last_write_seq": 3091,
+      "matches_last_write_payload": true
+    },
+    "commands.lua": {
+      "last_write_seq": 3697,
+      "matches_last_write_payload": true
+    },
+    "config.lua": {
+      "last_write_seq": 2875,
+      "matches_last_write_payload": true
+    },
+    "display.lua": {
+      "last_write_seq": 3301,
+      "matches_last_write_payload": true
+    },
+    "engine.lua": {
+      "last_write_seq": 4082,
+      "matches_last_write_payload": true
+    },
+    "hw.lua": {
+      "last_write_seq": 2879,
+      "matches_last_write_payload": true
+    },
+    "main.lua": {
+      "last_write_seq": 2871,
+      "matches_last_write_payload": true
+    },
+    "nfcmd.lua": {
+      "last_write_seq": 2881,
+      "matches_last_write_payload": true
+    },
+    "startup.lua": {
+      "last_write_seq": 2997,
+      "matches_last_write_payload": true
+    },
+    "store.lua": {
+      "last_write_seq": 2877,
+      "matches_last_write_payload": true
+    },
+    "util.lua": {
+      "last_write_seq": 2867,
+      "matches_last_write_payload": true
+    }
+  },
+  "inventory_preview_seq3438": {
+    "visible_totals": {
+      "create:cogwheel": 1572,
+      "minecraft:iron_nugget": 1573
+    },
+    "omitted": "101 more",
+    "note": "Partial preview cannot be used as whole-vault total. User correction at ask answer seq3446."
+  },
+  "base_recipe": {
+    "recorded_tool_call_seq": 311,
+    "loops": 5,
+    "result_count": 9,
+    "success_weight": 120.0,
+    "total_weight": 150.0,
+    "runtime_override_exported": false
+  },
+  "display_getSize_bytecode_seq": 1302,
+  "snapshot_save": {
+    "id": 4,
+    "name": "before-nf",
+    "files": 0,
+    "dirs": 0,
+    "bytes": 0
+  },
+  "snapshot_diff": {
+    "id": 4,
+    "name": "before-nf",
+    "saved": "2026-10-19T09:38:30.474543200Z",
+    "identical": false,
+    "added": [
+      "nf-precision-test/app.lua",
+      "nf-precision-test/commands.lua",
+      "nf-precision-test/config.lua",
+      "nf-precision-test/display.lua",
+      "nf-precision-test/engine.lua",
+      "nf-precision-test/events.log",
+      "nf-precision-test/hw.lua",
+      "nf-precision-test/main.lua",
+      "nf-precision-test/nfcmd.lua",
+      "nf-precision-test/startup_boot.lua",
+      "nf-precision-test/state.txt",
+      "nf-precision-test/state.txt.bak",
+      "nf-precision-test/store.lua",
+      "nf-precision-test/util.lua",
+      "startup.lua"
+    ],
+    "removed": [],
+    "changed": [],
+    "dirs_added": [
+      "nf-precision-test"
+    ],
+    "dirs_removed": []
+  },
+  "detach": {
+    "id": 4,
+    "detached": true,
+    "tick": 14932
+  },
+  "display_evidence": {
+    "getSize_bytecode_seq": 1302,
+    "return_order": [
+      "maxRows",
+      "maxColumns"
+    ],
+    "single_instance_eight_row_probe_write_seq": 1789,
+    "player_confirmation_seq": 1811
+  }
+}

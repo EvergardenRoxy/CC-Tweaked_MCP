@@ -19,9 +19,11 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)（建议用 1.2.2）会告诉 AI 怎么写 CC 程序、什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
 
-> 当前源码版本是 **0.2.4**（2026-10），更新内容见 [`docs/release-notes-0.2.4.md`](docs/release-notes-0.2.4.md)；已发布版本以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。历史版本：[0.2.3](docs/release-notes-0.2.3.md)、[0.2.2](docs/release-notes-0.2.2.md)、[0.2.0](docs/release-notes-0.2.0.md)、[0.1.0](docs/release-notes-0.1.0.md)。cct-live 还是原型。
+> 当前源码版本是 **0.2.4**（2026-10），更新内容见 [`docs/releases/0.2.4.md`](docs/releases/0.2.4.md)；已发布版本以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。历史版本：[0.2.3](docs/releases/0.2.3.md)、[0.2.2](docs/releases/0.2.2.md)、[0.2.0](docs/releases/0.2.0.md)、[0.1.0](docs/releases/0.1.0.md)。cct-live 还是原型。
 >
 > 0.2.4 完成审查清单中的 63 项 A/T 修复：补齐模拟磁盘配额和输入边界，修正运行结果与 MCP 取消，改进 cct-live 的 trace 轮换、快照恢复和 HTTP 超时，并让发行流程校验版本、复用已测产物。建议 cct-run 与对应 mod 一起升级。
+
+完整文档见[文档索引](docs/README.md)，按使用指南、开发维护、测试和发行说明分类。
 
 ---
 
@@ -81,7 +83,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
    claude mcp add --scope user cct-run -- cmd /c C:\cct-run\bin\cct-run.bat mcp
    ```
 
-**完整说明见 [安装](docs/install.md)**：Codex 和其他 MCP 客户端的配置、接管游戏里的电脑（`CCT_LIVE_DIR`）、不支持 MCP 时用命令行方式接入。
+**完整说明见 [安装](docs/guides/installation.md)**：Codex 和其他 MCP 客户端的配置、接管游戏里的电脑（`CCT_LIVE_DIR`）、不支持 MCP 时用命令行方式接入。
 
 ---
 
@@ -94,7 +96,7 @@ cct-run screen <运行目录|latest> [--tick N] [--source term|显示器名]
 cct-run guide | version | help | mcp
 ```
 
-**完整说明见 [用法速查](docs/usage.md)**：全部参数、MCP 工具与命令的对应关系、退出码、内存上限设置和 fixture 示例。
+**完整说明见 [用法速查](docs/guides/usage.md)**：全部参数、MCP 工具与命令的对应关系、退出码、内存上限设置和 fixture 示例。
 
 ---
 
@@ -102,7 +104,7 @@ cct-run guide | version | help | mcp
 
 测试通过表示程序**在这个模拟环境里**运行正确。海龟、真实世界、HTTP、真实模组机器联动等仍需实机验证；模拟根盘执行 1 MB 配额，JVM 默认约 1 GB 堆。
 
-完整范围、数值/字符语义及异常运行记录见 [模拟范围与已知限制](docs/limitations.md)。
+完整范围、数值/字符语义及异常运行记录见 [模拟范围与已知限制](docs/guides/limitations.md)。
 
 ---
 
@@ -113,15 +115,15 @@ cct-run guide | version | help | mcp
 | 平台 / 项目 | 覆盖与证据 |
 |---|---|
 | Linux，本轮 `1019fix` | engine/cli 与双 mod 变体回归、发布 zip 冒烟、Java 8 启动器切换；Forge / NeoForge 开发服务器的文件、快照、HTTP 限制、显示器、有线外设、trace 轮转、接管/释放与租约验证。见[本轮证据](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/evidence/dynamic/results-1019fix/README.md) |
-| GitHub Actions | main 推送、面向 main 的 PR、手动运行：构建、单测、发布 zip 冒烟与验证结果汇总；标签发布复用同次已测产物。见[构建说明](docs/building.md) |
-| Windows 与实际 AI 客户端 | 历史版本的 PowerShell/cmd、Java 切换、MCP 与真实客户端记录保留在[测试记录](docs/test-results.md)。本轮未重新执行 Windows 客户端验证 |
+| GitHub Actions | main 推送、面向 main 的 PR、手动运行：构建、单测、发布 zip 冒烟与验证结果汇总；标签发布复用同次已测产物。见[构建说明](docs/development/build.md) |
+| Windows 与实际 AI 客户端 | 历史版本的 PowerShell/cmd、Java 切换、MCP 与真实客户端记录保留在[测试记录](docs/testing/results.md)。本轮未重新执行 Windows 客户端验证 |
 | macOS | 尚未测试，安装命令仅供参考 |
 
 ### 性能：cct-live 平时几乎没有开销
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/perf-dark.svg">
-  <img alt="cct-live 的性能开销：30 台电脑跑满循环时，没有接管为 −1% / +8% / 0%（在 ±5% 的测量误差之内），打开记录模式为 −7% / −8% / −5%，30 台全部接管为 −18% / −18% / −10%；服务器每 tick 耗时都在 1 ms 左右" src="docs/images/perf-light.svg" width="760">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/images/performance-dark.svg">
+  <img alt="cct-live 的性能开销：30 台电脑跑满循环时，没有接管为 −1% / +8% / 0%（在 ±5% 的测量误差之内），打开记录模式为 −7% / −8% / −5%，30 台全部接管为 −18% / −18% / −10%；服务器每 tick 耗时都在 1 ms 左右" src="docs/assets/images/performance-light.svg" width="760">
 </picture>
 
 | 配置 | 服务器每 tick 耗时 | 事件循环 | 文件读写 | 写屏幕 |
@@ -138,8 +140,8 @@ cct-run guide | version | help | mcp
 联合测试让一个 AI 用 Create 和 Advanced Peripherals 的外设写完整的工厂控制程序，先在模拟器里测，再到游戏里验收。联合测试 3 做了两次（工厂控制中心）；联合测试 4（订单产线：聊天下单、订单队列、过载保护、断电续跑）用和联合测试 3 第 2 次相同的模型，换上了 cct-run 0.2.0 和 Skill 1.2.0，**这也是 Skill 第一次参与的大型任务**。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/joint-test-dark.svg">
-  <img alt="三次 AI 实测的对比：任务时长 117 / 60 / 38 分钟，工具调用 576 / 268 / 187 次，总 token 9293 万 / 7064 万 / 4382 万，输出 token 75.1 万 / 24.5 万 / 19.9 万，上下文压缩 46 / 0 / 0 次，请玩家配合 0 / 17 / 5 次" src="docs/images/joint-test-light.svg" width="760">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/images/joint-tests-dark.svg">
+  <img alt="三次 AI 实测的对比：任务时长 117 / 60 / 38 分钟，工具调用 576 / 268 / 187 次，总 token 9293 万 / 7064 万 / 4382 万，输出 token 75.1 万 / 24.5 万 / 19.9 万，上下文压缩 46 / 0 / 0 次，请玩家配合 0 / 17 / 5 次" src="docs/assets/images/joint-tests-light.svg" width="760">
 </picture>
 
 | 指标 | 联合测试 3 第 1 次 | 联合测试 3 第 2 次 | 联合测试 4 |
@@ -156,15 +158,15 @@ cct-run guide | version | help | mcp
 | 模组外设怎么在模拟器里测 | 没有办法 | 自己写 Lua 替身 | fixture 的 `scripted`，数值取自实机 |
 | 结果 | 看板和按钮在实机可用；聊天指令、过载保护只在模拟器里测过；没有完成收尾 | 聊天指令、过载保护、拆装外设、开机自启都在游戏里验证；收尾完整 | 下单、计数、过载保护、重启续跑、触摸、拔插外设、中文收发在游戏里验证；中文回复由玩家发现乱码后修正 |
 
-联合测试 3 和 4 的任务不同，只能粗略比较；联合测试 4 的时长只算任务部分，token 是整个会话。分析见 [`docs/joint-test-factory-report.md`](docs/joint-test-factory-report.md)、[`docs/joint-test-orders-report.md`](docs/joint-test-orders-report.md)，测试暴露的问题已在 0.2.0 和 0.2.2 处理。
+联合测试 3 和 4 的任务不同，只能粗略比较；联合测试 4 的时长只算任务部分，token 是整个会话。分析见 [`docs/testing/reports/03-factory.md`](docs/testing/reports/03-factory.md)、[`docs/testing/reports/04-orders.md`](docs/testing/reports/04-orders.md)，测试暴露的问题已在 0.2.0 和 0.2.2 处理。
 
-每轮测试发现的问题和处理见 [`docs/test-results.md`](docs/test-results.md)；在自己的机器上测试的方法见 [`docs/testing.md`](docs/testing.md)。
+每轮测试发现的问题和处理见 [`docs/testing/results.md`](docs/testing/results.md)；在自己的机器上测试的方法见 [`docs/testing/guide.md`](docs/testing/guide.md)。
 
 ---
 
 ## 从源码构建
 
-需要 JDK 17 或更高版本：`./gradlew build` 编译并运行测试，`./gradlew :cli:distZip` 生成发布包，`./gradlew assembleMods` 生成两个版本的 cct-live mod（Forge 1.20.1、NeoForge 1.21.1）。**完整说明见 [从源码构建](docs/building.md)**，包括 mod 的各版本构建命令和 README 图表的生成。
+需要 JDK 17 或更高版本：`./gradlew build` 编译并运行测试，`./gradlew :cli:distZip` 生成发布包，`./gradlew assembleMods` 生成两个版本的 cct-live mod（Forge 1.20.1、NeoForge 1.21.1）。**完整说明见 [从源码构建](docs/development/build.md)**，包括 mod 的各版本构建命令和 README 图表的生成。
 
 ---
 
@@ -176,7 +178,7 @@ cct-run guide | version | help | mcp
 4. 资源限制：~~1 GB 内存上限、内存耗尽单独作为一种结果~~（已完成）；cct-live 的 trace 超过上限后轮换、保留最新记录（0.2.0）；模拟器 trace 的大小上限、`cct-run clean` 清理旧记录（待做）
 5. ~~模组外设（`scripted`）~~（0.2.0）；按需添加更多外设（熔炉格子规则、扬声器、打印机、磁盘驱动器、无线调制解调器和多电脑 rednet 等）
 6. ~~**cct-live**：一个 Forge 1.20.1 mod，让 AI 按需接管真实游戏里的 CC 电脑：接管后从 Java 层记录事件、外设调用、HTTP 和文件读写、带颜色的屏幕、显示器、红石，并允许输入、点击、读写文件、运行 Lua 和开关机；平时不记录；不需要在电脑里运行 Lua 脚本，也不需要转发服务器~~（0.1.0 原型，见 [`mod/README.md`](mod/README.md)）
-7. ~~和 Skill 一起做联合测试~~（[`docs/joint-test.md`](docs/joint-test.md)、[联合测试 3](docs/joint-test-factory.md)、[联合测试 4](docs/joint-test-orders.md)）
+7. ~~和 Skill 一起做联合测试~~（[`docs/testing/plans/01-02-skill-integration.md`](docs/testing/plans/01-02-skill-integration.md)、[联合测试 3](docs/testing/plans/03-factory.md)、[联合测试 4](docs/testing/plans/04-orders.md)）
 8. cct-live 后续：程序出错时的调用栈、有线网络连接的显示器、海龟的背包和燃料、海龟和口袋电脑的测试；trace 标出程序传给外设的 UTF-8 中文（联合测试 4 的建议，待定）
 
 配套的 AI Skill：[EvergardenRoxy/CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)。

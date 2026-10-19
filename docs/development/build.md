@@ -1,6 +1,6 @@
 # 从源码构建
 
-[← 返回 README](../README.md) · [安装](install.md) · [用法速查](usage.md)
+[← 返回 README](../../README.md) · [安装](../guides/installation.md) · [用法速查](../guides/usage.md)
 
 ## cct-run
 
@@ -25,11 +25,11 @@ CC: Tweaked 使用 Maven 上发布的 `cc.tweaked:cc-tweaked-1.20.1-core:1.120.2
 ./gradlew :mod-forge:test :mod-neoforge:test   # 共享源码的纯 JUnit 测试，分别执行
 ```
 
-共享代码在 `mod/src/common/`，加载器相关部分在 `mod/forge/`、`mod/neoforge/`。上面的 `./gradlew build` 不会构建 mod，也不会下载 Minecraft。详见 [`mod/README.md`](../mod/README.md#构建)。
+共享代码在 `mod/src/common/`，加载器相关部分在 `mod/forge/`、`mod/neoforge/`。上面的 `./gradlew build` 不会构建 mod，也不会下载 Minecraft。详见 [`mod/README.md`](../../mod/README.md#构建)。
 
 ## 自动构建（GitHub Actions）
 
-[`.github/workflows/build.yml`](../.github/workflows/build.yml) 在 main 推送、面向 main 的 PR、手动触发和 `v*` 标签时执行：
+[`.github/workflows/build.yml`](../../.github/workflows/build.yml) 在 main 推送、面向 main 的 PR、手动触发和 `v*` 标签时执行：
 
 | 任务 | 验证与产物 |
 |---|---|
@@ -53,15 +53,15 @@ bash scripts/smoke-test.sh /absolute/path/to/cct-run/bin/cct-run
 
 版本只定义在 `engine/src/main/java/cctrun/engine/Versions.java` 的 `TOOL`；Gradle 读取同一值。`./gradlew -q printVersion` 可查询，`RELEASE_TAG=v<版本> ./gradlew verifyReleaseVersion` 可离线验证发布门禁，不创建标签或发布。
 
-维护者的 main 合并、标签与正式发行顺序见 [发行流程](releasing.md)。
+维护者的 main 合并、标签与正式发行顺序见 [发行流程](release.md)。
 
 Gradle wrapper 固定发行包 SHA-256；Actions 固定提交；`gradle/verification-metadata.xml` 校验依赖字节。更新依赖时在可信下载来源核对新校验值后提交元数据，不关闭校验来绕过失败。安全工作流包括依赖审查与 CodeQL，Dependabot 定期提供更新。
 
-仓库现有 GitHub CodeQL Default setup 继续管理 Code Scanning。本工作流额外手动构建并分析 engine/cli，把 SARIF 保存为 `codeql-sarif` CI 产物，供下载审阅；不向 Code Scanning 重复上传冲突的 Advanced 配置，也不改动仓库的 Default setup。Minecraft 运行场景按[测试说明](testing.md)另验。CI 不等于 Windows/macOS 客户端或生产服务器实测。
+仓库现有 GitHub CodeQL Default setup 继续管理 Code Scanning。本工作流额外手动构建并分析 engine/cli，把 SARIF 保存为 `codeql-sarif` CI 产物，供下载审阅；不向 Code Scanning 重复上传冲突的 Advanced 配置，也不改动仓库的 Default setup。Minecraft 运行场景按[测试说明](../testing/guide.md)另验。CI 不等于 Windows/macOS 客户端或生产服务器实测。
 
 ## README 里的图
 
-`docs/images/` 下的性能图和测试结果图（各有浅色和深色两个版本）由脚本根据其中写明的实测数据生成，只需要 Python 3：
+`docs/assets/images/` 下的性能图和测试结果图（各有浅色和深色两个版本）由脚本根据其中写明的实测数据生成，只需要 Python 3：
 
 ```
 python3 scripts/readme_charts.py
@@ -71,4 +71,4 @@ python3 scripts/readme_charts.py
 
 ## 其他
 
-用户可见的模拟差异和已知限制见 [limitations.md](limitations.md)；在自己的机器上测试的方法见 [`testing.md`](testing.md)。
+用户可见的模拟差异和已知限制见[模拟范围与已知限制](../guides/limitations.md)；在自己的机器上测试的方法见[测试指南](../testing/guide.md)。

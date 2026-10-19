@@ -1,6 +1,6 @@
 # 安装
 
-[← 返回 README](../README.md) · [用法速查](usage.md) · [从源码构建](building.md)
+[← 返回 README](../../README.md) · [用法速查](usage.md) · [从源码构建](../development/build.md)
 
 ## 1. 准备 Java 17 或更高版本
 
@@ -15,7 +15,7 @@ java -version
 
 ## 2. 下载并解压
 
-从 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 下载发布包 `cct-run-<版本>.zip` 并解压，例如解压到 `C:\cct-run`。也可以按[从源码构建](building.md)自己构建。目录结构：
+从 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 下载发布包 `cct-run-<版本>.zip` 并解压，例如解压到 `C:\cct-run`。也可以按[从源码构建](../development/build.md)自己构建。当前源码构建的目录结构如下；已发布旧版包保留发布时的文档目录，路径对应关系见[文档索引](../README.md#旧路径对照)。
 
 ```
 cct-run\
@@ -23,10 +23,13 @@ cct-run\
   lib\*.jar                          程序本体，含 CC: Tweaked
   examples\                          示例程序和 fixture
   README.md                          项目说明
-  docs\install.md  usage.md  building.md   安装（本文件）、用法速查、从源码构建
-  docs\images\                       README 里的图
-  docs\agent-guide.md                给 AI 的使用说明
-  docs\testing.md  scripts\          维护者测试脚本
+  docs\README.md                     文档索引
+  docs\guides\                       安装、用法、限制与 AI 使用指南
+  docs\development\                  构建与发行流程
+  docs\testing\                      测试指南、方案、提示词与报告
+  docs\releases\                     各版本发行说明
+  docs\assets\images\                README 里的图
+  scripts\                           维护者测试脚本
   LICENSE  LICENSES\  THIRD-PARTY-NOTICES.md
 ```
 
@@ -100,7 +103,7 @@ tool_timeout_sec = 300          # 运行可能持续到 --timeout 秒，默认�
 - 服务器启动后，第一次调用前 AI 会看到提示：先调用 `cct_guide` 阅读说明。
 - 配置好后可以直接对 AI 说：“写一个……的 CC 程序，并用 cct_run 测试。”
 
-**（可选）接管游戏里的电脑**：先按 [`mod/README.md`](../mod/README.md) 安装 cct-live mod，再在 MCP 配置里用环境变量 `CCT_LIVE_DIR` 告诉 cct-run 游戏目录（有 `mods/` 的那个文件夹；启动器开了版本隔离时是版本文件夹）。也可以在参数里加 `--live <游戏目录>`。例如：
+**（可选）接管游戏里的电脑**：先按 [`mod/README.md`](../../mod/README.md) 安装 cct-live mod，再在 MCP 配置里用环境变量 `CCT_LIVE_DIR` 告诉 cct-run 游戏目录（有 `mods/` 的那个文件夹；启动器开了版本隔离时是版本文件夹）。也可以在参数里加 `--live <游戏目录>`。例如：
 
 ```json
 {

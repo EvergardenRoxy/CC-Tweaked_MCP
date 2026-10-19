@@ -1,6 +1,6 @@
 # 用法速查
 
-[← 返回 README](../README.md) · [安装](install.md) · [从源码构建](building.md)
+[← 返回 README](../../README.md) · [安装](installation.md) · [从源码构建](../development/build.md)
 
 ## 命令
 
@@ -20,7 +20,7 @@ MCP 工具与命令的对应关系：
 | `cct_trace` | `trace` | `run`（默认 `latest`）、`kind`（数组）、`ticks`、`peripheral`、`source`、`contains`、`offset`、`limit` |
 | `cct_screen` | `screen` | `run`、`tick`、`source` |
 | `cct_guide` | `guide` | `section`（可选，1 到 7） |
-| `cct_live_*`（16 个） | — | 按需接管**真实游戏里**的电脑，需要 cct-live mod（原型）：`computers`、`attach` / `detach`、`status`、`wait`、`screen`、`trace`、`type`、`click`、`files`、`lua`、`body`、`snapshot`、`event`、`power`、`peripheral`（程序运行时读取外设）。接管时聊天栏有提示，有租约，玩家可以用 `/cctlive detach` 收回。用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录。各工具的说明见 [`mod/README.md`](../mod/README.md) |
+| `cct_live_*`（16 个） | — | 按需接管**真实游戏里**的电脑，需要 cct-live mod（原型）：`computers`、`attach` / `detach`、`status`、`wait`、`screen`、`trace`、`type`、`click`、`files`、`lua`、`body`、`snapshot`、`event`、`power`、`peripheral`（程序运行时读取外设）。接管时聊天栏有提示，有租约，玩家可以用 `/cctlive detach` 收回。用 `--live <游戏目录>` 或环境变量 `CCT_LIVE_DIR` 指定游戏目录。各工具的说明见 [`mod/README.md`](../../mod/README.md) |
 
 工具返回的 JSON 和命令行输出相同。程序本身出错（`status: "error"`）是正常的测试结果；只有参数错误、文件不存在等情况，工具调用才会标记为出错。
 
@@ -69,4 +69,4 @@ MCP 工具与命令的对应关系：
 
 `scripted` 用来描述其他模组的外设（这里是 Create 的应力表）：给出类型名和每个方法的返回值，数值应该从实机上取（`cct_live_peripheral`）；时间线的 `method` 动作在第 60 刻改变返回值。
 
-完整写法见 [`agent-guide.md`](agent-guide.md) 第 5 节，以及 `examples/` 中的 fixture。
+完整写法见 [`guides/agent-guide.md`](agent-guide.md) 第 5 节，以及 `examples/` 中的 fixture。

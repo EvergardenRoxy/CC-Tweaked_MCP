@@ -1,0 +1,89 @@
+{
+  "scope": "Local Linux simulator review; game evidence comes from the supplied session only.",
+  "source_sha256": {
+    "app.lua": "d898649ab52f74e23e0a0dbfcc3199d66578cdea81fdf64132905d736ebabb92",
+    "commands.lua": "eacfe4f0dfab807157adf9e604979d5b222920f0705093f71099d2406b562b63",
+    "config.lua": "dafff73d0ac11b17ff1d4a4ac88bf67b3900b4538c1fc119fb94d526550a2adc",
+    "display.lua": "fc3dd2658a4c2ba7df809cd23cf93e677a7d2efeb7407807233889f19e13825a",
+    "engine.lua": "997f05438b04c14185f9b34b3ffe02f1c76d8b0f7bd5fa241b5234cc18b0aded",
+    "hw.lua": "5f3f59340e2eca01593487586fb346abcd50f3a33a09135a86923bd4718c6392",
+    "main.lua": "e6a22a24089f16c0bf27e4b103b365f97ede4981f4ca9cfcbce27f38b40810e5",
+    "nfcmd.lua": "7d98b0b3553473f1454ac07f9fb84a7990c1b25203f672548e6b2f35d08fd4eb",
+    "startup.lua": "5f3ce8ed7d9d63499bdca6ae79cd7bfc3a19f78da13a94a5de9b94fb8bc4da11",
+    "store.lua": "8eec2c14e9a48f420ab86975d8e5cc0cb7c7b96591ce4eabd56287384eff0853",
+    "util.lua": "2da3bb4ea95bb63f2a078d502b4157144aa6e5eace99cf7f9fee59ed43adbfa7"
+  },
+  "original_tests": {
+    "run": {
+      "passed_assertions": 135,
+      "failed_assertions": 0,
+      "status": "ok",
+      "exit_code": 0
+    },
+    "app_test": {
+      "passed_assertions": 44,
+      "failed_assertions": 0,
+      "status": "ok",
+      "exit_code": 0
+    },
+    "display_test": {
+      "passed_assertions": 131,
+      "failed_assertions": 0,
+      "status": "ok",
+      "exit_code": 0
+    }
+  },
+  "probes": [
+    {
+      "recovered_marker": 1,
+      "name": "stale_backup",
+      "current_before_corruption": 3,
+      "expected_previous": 2,
+      "backup_marker": 1
+    },
+    {
+      "same_id_accepted": true,
+      "old_id_retained": false,
+      "name": "corrupt_state_reset",
+      "corruption_alert": ""
+    },
+    {
+      "state": "running",
+      "name": "save_failure_continues_feed",
+      "sheet_pushes": 1,
+      "has_alert": true
+    },
+    {
+      "actual_accepts": 0,
+      "name": "chat_false_acknowledged",
+      "reported_replies": 1,
+      "queued": 0,
+      "api_calls": 1
+    },
+    {
+      "queued_replies": 20,
+      "total_logs": 0,
+      "first_reply": "reply2",
+      "received_command_logs": 0,
+      "queued_commands": 20,
+      "name": "queue_drop_without_audit",
+      "first_command": "!nf query X2"
+    },
+    {
+      "reported_ok": true,
+      "name": "display_failure_acknowledged"
+    }
+  ],
+  "environment": {
+    "tool": "0.2.4",
+    "cc_tweaked": "1.120.2",
+    "minecraft": "1.20.1",
+    "java": "17.0.20.1",
+    "computer_id": 4,
+    "advanced": true,
+    "multishell": false,
+    "http": false,
+    "timeout_s": 60,
+    "time_model": "real-time, 20 ticks/s"
+  }
+}

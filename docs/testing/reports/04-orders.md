@@ -1,6 +1,6 @@
 # 联合测试 4 报告：Create 订单产线（第 1 次）
 
-测试设计见 [`joint-test-orders.md`](joint-test-orders.md)。本报告依据交付的会话记录（DeepSeek Harness 导出）和代码包。**维护者验收（A1～A10）还没有全部完成**，下文“结果”一节只写 AI 自己做过的验证；验收完成后补上。
+测试设计见 [`testing/plans/04-orders.md`](../plans/04-orders.md)。本报告依据交付的会话记录（DeepSeek Harness 导出）和代码包。**维护者验收（A1～A10）还没有全部完成**，下文“结果”一节只写 AI 自己做过的验证；验收完成后补上。
 
 ## 概况
 

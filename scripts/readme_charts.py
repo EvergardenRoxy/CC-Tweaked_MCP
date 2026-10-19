@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-"""Draws the README charts (docs/images/*-light.svg and *-dark.svg) from the measured data below.
+"""Draws the README charts (docs/assets/images/*-light.svg and *-dark.svg) from the measured data below.
 
-Data sources: mod/README.md "性能" (V16 in handoff.md) and docs/joint-test-factory-report.md.
+Data sources: mod/README.md "性能" (V16 in handoff.md) and docs/testing/reports/03-factory.md.
 Colours: categorical slots 1-3 of the dataviz reference palette, validated for both modes
 (adjacent and all-pairs); every bar carries a visible value label (the light aqua is below 3:1).
 
@@ -10,7 +10,7 @@ Usage: python3 scripts/readme_charts.py
 """
 import pathlib
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "docs" / "images"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "docs" / "assets" / "images"
 
 THEMES = {
     "light": {
@@ -35,7 +35,7 @@ PERF_ROWS = [
 ]
 PERF_NOISE = 5  # run-to-run spread of the no-mod baseline, %
 
-# Joint test 3 (two runs of the factory task) and joint test 4 (order line), see docs/*-report.md.
+# Joint test 3 (two runs of the factory task) and joint test 4 (order line), see docs/testing/reports/.
 RUNS = [
     "联合测试 3 第 1 次：开源 DeepSeek（算力中心部署），cct-run 0.1.0",
     "联合测试 3 第 2 次：deepseek-v4.1-flash（官方 API），cct-run 0.1.0",
@@ -157,15 +157,15 @@ def runs_chart(t):
             body.append(text(x1 + 6, y + bh - 3, fmt.format(v), t["ink2"], 11))
         body.append(f'<line x1="{base:.1f}" y1="{py + 22}" x2="{base:.1f}" y2="{py + 26 + 2 * bh + gap + 4}" stroke="{t["axis"]}" stroke-width="1.5"/>')
     body.append(text(24, H - 30, "两次测试的任务不同（工厂看板 / 订单产线），只能粗略比较。联合测试 4 的时长只算任务部分，token 是整个会话。", t["muted"], 11))
-    body.append(text(24, H - 14, "数据来自会话记录和客户端统计；每个小图各用自己的刻度。详见 docs/joint-test-factory-report.md、docs/joint-test-orders-report.md。", t["muted"], 11))
+    body.append(text(24, H - 14, "数据来自会话记录和客户端统计；每个小图各用自己的刻度。详见 docs/testing/reports/03-factory.md、docs/testing/reports/04-orders.md。", t["muted"], 11))
     return svg(W, H, body, t, title)
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for mode, t in THEMES.items():
-        (OUT / f"perf-{mode}.svg").write_text(perf_chart(t), encoding="utf-8")
-        (OUT / f"joint-test-{mode}.svg").write_text(runs_chart(t), encoding="utf-8")
+        (OUT / f"performance-{mode}.svg").write_text(perf_chart(t), encoding="utf-8")
+        (OUT / f"joint-tests-{mode}.svg").write_text(runs_chart(t), encoding="utf-8")
     print("wrote", sorted(p.name for p in OUT.glob("*.svg")))
 
 

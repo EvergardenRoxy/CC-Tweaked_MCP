@@ -1,0 +1,65 @@
+{
+  "scope": "Uploaded test3 delivery Lua application; separate from the original repository issue inventory.",
+  "findings": [
+    {
+      "id": "F1",
+      "title": "备份不更新",
+      "severity": "high",
+      "status": "confirmed_unfixed_in_supplied_delivery",
+      "file": "deliver/program/store.lua",
+      "line": 33,
+      "probe": "stale_backup",
+      "fix_direction": "在安全切换前更新可校验的上一代备份；检查复制/移动结果。"
+    },
+    {
+      "id": "F2",
+      "title": "损坏状态被重建为空任务",
+      "severity": "high",
+      "status": "confirmed_unfixed_in_supplied_delivery",
+      "file": "deliver/program/engine.lua",
+      "line": 18,
+      "probe": "corrupt_state_reset",
+      "fix_direction": "区分首次安装、可恢复备份和无法解析的既存状态；后者停机核对。"
+    },
+    {
+      "id": "F3",
+      "title": "持久化失败仍继续投料",
+      "severity": "high",
+      "status": "confirmed_unfixed_in_supplied_delivery",
+      "file": "deliver/program/engine.lua",
+      "line": 41,
+      "probe": "save_failure_continues_feed",
+      "fix_direction": "持久化意图失败时禁止新的物料动作，保留可恢复故障状态。"
+    },
+    {
+      "id": "F4",
+      "title": "聊天 API 的 false 被确认成功",
+      "severity": "medium",
+      "status": "confirmed_unfixed_in_supplied_delivery",
+      "file": "deliver/program/hw.lua",
+      "line": 168,
+      "probe": "chat_false_acknowledged",
+      "fix_direction": "分别检查 pcall 和 API 返回值，在有界策略下重试并明确报告失败。"
+    },
+    {
+      "id": "F5",
+      "title": "队列静默丢弃及接收日志失效",
+      "severity": "medium",
+      "status": "confirmed_unfixed_in_supplied_delivery",
+      "file": "deliver/program/app.lua",
+      "line": 88,
+      "probe": "queue_drop_without_audit",
+      "fix_direction": "溢出显式拒绝/记录；修正 App:log 的调用约定，以非零冷却验证唯一请求。"
+    },
+    {
+      "id": "F6",
+      "title": "显示异常被吞掉后仍报告成功",
+      "severity": "medium",
+      "status": "confirmed_unfixed_in_supplied_delivery",
+      "file": "deliver/program/hw.lua",
+      "line": 147,
+      "probe": "display_failure_acknowledged",
+      "fix_direction": "聚合并向上返回失败的显示调用，不能固定返回 true。"
+    }
+  ]
+}

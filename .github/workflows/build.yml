@@ -157,7 +157,7 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           args=()
-          notes="docs/release-notes-$version.md"
+          notes="docs/releases/$version.md"
           if [ -f "$notes" ]; then args+=(--notes "$notes"); fi
           python3 scripts/release_assets.py "$GITHUB_REF_NAME" \
             "build/release/cct-run-$version.zip" \

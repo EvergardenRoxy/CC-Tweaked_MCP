@@ -1,6 +1,6 @@
 # 模拟范围与已知限制
 
-[← 返回 README](../README.md) · [用法](usage.md) · [测试记录](test-results.md)
+[← 返回 README](../../README.md) · [用法](usage.md) · [测试记录](../testing/results.md)
 
 模拟测试通过，表示程序在下述模型中运行正确。依赖真实世界或其他模组行为的程序，仍需在玩家授权后用 cct-live 验证。
 

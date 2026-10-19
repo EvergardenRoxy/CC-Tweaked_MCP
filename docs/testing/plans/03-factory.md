@@ -102,7 +102,7 @@ Minecraft 1.20.1，Forge，CC: Tweaked 1.120.2。装了 Create 6.0.8、Advanced 
 
 ## 记录结果
 
-详细分析见 [`joint-test-factory-report.md`](joint-test-factory-report.md)。
+详细分析见 [`testing/reports/03-factory.md`](../reports/03-factory.md)。
 
 | 项目 | 第 1 次 | 第 2 次 |
 |---|---|---|

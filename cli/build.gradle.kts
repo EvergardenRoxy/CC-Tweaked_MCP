@@ -17,9 +17,9 @@ tasks.jar {
     from(launcher.output)
 }
 
-// `cct-run guide` prints docs/agent-guide.md from inside the jar.
+// Keep the resource name stable for `cct-run guide` while organizing the source docs.
 tasks.processResources {
-    from(rootProject.layout.projectDirectory.file("docs/agent-guide.md")) { into("cctrun") }
+    from(rootProject.layout.projectDirectory.file("docs/guides/agent-guide.md")) { into("cctrun") }
 }
 
 dependencies {
@@ -51,8 +51,7 @@ distributions {
         contents {
             from(rootProject.layout.buildDirectory.file("reports/verification.json")) { into("validation") }
             from(rootProject.layout.projectDirectory) {
-                include("README.md", "LICENSE", "LICENSES/**", "THIRD-PARTY-NOTICES.md", "examples/**", "scripts/**", "docs/testing.md", "docs/test-results.md", "docs/agent-guide.md",
-                    "docs/install.md", "docs/usage.md", "docs/building.md", "docs/releasing.md", "docs/limitations.md", "docs/images/**", "docs/release-notes-*.md")
+                include("README.md", "LICENSE", "LICENSES/**", "THIRD-PARTY-NOTICES.md", "examples/**", "scripts/**", "docs/**")
             }
             filesMatching("scripts/*.sh") {
                 permissions { unix("rwxr-xr-x") }
