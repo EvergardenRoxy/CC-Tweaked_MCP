@@ -6,6 +6,7 @@ issues_to_fix/ 目录结构（v0.2.3 核对，HEAD bf68ac4）
 issues_to_fix/
 ├── README.md                        目录说明、issue schema、状态机、统计（95 条）
 ├── INDEX.md                         全量索引（95 行）
+├── REPAIR_PLAN.md                   自主修复执行计划（全部 ID 分派、批次、依赖与验收）
 ├── engine.md                        ENG-RT-* / ENG-FX-*（26 条）
 ├── cli.md                           CLI-*（17 条）
 ├── mod.md                           MOD-*（24 条）
@@ -48,4 +49,4 @@ issues_to_fix/
             ├── 09-event_deep_20000-SOE-*
             ├── 10-event_deep_100000-SOE-*
             └── 11-event_deep_300000-SOE-*
-```n
+```

@@ -9,6 +9,7 @@
 | `README.md` | 本说明：schema、状态机、使用方式、统计 |
 | `TREE.md` | 目录结构总览 |
 | `INDEX.md` | 全量索引（一行一个 issue） |
+| `REPAIR_PLAN.md` | 2026-10-19 自主修复计划：95 条分派、执行批次、依赖与验收标准（不替代 issue 状态） |
 | `engine.md` | ENG-RT-*（engine 运行时）/ ENG-FX-*（fixture/外设） |
 | `cli.md` | CLI-*（cct-run 命令 + stdio MCP 服务器） |
 | `mod.md` | MOD-*（cct-live mod） |
