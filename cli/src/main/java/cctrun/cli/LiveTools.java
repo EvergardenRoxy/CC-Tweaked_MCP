@@ -278,7 +278,7 @@ final class LiveTools {
                 allowOnly(a, "game_dir", "computer", "source", "after");
                 var query = new ArrayList<String>();
                 addString(query, a, "source");
-                addInteger(query, a, "after");
+                addLong(query, a, "after");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/status" + join(query)));
             }
             case WAIT -> wait(a);
@@ -288,7 +288,7 @@ final class LiveTools {
                 addString(query, a, "source");
                 if (bool(a, "colors", false)) query.add("colors=1");
                 if (bool(a, "regions", false)) query.add("regions=1");
-                addInteger(query, a, "tick");
+                addLong(query, a, "tick");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/screen" + join(query)));
             }
             case CLICK -> {
@@ -383,7 +383,7 @@ final class LiveTools {
                 // Screen records are the bulk of a GUI program's trace: leave them out unless asked for.
                 if (exclude.isEmpty() && kinds.isEmpty()) exclude = List.of("screen");
                 if (!exclude.isEmpty()) query.add("exclude=" + encode(String.join(",", exclude)));
-                addInteger(query, a, "after");
+                addLong(query, a, "after");
                 addInteger(query, a, "offset");
                 var limit = integer(a, "limit");
                 query.add("limit=" + (limit == null ? DEFAULT_TRACE_LIMIT : limit));
@@ -473,12 +473,12 @@ final class LiveTools {
         var id = computer(a);
         var source = string(a, "source");
         // Text left on the screen from before the last action (a prompt, the previous boot's banner) must not count.
-        var baseline = bool(a, "unchanged", false) ? null : beforeAction.get(id + "/" + (source == null ? "term" : source));
+        var baseline = bool(a, "unchanged", false) ? null : beforeAction.getOrDefault(id + "/" + (source == null ? "term" : source), beforeAction.get(id + "/?"));
         var unavailableBaseline = UNAVAILABLE_BASELINE.equals(baseline);
         var changed = baseline == null;
         var textOnOldScreen = false;
 
-        Long after = integer(a, "after") == null ? null : (long) integer(a, "after");
+        Long after = longInteger(a, "after");
         if (after == null && !kinds.isEmpty()) {
             // Records count from where the wait starts: without this the first status would match an old record.
             var first = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
@@ -579,6 +579,7 @@ final class LiveTools {
 
     /** Remembers each screen's hash before an input action, for cct_live_wait (best effort: errors are ignored). */
     private void rememberScreens(Endpoint endpoint, int id) {
+        beforeAction.put(id + "/?", UNAVAILABLE_BASELINE);
         beforeAction.keySet().stream().filter(k -> k.startsWith(id + "/")).forEach(k -> beforeAction.put(k, UNAVAILABLE_BASELINE));
         beforeAction.put(id + "/term", UNAVAILABLE_BASELINE);
         try {
@@ -592,6 +593,7 @@ final class LiveTools {
                     beforeAction.put(id + "/" + side, m.get("screen_hash").getAsString());
                 }
             }
+            beforeAction.remove(id + "/?");
         } catch (McpTools.ToolError | RuntimeException e) {
             beforeAction.keySet().stream().filter(k -> k.startsWith(id + "/")).forEach(k -> beforeAction.put(k, UNAVAILABLE_BASELINE));
         }
@@ -882,6 +884,21 @@ final class LiveTools {
         for (var key : a.keySet()) {
             if (!allowed.contains(key)) throw new McpTools.ToolError("unknown argument '" + key + "'; expected one of " + allowed);
         }
+    }
+
+    private static Long longInteger(JsonObject a, String key) throws McpTools.ToolError {
+        var value = a.get(key);
+        if (value == null || value.isJsonNull()) return null;
+        try {
+            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) throw new NumberFormatException();
+            long result = value.getAsBigDecimal().longValueExact();
+            if (result < 0) throw new NumberFormatException();
+            return result;
+        } catch (ArithmeticException | NumberFormatException e) { throw new McpTools.ToolError("'" + key + "' must be a nonnegative 64-bit integer"); }
+    }
+    private static void addLong(List<String> query, JsonObject a, String key) throws McpTools.ToolError {
+        var value = longInteger(a, key);
+        if (value != null) query.add(key + "=" + value);
     }
 
     private static int computer(JsonObject a) throws McpTools.ToolError {

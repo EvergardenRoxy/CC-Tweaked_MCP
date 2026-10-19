@@ -101,6 +101,8 @@ final class McpServer {
     int serve() throws IOException, InterruptedException {
         var reader = new ProtocolReader(in, JsonLimits.MAX_BYTES);
         ProtocolReader.Line framed;
+        boolean readEnded = false;
+        try {
         while ((framed = reader.read()) != null) {
             if (framed.oversized()) {
                 send(error(JsonNull.INSTANCE, -32600, "Invalid Request: line exceeds " + JsonLimits.MAX_BYTES + " UTF-8 bytes"));
@@ -134,8 +136,18 @@ final class McpServer {
                 send(error(id != null && id.isJsonPrimitive() ? id : JsonNull.INSTANCE, -32600, "Invalid Request: " + e.getMessage()));
             }
         }
-        pool.shutdown();
-        pool.awaitTermination(2, TimeUnit.HOURS);
+        readEnded = true;
+        } finally {
+            if (!readEnded) active.values().forEach(Call::cancel);
+            pool.shutdown();
+        }
+        try { pool.awaitTermination(2, TimeUnit.HOURS); }
+        catch (InterruptedException e) {
+            active.values().forEach(Call::cancel);
+            pool.shutdownNow();
+            Thread.currentThread().interrupt();
+            throw e;
+        }
         return 0;
     }
 
@@ -172,8 +184,9 @@ final class McpServer {
                             if (response.has("jsonrpcError")) send(error(id, -32602, response.get("jsonrpcError").getAsString()));
                             else reply(id, response);
                         }
-                    } catch (Exception e) {
-                        if (!call.cancelled) reply(id, toolResult("internal error: " + e, true));
+                    } catch (Throwable e) {
+                        // Preserve the per-tool boundary; framing OOM is handled separately by Main without a run summary.
+                        if (!call.cancelled) reply(id, toolResult("internal error: " + e.getClass().getSimpleName(), true));
                     } finally {
                         active.remove(key, call);
                     }
@@ -256,6 +269,7 @@ final class McpServer {
         Process child = null;
         String stoppedReason = "child_failed";
         try {
+            if (call.cancelled || Thread.currentThread().isInterrupted()) return toolResult("cancelled", true);
             var request = McpTools.runArgs(arguments, outDir, workDir);
             if (request.needsTempDir()) {
                 temp = Files.createTempDirectory("cct-run-mcp-");
@@ -316,7 +330,20 @@ final class McpServer {
                 }
             }
         } finally {
-            if (reserved != null && !Files.isRegularFile(reserved.resolve("summary.json"))) {
+            // Cancellation can win between ProcessBuilder.start and Call.attach, or another setup operation
+            // can fail after spawn. Confirm termination before marking state or deleting redirected files.
+            if (child != null && child.isAlive()) {
+                boolean interrupted = Thread.interrupted();
+                try {
+                    child.destroyForcibly();
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                    while (child.isAlive() && System.nanoTime() < deadline) {
+                        try { child.waitFor(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS); }
+                        catch (InterruptedException e) { interrupted = true; }
+                    }
+                } finally { if (interrupted) Thread.currentThread().interrupt(); }
+            }
+            if (reserved != null && !cctrun.engine.RunState.terminal(reserved)) {
                 boolean interrupted = Thread.interrupted();
                 try {
                 if (child == null || !child.isAlive()) {
@@ -356,6 +383,7 @@ final class McpServer {
         var command = new ArrayList<String>();
         command.add(Path.of(System.getProperty("java.home"), "bin", exe).toString());
         for (var arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+            if (arg.startsWith("-D" + cctrun.engine.RunState.RESERVED_DIRECTORY + "=")) continue;
             if (arg.startsWith("-agentlib") || arg.startsWith("-agentpath") || arg.startsWith("-javaagent") || arg.startsWith("-Xrunjdwp")) continue;
             command.add(arg);
         }
