@@ -4,7 +4,7 @@
 
 ## 当前验证结果
 
-当前源码版本为 **0.2.4**。发行改动与平台验证边界见 [0.2.4 发行说明](release-notes-0.2.4.md)，正式发行步骤见 [发行流程](releasing.md)。下方 0.2.3 版本号均属于历史记录。
+当前源码版本为 **0.2.4**。发行改动与平台验证边界见 [0.2.4 发行说明](../releases/0.2.4.md)，正式发行步骤见 [发行流程](../development/release.md)。下方 0.2.3 版本号均属于历史记录。
 
 当前数量与状态由 `python3 scripts/test_summary.py` 从四模块 JUnit XML 生成至 `build/reports/verification.json`，不手工同步数字。CI 与发布附带机器可读结果；报告中的 commit、dirty 和时间必须与待验证构建对应。打包前生成的结果进入 zip 的 `validation/`，最终四模块汇总另作发布资产。
 
@@ -43,11 +43,11 @@
 | 命令行 | Autoclaw、DeepSeek Harness（第 1、2 轮） | 能执行命令并正确读出状态、错误信息和行号 |
 | 命令行 | 第 4 轮（客户端未注明） | 全部正确，并正确识别出 2 条事件都是 cct-run 自身产生的 |
 | MCP | 第 4 轮（客户端未注明） | 先读说明，再运行文件、查询 trace、直接运行代码，全部正确；提示中的路径不存在时，AI 自行改用了实际安装目录 |
-| MCP | Claude Code、Codex、DeepSeek Harness、Autoclaw 分别的结果 | **待反馈**（`docs/testing.md` 第 4b 步） |
+| MCP | Claude Code、Codex、DeepSeek Harness、Autoclaw 分别的结果 | **待反馈**（`docs/testing/guide.md` 第 4b 步） |
 
 ## cct-live 实机 AI 测试（MPlayer 安装脚本）
 
-都在维护者的 Windows 单人游戏（PCL2 启动器）里进行，提示词见 [`live-test-mplayer.md`](live-test-mplayer.md)。
+都在维护者的 Windows 单人游戏（PCL2 启动器）里进行，提示词见 [MPlayer 提示词](prompts/02-mplayer.md)。
 
 | 轮次 | 电脑 | token | 结论 | 根据报告做的改进 |
 |---|---|---|---|---|
@@ -64,7 +64,7 @@
 
 ## 联合测试 3：Create 工厂控制中心（模组外设）
 
-提示词见 [`joint-test-factory.md`](joint-test-factory.md)，第 1 次的分析见 [`joint-test-factory-report.md`](joint-test-factory-report.md)。
+提示词见 [`testing/plans/03-factory.md`](plans/03-factory.md)，第 1 次的分析见 [`testing/reports/03-factory.md`](reports/03-factory.md)。
 
 | 次数 | 电脑 | token | 结论 | 根据报告做的改进 |
 |---|---|---|---|---|
@@ -73,7 +73,7 @@
 
 ## 联合测试 4：Create 订单产线（订单队列 + 断电恢复）
 
-提示词见 [`joint-test-orders.md`](joint-test-orders.md)，分析见 [`joint-test-orders-report.md`](joint-test-orders-report.md)。
+提示词见 [`testing/plans/04-orders.md`](plans/04-orders.md)，分析见 [`testing/reports/04-orders.md`](reports/04-orders.md)。
 
 | 次数 | 电脑 | token | 结论 | 根据报告做的改进 |
 |---|---|---|---|---|

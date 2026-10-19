@@ -12,6 +12,10 @@
 
 ## 准备
 
+面向 Minecraft 1.21.1 / NeoForge、Create 6.0.10 和 AP 0.8.2a 的新实验见[联合测试 5：高级电脑自动制作精密构件](05-precision-mechanism.md)，重点是五轮装配、80% 终态成功率下的补产与故障恢复，附独立 AI 提示词和维护者验收表。它是尚未执行的实验设计，不替代下方历史测试。
+
+用户后续实际改用单置物台＋单机械手，上传材料名为 `测试3.zip`；核验与复跑结果见[精密构件测试报告](../reports/05-precision-mechanism.md)。
+
 | 项目 | 要求 |
 |---|---|
 | Skill | 客户端里安装最新的 `minecraft-cc-tweaked` Skill（包含 `references/testing.md`） |
@@ -47,7 +51,7 @@
 
 ## 测试 2：MPlayer 安装脚本复测
 
-直接使用 [`live-test-mplayer.md`](live-test-mplayer.md) 里的提示词（已经按现在的工具更新过），把 `<ID>` 换成新电脑的 ID。
+直接使用 [MPlayer 提示词](../prompts/02-mplayer.md)（已经按现在的工具更新过），把 `<ID>` 换成新电脑的 ID。
 
 需要观察：
 

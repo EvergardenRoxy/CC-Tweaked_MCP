@@ -1,6 +1,6 @@
 # 联合测试 3 记录：Create 工厂控制中心
 
-提示词见 [`joint-test-factory.md`](joint-test-factory.md)（这两次用的版本：输入箱是创造板条箱，产物箱是物品保险库，玩家探测范围 32 格，要求交付并验收前不写 `startup.lua`）。都在维护者的 Windows 单人游戏里进行，资料来自会话记录（dsh `session.v4.jsonl`）、AI 的报告和它的工作目录。
+提示词见 [`testing/plans/03-factory.md`](../plans/03-factory.md)（这两次用的版本：输入箱是创造板条箱，产物箱是物品保险库，玩家探测范围 32 格，要求交付并验收前不写 `startup.lua`）。都在维护者的 Windows 单人游戏里进行，资料来自会话记录（dsh `session.v4.jsonl`）、AI 的报告和它的工作目录。
 
 ## 两次对比
 

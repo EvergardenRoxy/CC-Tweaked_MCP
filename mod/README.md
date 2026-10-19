@@ -19,7 +19,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 ## 版本
 
-当前源码版本 **0.2.4**，建议与 cct-run 一起升级；变更与兼容性见 [0.2.4 发行说明](../docs/release-notes-0.2.4.md)。已发布下载以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。
+当前源码版本 **0.2.4**，建议与 cct-run 一起升级；变更与兼容性见 [0.2.4 发行说明](../docs/releases/0.2.4.md)。已发布下载以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。
 
 支持两个组合，逻辑代码是同一份，只有加载器入口和元数据不同：
 

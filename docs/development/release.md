@@ -1,11 +1,11 @@
 # 发行流程（维护者）
 
-当前准备版本为 **0.2.4**，发行说明为 [release-notes-0.2.4.md](release-notes-0.2.4.md)。`1019fix` 包含已完成的 A/T 修复与发行准备，先验证并合并到 main，再从 main 的确切提交推送 `v0.2.4`。**推送 `v*` 标签会自动正式发布，不是演练。**
+当前准备版本为 **0.2.4**，发行说明为 [0.2.4](../releases/0.2.4.md)。`1019fix` 包含已完成的 A/T 修复与发行准备，先验证并合并到 main，再从 main 的确切提交推送 `v0.2.4`。**推送 `v*` 标签会自动正式发布，不是演练。**
 
 ## 合并前
 
 1. 确认工作区干净、main/1019fix 与远端同步；检查 PR 完整差异与剩余问题范围，不重开已关闭的旧 PR #16。
-2. 按 [构建说明](building.md)执行四模块构建与测试、发布脚本测试、实际解压 zip 的 Linux 冒烟；Java 8 启动器切换须有真实 Java 8 环境。
+2. 按 [构建说明](build.md)执行四模块构建与测试、发布脚本测试、实际解压 zip 的 Linux 冒烟；Java 8 启动器切换须有真实 Java 8 环境。
 3. `RELEASE_TAG=v0.2.4 ./gradlew verifyReleaseVersion` 必须通过；用错误标签验证拒绝，不推送测试标签。
 4. 在干净源码提交上生成 `verification.json`，再打包。核对运行时 `version`、MCP initialize 版本、zip 内部目录/lib 名称及两个 mod 元数据均为 0.2.4；launcher/engine/Forge/NeoForge class major 为 52/61/61/65。
 5. 检查该提交的 GitHub build、安全工作流（含适用的 dependency-review），下载核对最终四模块 verification 和 CodeQL SARIF。CI 不替代尚未执行的 Windows/macOS/生产服务器测试。
@@ -31,7 +31,7 @@ python3 scripts/release_assets.py v0.2.4 \
 
 ## 正式发行
 
-标签触发 [build 工作流](../.github/workflows/build.yml)：
+标签触发 [build 工作流](../../.github/workflows/build.yml)：
 
 1. engine/cli 和双版本 mod 构建测试，实际 zip 冒烟，汇总四模块报告。
 2. `release` 校验 tag = `v` + `Versions.TOOL`，下载同次测试产物，**不重建**。
