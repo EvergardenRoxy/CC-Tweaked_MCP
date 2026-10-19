@@ -69,9 +69,17 @@ Platform notes:
 
 Screen text is CC: Tweaked's own character set. Characters `\u0080`-`\u00ff` are CC graphics glyphs, not Latin-1 letters. For example, the error display draws its gutter with `\u0095` and a marker with `\u0083`. Strings printed from Lua are bytes, so UTF-8 text shows as two or three such characters per letter. CC cannot display Chinese.
 
+`disk` reports `capacity_bytes`, `free_bytes` and cumulative `written_bytes`. An interrupted embedding thread retains status `timeout` / exit 2 with `termination_reason: "interrupted"`; its interrupt flag is restored after summary/state writes.
+
+Each run directory has atomic `state.json` updates (`starting`, `running`, `finished`, `failed`). A leftover running state after external SIGKILL or power loss is the last known state, not proof of liveness: check `pid` and `pid_started_at`. A summary is not guaranteed after external termination. MCP cancellation and wall-clock kills update the exact reserved run directory.
+
+Input limits: 16 MiB per MCP line or fixture file, 128 nested JSON containers, 100,000 nodes, timeout 1-3600 seconds. Oversized MCP lines are drained with bounded memory. JSON-RPC ids must be strings, numbers or null. A tools/call notification without id is ignored with a stderr diagnostic; ordinary EOF drains submitted work. Explicit cancellation interrupts live tools and kills run children. Protocol stdout contains only JSON-RPC responses; fatal framing OOM exits with stderr and code 4.
+
+OOM classification uses observed Java errors, not message matching, including an OOM caught by Lua. The harness captures its reporting helpers before the program runs and accepts completion once. This is hardening, not a sandbox against a program with full debug access.
+
 ## 4. Investigating with the trace
 
-Every record has `seq`, `tick`, `ms` and `kind`. Useful queries:
+Every record has `seq`, `tick`, `ms` and `kind`. Malformed records are skipped and counted. Parameter/result previews have depth 4, up to 50 entries per container and 200 characters per string by default. Numbers follow Lua doubles (large integers may lose precision); NaN and infinities are strings. These preview bounds are independent of input limits. Useful queries:
 
 | question | command |
 |---|---|
@@ -95,6 +103,7 @@ Kinds and their pitfalls:
   - `"harness": true` marks events caused by cct-run itself (its default settings). Ignore those.
   - `setting_changed` args are `(name, new value, old value)`.
 - `peripheral_call` / `peripheral_return` share an `id`.
+  - Integer method arguments follow CC:T `IArguments.getInt`: a fractional slot such as 1.5 truncates to 1. Fixture declarations require exact integers; this method-call conversion is separate.
   - Inventory, energy and fluid methods have `main_thread: true`. As in the game, they take at least one tick and return on a later tick.
   - The wired modem's internal lookups (`getNamesRemote`, `isPresentRemote`...) are not recorded.
 - `program_start` marks when the program's code began running. It is absent after a syntax error.
@@ -187,7 +196,7 @@ A pass means the program works against this model, which is not guaranteed to ma
 - **Scripted peripherals:** they return what the fixture says, nothing more; their accuracy is that of the values you copied from the game.
 - **Energy and fluid amounts:** change only through the timeline.
 - **Time:** in-game time is frozen at 0 (`os.time()`, `os.day()`); real time (`os.clock()`, `os.epoch`) runs normally. `os.clock()` counts the computer's ticks (0.05 s steps, here and in the game): it does not move inside one run of Lua between two yields and falls behind when the server lags. Measure intervals with `os.epoch("utc")`.
-- **Disk:** the 1 MB limit is reported but not enforced.
+- **Disk:** the root drive enforces 1,000,000 bytes, with at least 500 bytes per entry, including directories, the program and harness. Deleting or truncating frees space. Deleting a file closes its open handles in this simulator; host filesystem behaviour can differ.
 - **Memory:** cct-run stops a program at about 1 GB of heap (`out_of_memory`). The game has no per-computer limit: the computer shares the server's memory, so a program that runs out here would lag or crash a server, and one that stays under it can still be too heavy for a small server.
 - **Multishell:** off by default (`multishell` is nil); set `computer.multishell: true` if the program needs it.
 - **Startup:** cct-run runs the program from `/startup.lua`, so `shell.getRunningProgram()` returns "startup.lua". A program named `startup.lua` is stored as `/main.lua`.
@@ -238,3 +247,5 @@ Rules:
 - No call stack yet for program errors (only the printed text).
 - Monitors: only those attached directly to the computer, not over a wired network.
 - If a tool says cct-live is not running, the user must open a world with the mod; `game_dir` is the game directory (the version folder when the launcher isolates versions).
+
+Live trace notes: `first_seq` marks the retained window; older data has been rotated away. Status `trace_health` reports write failures, recovery and dropped records. Paginated trace results with `matched_at_least: true` give a lower bound; use a summary query for exact retained counts. Sequence and tick fields are 64-bit integers end to end. A screen hash covers dimensions, text and foreground/background colours; use it only for equality comparisons. If action baseline capture failed, wait reports `baseline_warning` and will not count stale text as a fresh match; `unchanged: true` explicitly allows existing text. Lua strings are bytes: Java U+0000..U+00FF map one byte each, wider chars map to '?'. Body byte lengths use that mapping, not UTF-8 encoding. A registry disappearance means unavailable/unloaded; AI control is not automatically reattached on return.

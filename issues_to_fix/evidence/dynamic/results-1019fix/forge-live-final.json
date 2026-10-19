@@ -1,0 +1,62 @@
+{
+  "variant": "forge",
+  "checks": [
+    {
+      "name": "auth-host-permissions-dormant",
+      "passed": true,
+      "seconds": 0.006
+    },
+    {
+      "name": "files-snapshot-roundtrip-and-path-regressions",
+      "passed": true,
+      "seconds": 0.015
+    },
+    {
+      "name": "http-413-and-slow-body-recovery",
+      "passed": true,
+      "seconds": 5.017
+    },
+    {
+      "name": "peripheral-reflection-monitors-and-call-ids-across-reboot",
+      "passed": true,
+      "seconds": 0.031
+    },
+    {
+      "name": "installed-mcp-client-status-long-seq-and-lua",
+      "passed": true,
+      "seconds": 1.127
+    },
+    {
+      "name": "rotation-bounded-files-replay-and-recording-handover",
+      "passed": true,
+      "seconds": 11.436
+    },
+    {
+      "name": "chunk-unload-is-unavailable-without-automatic-control",
+      "passed": true,
+      "seconds": 1.077
+    },
+    {
+      "name": "lease-expiry",
+      "passed": true,
+      "seconds": 31.006
+    }
+  ],
+  "dormant_checked": false,
+  "sequence_event": "regression_sequence_35f4462dd0e3",
+  "source_sha256": "d5c5e2383465f8d48d9d6c589f347ce12fd09758d4f4fbec7c55f7733c472de9",
+  "verified_at": "2026-10-19T03:19:27.840501+00:00",
+  "capabilities": {
+    "monitors": [
+      "right"
+    ],
+    "files_write": true
+  },
+  "peripheral_calls": 32,
+  "wired_peripherals": [
+    "minecraft:chest_0"
+  ],
+  "rotations_first_seq": 7340,
+  "retained_sequence_events": 156,
+  "endpoint_cleanup": true
+}

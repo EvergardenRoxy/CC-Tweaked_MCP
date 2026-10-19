@@ -1,0 +1,56 @@
+{
+  "variant": "neoforge",
+  "checks": [
+    {
+      "name": "auth-host-permissions-dormant",
+      "passed": true,
+      "seconds": 0.051
+    },
+    {
+      "name": "files-snapshot-roundtrip-and-path-regressions",
+      "passed": true,
+      "seconds": 0.101
+    },
+    {
+      "name": "http-413-and-slow-body-recovery",
+      "passed": true,
+      "seconds": 5.053
+    },
+    {
+      "name": "peripheral-reflection-monitors-and-call-ids-across-reboot",
+      "passed": true,
+      "seconds": 0.015
+    },
+    {
+      "name": "installed-mcp-client-status-long-seq-and-lua",
+      "passed": true,
+      "seconds": 1.115
+    },
+    {
+      "name": "rotation-bounded-files-replay-and-recording-handover",
+      "passed": true,
+      "seconds": 11.954
+    },
+    {
+      "name": "chunk-unload-is-unavailable-without-automatic-control",
+      "passed": true,
+      "seconds": 1.167
+    },
+    {
+      "name": "lease-expiry",
+      "passed": true,
+      "seconds": 31.007
+    }
+  ],
+  "capabilities": {
+    "monitors": [
+      "right"
+    ],
+    "files_write": true
+  },
+  "peripheral_calls": 2,
+  "history_handover_events": 100,
+  "rotations_first_seq": 561,
+  "retained_sequence_events": 166,
+  "endpoint_cleanup": true
+}

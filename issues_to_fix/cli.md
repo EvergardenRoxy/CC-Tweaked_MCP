@@ -22,9 +22,12 @@ evidence: |
   803-805 读 <game dir>/cct-live/endpoint.json 的 url 后直接 URI.create（只补尾部 /），无 scheme/host/port 校验；
   832 无条件加 Authorization: Bearer <token.txt>。mod 侧已强制 127.0.0.1 绑定 + Host 校验
   （LiveHttp.java:79/735，LiveSession.java:257 写死 127.0.0.1），故当前安全性完全依赖 mod 侧，CLI 无第二道门。
-impact: 能改游戏目录下 endpoint.json 的本机程序可把令牌发往任意地址（同权限攻击面）；游戏目录被同步/备份工具带到他处时风险放大。
-fix: endpoint() 校验 scheme=http 且 host ∈ {127.0.0.1, localhost, [::1]}，否则 ToolError；保留现有错误信息风格。
-tests: LiveToolsTest 补外网 URL 用例（伪造 endpoint.json → 明确报错且不发请求）。
+impact: |
+  能改游戏目录下 endpoint.json 的本机程序可把令牌发往任意地址（同权限攻击面）；游戏目录被同步/备份工具带到他处时风险放大。
+fix: |
+  endpoint() 校验 scheme=http 且 host ∈ {127.0.0.1, localhost, [::1]}，否则 ToolError；保留现有错误信息风格。
+tests: |
+  LiveToolsTest 补外网 URL 用例（伪造 endpoint.json → 明确报错且不发请求）。
 ```
 
 ## CLI-02 — stdin 无行长上限、serve() 不捕获 Error
@@ -45,9 +48,12 @@ evidence: |
   实测：Gson 2.11.0 无 255 层上限、解析是迭代的（GsonDepth 直测 1,000,000 层 OK；MCP 2,000,065 B 深嵌套行返回正常 tools/list）；
   解析期 OOM 会被 Gson 包成 JsonParseException 回 -32700，服务不死。故报告「SOE 打死读循环」的路径不成立；
   真实 SOE 见 CLI-03（响应序列化）。
-impact: 超大单行在 readLine 阶段仍有 OOM 风险；服务端未兜底 Error。
-fix: serve() 外层 catch Throwable 并回 -32603 / 继续服务；可选限制行长度（如 16-64 MiB）。
-tests: McpServerTest 已覆盖 not json/-32700、method 非字符串/-32600；补超长行用例。
+impact: |
+  超大单行在 readLine 阶段仍有 OOM 风险；服务端未兜底 Error。
+fix: |
+  serve() 外层 catch Throwable 并回 -32603 / 继续服务；可选限制行长度（如 16-64 MiB）。
+tests: |
+  McpServerTest 已覆盖 not json/-32700、method 非字符串/-32600；补超长行用例。
 ```
 
 ## CLI-03 — 深嵌套 JSON-RPC id 在 send() 序列化时 SOE 打死 MCP 服务
@@ -69,9 +75,12 @@ evidence: |
   Gson 2.11.0 的 JsonElement 写出是递归的（TypeAdapters$28.write）；请求 id 为 20000 层嵌套数组时
   send()/COMPACT.toJson 抛 StackOverflowError，实测 cct-run mcp 进程 exit 1，stdout 只有 initialize 应答。
   读循环/回复路径均未捕获 Error。
-impact: 异常客户端可崩溃本地 MCP 服务（客户端本可终止进程，实际风险有限，但违反服务器健壮性预期）。
-fix: serve() 外层 catch Throwable；id 只允许 string/number/null（JSON-RPC 2.0 规范已限定）。
-tests: 补深嵌套 id 用例。
+impact: |
+  异常客户端可崩溃本地 MCP 服务（客户端本可终止进程，实际风险有限，但违反服务器健壮性预期）。
+fix: |
+  serve() 外层 catch Throwable；id 只允许 string/number/null（JSON-RPC 2.0 规范已限定）。
+tests: |
+  补深嵌套 id 用例。
 ```
 
 ## CLI-04 — cancelled 只杀子 JVM，live 工具无人中断
@@ -92,9 +101,12 @@ files:
 evidence: |
   cancel() 仅置 cancelled 标志并 destroyForcibly（443-446）；live 调用不传 Call（:215），Call 也不保存 Thread/Future。
   LiveTools 三处 catch(InterruptedException) 本身可响应中断，但无人 interrupt；结果返回后 :159 再按 cancelled 丢弃响应。
-impact: 客户端取消后 live 工具仍把轮询预算跑满（最长 120s），白耗 HTTP 请求；无资源泄漏。
-fix: Call 记录 Future/Thread，cancel 时 interrupt()；wait/collect 已有 InterruptedException 分支可复用。
-tests: McpServerTest.cancelStopsARunningChild 只覆盖 cct_run。
+impact: |
+  客户端取消后 live 工具仍把轮询预算跑满（最长 120s），白耗 HTTP 请求；无资源泄漏。
+fix: |
+  Call 记录 Future/Thread，cancel 时 interrupt()；wait/collect 已有 InterruptedException 分支可复用。
+tests: |
+  McpServerTest.cancelStopsARunningChild 只覆盖 cct_run。
 ```
 
 ## CLI-05 — JavaFinder 信任 release 文件并取最高版本
@@ -116,9 +128,12 @@ evidence: |
   80-83 只解析 release 的 JAVA_VERSION，从不执行 java -version；128 按 major 取最高；
   Launcher 用 best.java() 重新执行。利用前提是能写 JAVA_HOME/PATH/常见安装目录（同权限本地场景），
   不是远程漏洞；不执行候选二进制做探测这一点做得对。
-impact: 同权限攻击者可劫持 Launcher 重新执行的 Java。
-fix: 校验可执行文件实际版本/厂商，或只信任显式配置/注册表；把「最高版本」改为 PATH 顺序优先。
-tests: JavaFinderTest 4 例，不覆盖伪造 home。
+impact: |
+  同权限攻击者可劫持 Launcher 重新执行的 Java。
+fix: |
+  校验可执行文件实际版本/厂商，或只信任显式配置/注册表；把「最高版本」改为 PATH 顺序优先。
+tests: |
+  JavaFinderTest 4 例，不覆盖伪造 home。
 ```
 
 ## CLI-06 — JSON-RPC 小偏差（无 id 的 tools/call 静默丢弃等）
@@ -137,9 +152,12 @@ files:
 evidence: |
   错误码 -32700/-32600/-32601 正确，id 原样回显，通知不回复；tools/call 无 id 时 :147 直接 return（不执行不回复）；
   带 id 的 notifications/* 静默丢弃；未知工具经 jsonrpcError 回 -32602（:160/:216-218）。
-impact: 客户端漏发 id 时排障无迹可寻；协议边角不完全一致。
-fix: 至少对无 id 的 tools/call 打一行 stderr；可选微调错误码。
-tests: McpServerTest.handshakeAndToolList。
+impact: |
+  客户端漏发 id 时排障无迹可寻；协议边角不完全一致。
+fix: |
+  至少对无 id 的 tools/call 打一行 stderr；可选微调错误码。
+tests: |
+  McpServerTest.handshakeAndToolList。
 ```
 
 ## CLI-07 — 声明支持 2025-03-26 但拒绝批量
@@ -155,10 +173,14 @@ origin: [REVIEW-L6]
 files:
   - path: cli/src/main/java/cctrun/cli/McpServer.java
     lines: "46, 113-115"
-evidence: 46 版本列表含 2025-03-26；113-115 任何 JSON 数组只回单个 -32600，无批量处理分支。2025-06-18+ 已移除批量，故对最新版正确。
-impact: 协商 2025-03-26 的客户端发批量会收到 -32600。
-fix: 声明不支持批量，或按协商版本实现批量。
-tests: none
+evidence: |
+  46 版本列表含 2025-03-26；113-115 任何 JSON 数组只回单个 -32600，无批量处理分支。2025-06-18+ 已移除批量，故对最新版正确。
+impact: |
+  协商 2025-03-26 的客户端发批量会收到 -32600。
+fix: |
+  声明不支持批量，或按协商版本实现批量。
+tests: |
+  none
 ```
 
 ## CLI-08 — EOF 后等待 2 小时且不取消在途调用
@@ -174,10 +196,14 @@ origin: [REVIEW-L7]
 files:
   - path: cli/src/main/java/cctrun/cli/McpServer.java
     lines: "125-126"
-evidence: 125-126 仅 pool.shutdown() 与 awaitTermination(2, HOURS)；子 JVM 上限 timeout+120s（:48/:248）小于 2h，不会遗留，但客户端已断开时子进程仍跑完。
-impact: 客户端崩溃/退出后子 JVM 继续消耗资源直到自身 wall limit。
-fix: EOF 时 active.values().forEach(Call::cancel)。
-tests: none
+evidence: |
+  125-126 仅 pool.shutdown() 与 awaitTermination(2, HOURS)；子 JVM 上限 timeout+120s（:48/:248）小于 2h，不会遗留，但客户端已断开时子进程仍跑完。
+impact: |
+  客户端崩溃/退出后子 JVM 继续消耗资源直到自身 wall limit。
+fix: |
+  EOF 时 active.values().forEach(Call::cancel)。
+tests: |
+  none
 ```
 
 ## CLI-09 — 错误消息回传 endpoint URL（非令牌）
@@ -193,10 +219,14 @@ origin: [REVIEW-L10]
 files:
   - path: cli/src/main/java/cctrun/cli/LiveTools.java
     lines: "832, 835, 837"
-evidence: 835/837 只拼 endpoint.base() 与端口；token 全文件仅出现在 Authorization 头（:832），错误消息不含 token；端口不是秘密。
-impact: 无实质风险，仅最小暴露原则。
-fix: 可选只说 "cct-live (endpoint.json)" 不带 URL。
-tests: LiveToolsTest.explainsWhatIsMissing。
+evidence: |
+  835/837 只拼 endpoint.base() 与端口；token 全文件仅出现在 Authorization 头（:832），错误消息不含 token；端口不是秘密。
+impact: |
+  无实质风险，仅最小暴露原则。
+fix: |
+  可选只说 "cct-live (endpoint.json)" 不带 URL。
+tests: |
+  LiveToolsTest.explainsWhatIsMissing。
 ```
 
 ## CLI-10 — wait 超时分类依赖错误文案子串
@@ -212,10 +242,14 @@ origin: [REVIEW-L11, LEGACY-B6]
 files:
   - path: cli/src/main/java/cctrun/cli/LiveTools.java
     lines: "500-501, 564-566"
-evidence: 500-501 每轮 min(5000, max(remaining,1000))ms；564-566 用错误文案子串判定「端点未响应」；MIN 1000ms 下限使最后一轮可能略超剩余预算。
-impact: 文案调整会静默破坏 wait 的 met=timeout 分类。
-fix: ToolError 带类型/枚举，替代字符串匹配。
-tests: LiveToolsTest.waitEndsWhenTheEndpointStopsAnswering。
+evidence: |
+  500-501 每轮 min(5000, max(remaining,1000))ms；564-566 用错误文案子串判定「端点未响应」；MIN 1000ms 下限使最后一轮可能略超剩余预算。
+impact: |
+  文案调整会静默破坏 wait 的 met=timeout 分类。
+fix: |
+  ToolError 带类型/枚举，替代字符串匹配。
+tests: |
+  LiveToolsTest.waitEndsWhenTheEndpointStopsAnswering。
 ```
 
 ## CLI-11 — 参数校验双实现且严格度不一致
@@ -236,9 +270,12 @@ files:
 evidence: |
   McpTools.string 要求 JSON string（267-272）；LiveTools.string 接受任意 primitive 并 getAsString()（886-891）；
   审查引用的 McpTools.java:866-871 不存在（文件 322 行）；工具描述硬编码 "1.120.2/1.20.1" 仅 McpTools.java:33。
-impact: 同一语义参数在不同工具上接受度不同；升级 CC:T 后描述静默过期。
-fix: 抽公共 Args 工具类；工具描述改用 Versions.* 动态格式化。
-tests: none
+impact: |
+  同一语义参数在不同工具上接受度不同；升级 CC:T 后描述静默过期。
+fix: |
+  抽公共 Args 工具类；工具描述改用 Versions.* 动态格式化。
+tests: |
+  none
 ```
 
 ## CLI-12 — 测试盲区
@@ -259,9 +296,12 @@ files:
 evidence: |
   30 @Test=4+12+8+6 计数准确；已测 -32700/-32600/继续服务、401/404；
   真实盲区是 Launcher（整个类）、endpoint 伪造、深嵌套 id、500 响应、并发交错。
-impact: 上述路径无回归保护（其中 endpoint 伪造/深嵌套 id 直接对应 CLI-01/CLI-03）。
-fix: 补上述 5 类测试。
-tests: 4 个测试类共 30 用例。
+impact: |
+  上述路径无回归保护（其中 endpoint 伪造/深嵌套 id 直接对应 CLI-01/CLI-03）。
+fix: |
+  补上述 5 类测试。
+tests: |
+  4 个测试类共 30 用例。
 ```
 
 ## CLI-13 — OOM 逃逸时把 summary JSON 写进 MCP 协议流
@@ -280,9 +320,12 @@ files:
 evidence: |
   serve() 抛 OOM 时 Main.main 的 catch(OutOfMemoryError) 调 outOfMemory(stdout) 写摘要行后 exit 4；
   readLine 阶段 OOM 可逃逸（解析期 OOM 被 Gson 包装回 -32700，不会）。
-impact: MCP 协议流被非 JSON-RPC 行污染，客户端解析失败。
-fix: mcp 模式单独处理 Error，不向 stdout 写摘要。
-tests: none
+impact: |
+  MCP 协议流被非 JSON-RPC 行污染，客户端解析失败。
+fix: |
+  mcp 模式单独处理 Error，不向 stdout 写摘要。
+tests: |
+  none
 ```
 
 ## CLI-14 — pool.submit 失败时 active 条目泄漏
@@ -298,10 +341,14 @@ origin: [LEGACY-L-active-leak]
 files:
   - path: cli/src/main/java/cctrun/cli/McpServer.java
     lines: "145-164"
-evidence: tools/call 分支先 active.put(id, call) 再 pool.submit，submit 无 try/catch；关闭竞态时条目不会 remove。
-impact: active 表残留、请求错误码变成 -32600（实际应 -32603），内存影响很小。
-fix: try/catch RejectedExecutionException，移除条目并回 -32603。
-tests: none
+evidence: |
+  tools/call 分支先 active.put(id, call) 再 pool.submit，submit 无 try/catch；关闭竞态时条目不会 remove。
+impact: |
+  active 表残留、请求错误码变成 -32600（实际应 -32603），内存影响很小。
+fix: |
+  try/catch RejectedExecutionException，移除条目并回 -32603。
+tests: |
+  none
 ```
 
 ## CLI-15 — 强杀后临时 stderr 被删除，超时结果缺现场
@@ -317,10 +364,14 @@ origin: [LEGACY-L-kill-files]
 files:
   - path: cli/src/main/java/cctrun/cli/McpServer.java
     lines: "261-263, 272-279"
-evidence: 超时分支只返回 did not finish within … s；finally 无条件删除临时 stdout/stderr 文件。
-impact: 超时/崩溃时丢失子进程最后错误输出，排障信息减少。
-fix: 杀进程后读取 stderr 末尾若干行并入工具结果，再删临时文件。
-tests: none
+evidence: |
+  超时分支只返回 did not finish within … s；finally 无条件删除临时 stdout/stderr 文件。
+impact: |
+  超时/崩溃时丢失子进程最后错误输出，排障信息减少。
+fix: |
+  杀进程后读取 stderr 末尾若干行并入工具结果，再删临时文件。
+tests: |
+  none
 ```
 
 ## CLI-16 — pendingLua 无 TTL
@@ -336,10 +387,14 @@ origin: [LEGACY-L-pending]
 files:
   - path: cli/src/main/java/cctrun/cli/LiveTools.java
     lines: "43-44, 663, 673"
-evidence: pendingLua 是 ConcurrentHashMap 键集合，无时间戳；只在 collect 成功或 detach 时清理。
-impact: 长时间会话多次 lua 超时会积累小状态，并影响临时文件 keep 集合。
-fix: lua 入口清理超过 10 分钟的 pending 项（带时间戳）。
-tests: 可用可控时钟或跳过。
+evidence: |
+  pendingLua 是 ConcurrentHashMap 键集合，无时间戳；只在 collect 成功或 detach 时清理。
+impact: |
+  长时间会话多次 lua 超时会积累小状态，并影响临时文件 keep 集合。
+fix: |
+  lua 入口清理超过 10 分钟的 pending 项（带时间戳）。
+tests: |
+  可用可控时钟或跳过。
 ```
 
 ## CLI-17 — rememberScreens 失败时清空全部基线且无提示
@@ -355,8 +410,12 @@ origin: [LEGACY-L-remember]
 files:
   - path: cli/src/main/java/cctrun/cli/LiveTools.java
     lines: "577-592"
-evidence: catch 中 beforeAction.keySet().removeIf(k -> k.startsWith(id + "/")) 清空该电脑全部基线；返回结果无 warning 字段。
-impact: wait 可能把旧屏幕文字当作新变化接受。
-fix: 失败时保留旧基线，或在结果加 warning: baseline unavailable。
-tests: none
+evidence: |
+  catch 中 beforeAction.keySet().removeIf(k -> k.startsWith(id + "/")) 清空该电脑全部基线；返回结果无 warning 字段。
+impact: |
+  wait 可能把旧屏幕文字当作新变化接受。
+fix: |
+  失败时保留旧基线，或在结果加 warning: baseline unavailable。
+tests: |
+  none
 ```

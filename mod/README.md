@@ -28,7 +28,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 这个 mod 用到了 CC: Tweaked 的内部类，所以两个版本的元数据都把 CC: Tweaked 锁定在 1.120.2，版本不对时加载器会拒绝加载。CC: Tweaked 在 1.21.1 没有单独的 `-neoforge` 产物：官方的 `cc-tweaked-1.21.1-forge` 就是一个 NeoForge mod（jar 里是 `META-INF/neoforge.mods.toml`，要求 NeoForge `[21.1.9,21.2)`）。
 
-两个版本共用 `mod/src/common/` 里的 18 个 Java 类和资源，只有加载器相关的两个类（`CctLive.java`、`LiveConfig.java`）和元数据分别放在 `mod/forge/`、`mod/neoforge/`。
+两个版本共用 `mod/src/common/` 里的 Java 类和资源，只有加载器相关的两个类（`CctLive.java`、`LiveConfig.java`）和元数据分别放在 `mod/forge/`、`mod/neoforge/`。
 
 ## 构建
 

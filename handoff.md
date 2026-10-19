@@ -12,13 +12,15 @@ review_fixes: D50-D57, V25-V31 (2026-10-18, on main; security and crash fixes pl
 multi_version: D58, V32 (2026-10-19, branch multi-version-build, lineage main cdf45e2 (0.2.3) -> neoforge-1.21.1 93024ac -> multi-version-build; one Gradle build produces the cct-live mod for Forge 1.20.1 and for NeoForge 1.21.1 from the same shared sources; both dev servers verified; the 1.21.1 jar then ran in a real NeoForge client, V33)
 ci: D59, V34 (2026-10-18, branch multi-version-build; GitHub Actions builds and tests engine/cli and both mod variants on ubuntu-latest/JDK 21, and creates a GitHub release when a v* tag is pushed)
 target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
-status: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15); on demand with recording mode and attach/lease/chat control handover, overhead measured (D40-D42, V16)
+status_2026-10-16: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15); on demand with recording mode and attach/lease/chat control handover, overhead measured (D40-D42, V16)
 # Appended 2026-10-18 (review verification round); the fields above are kept as history.
 status_2026-10-18: "81/81 static @Test (engine 42, cli 30, mod 9), verified by static count (V36); the 41/41 value above is the 2026-10-16/17 snapshot and is stale. 95 open issues recorded in issues_to_fix/ (D61)."
-date_updated: 2026-10-18 (external review verification; D60-D63, V35-V38, N17-N19)
+date_updated: 2026-10-19 (A/T repair D64-D69, V40-V43)
 branch_2026-10-18: "main at bf68ac4 = origin/main after PR #13 merged multi-version-build; tag v0.2.3 = f31082f is 9 commits behind HEAD"
 tool_version_note: "runtime self-report = engine/src/main/java/cctrun/engine/Versions.java:8; packaging = build.gradle.kts:5 (zip name, mod jar, mods.toml ${version}). The release job compares neither with the other nor with the tag (D60, BLD-02/BLD-14)."
 review_2026-10-18: "D60-D63, V35-V38, N17-N19; verification table and evidence under issues_to_fix/{verification,evidence}; open issues indexed in issues_to_fix/INDEX.md."
+current_status: "2026-10-19 A/T repair on 1019fix: issues_to_fix/INDEX.md and issues_to_fix/evidence/dynamic/results-1019fix/README.md. Current test counts come only from scripts/test_summary.py -> build/reports/verification.json; status/count fields above are dated historical snapshots."
+current_branch: "1019fix; user authorized autonomous A/T implementation, validation and push; no tag, release or merge requested."
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -97,6 +99,13 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D61 | Review findings are recorded as machine-readable issues, not only prose: `issues_to_fix/` holds 95 open issues (high 2 / medium 22 / low 66 / info 5), one YAML block per issue (`id/title/severity/status/confidence/module/origin/files/evidence/impact/fix/tests`), plus `INDEX.md` and `README.md` (schema). Old v0.2.2 fix-plan open items were merged in and mapped in `legacy-open.md` (old B3->MOD-01, old A9->CLI-01, old B7->ENG-RT-17, etc.); fixed 18 / obsolete 3 are not re-opened. | impl (review) |
 | D62 | Verification artefacts live under `issues_to_fix/`: `verification/verification-table.md` (the full report-vs-code table with verdicts, NEW findings, report deviations and dynamic records), `evidence/lanes/{A..F}-*.md` (raw lane reports with file:line evidence; each ends in an `## AI-ISSUES` YAML section), `evidence/lanes/task-cards/` (what each lane was asked to check), `evidence/dynamic/{scripts,fixtures,runs}` (probe scripts, fixtures, 11 run directories incl. 3 StackOverflowError runs). Paths in docs point here; do not re-scatter them. | impl (review) |
 | D63 | Review corrections accepted into the record (do not resurrect the rejected claims): (a) the "Gson 2.11 has a 255-level nesting limit" premise is false -- JsonParser parses iteratively (1,000,000 levels parsed; the MCP server handled 2 MB and 8 MB lines), so F1/C2 are not SOE-by-parsing; the real crash is `event.args` -> `JsonValues.toLua` recursion (>=20k levels -> StackOverflowError, no summary; ENG-FX-02) and request `id` deep nesting -> `send()` serialization (CLI-03). (b) E1's directory-into-itself risk is refuted (`fs.move("a","a/x")` -> "Can't move a directory inside itself", same as the game; two-step rename is a correct compensation, only non-atomic). (c) F7 is refuted (all inventory methods run on the Runner thread via `method(true)` + `mainThread.tick()` in the calling thread). (d) D2's Windows reserved-name security impact is refuted (CON/COM1 created as plain files, NUL errors). (e) H3/H4 are downgraded to medium; H1 is re-scoped: the debug library is fully available but `report.done` is unreachable (registry has no main thread; program runs in a fresh coroutine), while `_G` tampering can spoof out_of_memory/timeout. | impl (review) |
+
+| D64 | Autonomous A/T repair follows issues_to_fix/REPAIR_PLAN.md: 63 selected IDs; keep D/K/O decisions and original evidence. User authorized implementation and push to 1019fix after validation. No CC:T/Cobalt upgrade or fork; versions remain 1.120.2 / 0.9.9. | user + impl |
+| D65 | Bound untrusted inputs before recursive use: MCP lines/fixture files 16 MiB, JSON container depth 128 and nodes 100,000. Iterative validation is separate from depth-4 trace previews. Drain overlong protocol lines with bounded memory; scalar JSON-RPC ids only. Fatal MCP framing OOM writes stderr, exits 4, and never inserts a run summary in the protocol. | impl |
+| D66 | RootMount enforces the 1,000,000-byte logical disk quota using WritableFileMount's 500-byte minimum entries. Program/harness/preloads count; delete closes tracked handles to prevent orphan in-memory storage. OOM is observed as a typed Java error before Cobalt converts it to Lua text, via a fail-fast adapter to the pinned internals. Harness captures reporting helpers and uses a one-shot completion token; this does not promise isolation against full debug powers. | impl; DV10/DV15/DV17 |
+| D67 | Each run atomically reserves a UUID-suffixed directory and writes state.json (starting/running/finished/failed, pid + start identity). MCP passes the exact reservation to its child and records cancellation/wall timeout after confirming termination. External SIGKILL/power loss may leave stale running without summary. Preserve EOF drain semantics; explicit cancellation cancels the Future, interrupts live calls and kills run children. | impl |
+| D68 | Live trace keeps two byte-bounded segments and a retained-window kind index, commits seq/index only after complete writes, truncates failed partial writes, exposes trace_health and retries I/O with backoff. Immutable disk reader snapshots avoid heap copies and Windows open-file rename assumptions. Ordinary pages stop after one-record lookahead and label matched lower bounds; summaries count exactly. Recording destination selection and attach handover share the ring monitor. Session call ids survive VM reboot. | impl |
+| D69 | Snapshot replacement stages/validates copies then switches through a recoverable backup; list recovers interrupted switches and skips corrupt entries. Missing optional reflected terminal/wired fields disable capabilities with diagnostics, not class-init failure; exact CC:T metadata pin remains. HTTP requires Host/auth and a per-exchange body deadline without global JVM settings. Versions.TOOL is the version source; release validates tags and reuses tested assets with SHA256SUMS/no clobber; JUnit XML generates one verification JSON. User limits: docs/limitations.md. | impl |
 
 ## LAYOUT
 
@@ -261,6 +270,8 @@ Live tools (D39), all with optional `game_dir`; results are the cct-live endpoin
 
 ## RUN_DIRECTORY
 
+D67 update: run ids use a UTC millisecond timestamp plus 32 hex UUID digits, exclusively created with collision retry. `state.json` is atomically replaced; running state carries child pid/start time and terminal state carries reason. Parent MCP never guesses via latest. Old runs without state remain readable.
+
 ```
 <out>/<run_id>/            run_id = yyyyMMdd-HHmmss-SSS (UTC) + "-" + 4 hex
   summary.json             see SUMMARY_FORMAT
@@ -271,7 +282,7 @@ Live tools (D39), all with optional `game_dir`; results are the cct-live endpoin
 
 ## SUMMARY_FORMAT
 
-`schema: "cct-run/summary@1"`. Keys:
+`schema: "cct-run/summary@1"`. D66/D67 add `disk {capacity_bytes, free_bytes, written_bytes}` and optional `termination_reason: interrupted` (status timeout / exit 2 retained). Keys:
 
 | key | type | notes |
 |---|---|---|
@@ -293,6 +304,8 @@ Live tools (D39), all with optional `game_dir`; results are the cct-live endpoin
 | run_dir | string | CLI stdout only (absolute path); not stored in summary.json |
 
 ## TRACE_FORMAT
+
+D66 update: parameter/result previews use depth 4, 50 entries per container and default 200 characters per string. Numbers follow Lua double semantics: large integers can lose precision, NaN/infinities become strings. Java U+0000..U+00FF maps to Lua bytes; wider chars become '?'. Input depth/node/byte limits are separate (D65). Integer peripheral method args retain upstream IArguments.getInt fractional truncation (1.5 -> 1), unlike exact-integer fixture fields.
 
 `trace.jsonl`, one JSON object per line. Common fields on every record: `seq` (1..n), `tick` (game tick of the runner loop), `ms` (wall ms since run start, 0.1 ms), `kind`.
 
@@ -389,6 +402,8 @@ Matches CC: Tweaked 1.120.2 because the real code runs, or because behaviour was
 
 ## LIMITATIONS
 
+Current user-facing limits: docs/limitations.md. L entries below are historical observations; D64-D69 and V40-V43 supersede resolved parts, notably L5/L31-L35. Remaining D/K/O items stay open in issues_to_fix.
+
 - L1: No turtle, pocket or command computer APIs. Turtles need a world; candidate: CC:T gametest (headless Minecraft server), not started.
 - L2: Peripherals: only inventory, energy_storage, fluid_storage (tanks() only; no pushFluid/pullFluid), monitor, wired_modem, and scripted stand-ins for mod peripherals (values only, D49). Missing: speaker, printer, disk drive, wireless/ender modem, rednet reception, modem_message delivery (transmit is only recorded), peripheral attach/detach at runtime, automatic monitor_touch (inject via timeline `event`).
 - L3: getItemDetail returns a subset (name, count, nbt, displayName, maxCount, tags, damage, maxDamage); no enchantments/lore/durability. Slot limit fixed at 64; no per-slot rules (e.g. furnace slots). Transfer order is Forge's (D12).
@@ -442,13 +457,16 @@ Ledger of simulated behaviour that can differ from the real game (D20). Rule: ev
 | DV7 | wired network | fixed membership | peripherals join/leave (peripheral / peripheral_detach events) | L2 |
 | DV8 | modem messages | transmit recorded, nothing received | other computers reply | L2 |
 | DV9 | time | in-game time frozen at 0 | os.time()/os.day() advance | L12 |
-| DV10 | disk | capacity reported, not enforced | "Out of space" errors | L5 |
+| DV10 | disk | enforced 1,000,000 bytes, minimum 500 bytes per file/directory, injected program/harness included | WritableFileMount enforces capacity with minimum entry allocation; user startup/program are ordinary files | CC:T 1.120.2 WritableFileMount; RootMountTest; supersedes L5/L32 |
 | DV11 | http | disabled | server config decides | L4 |
 | DV12 | shell | multishell off by default; startup.lua is the harness | multishell on for advanced computers; user's own startup | D11, L7 |
 | DV13 | world | no blocks, no turtles, no chunk unloading, no server lag | all present | L1, D19 |
-| DV15 | memory | heap limit about 1 GB for cct-run as a whole; exceeding it ends the program with out_of_memory | no per-computer limit; computers share the server JVM's heap, so a hungry program lags or crashes the server | D33; a program using a few hundred MB passes here but is still a problem on a small server |
+| DV15 | memory | about 1 GB heap for the whole process; observed typed OOM, including caught Lua errors, makes outcome out_of_memory; matching message text alone does not | no per-computer limit; computers share the server JVM's heap | D33/D66; a program using hundreds of MB can still be a problem on a small server |
 | DV16 | scripted peripherals | the fixture's values; changed only by `sets` and the timeline | the mod's real behaviour (stress follows speed, inventories fill, players move); its events (AP `chat`) | D49; values should come from the game (cct_live_peripheral, peripheral_return records) |
 | DV14 | tick rate | about 20 ticks/s on average (W2); individual ticks jitter by up to one OS timer quantum; ticks skipped after a lag of more than 1 s | 20 ticks/s; slower under server lag | before W2, ~16 ticks/s on Windows (V6); `duration.tick_rate` reports the measured rate |
+
+| DV17 | deleted open files | deleting a path closes its tracked channels so removed memory files cannot bypass quota | host filesystem semantics vary; an unlinked file may remain accessible through handles | CC:T MemoryMount channels retain entry data; RootMountTest; intentional resource bound |
+| DV18 | completion | harness captures reporting functions before user code and accepts completion once; bounded timeout still applies | normal shell startup does not publish a test summary | CC:T exception.try uses a fresh coroutine; harness/Runner regressions; not a malicious-debug security boundary |
 
 ## RISKS
 
@@ -666,6 +684,11 @@ Environment: Linux x86_64, build JDK 21.0.12 (Gradle 9.7.1 wrapper), runtime che
 - V38: Review artefacts archived in-tree: `issues_to_fix/verification/verification-table.md` (report-vs-code table incl. NEW findings and the report-deviation list), `issues_to_fix/evidence/lanes/{A-engine-runtime,B-engine-fixture,C-cli,D-mod,E-build-docs,F-legacy-plans}.md` (raw lane evidence with `## AI-ISSUES` YAML), `issues_to_fix/evidence/dynamic/` (9 probe scripts, 17 fixtures, 11 run directories: 01-08 normal records, 09-11 the three SOE crashes; 08 is kept but carries a UTF-8 BOM so it is history only). Nothing was deleted from this handoff; the header corrections are appended as `status_2026-10-18`/`date_updated`/`branch_2026-10-18`/`tool_version_note`/`review_2026-10-18`.
 - V39 (appended 2026-10-18, doc sync): `docs/test-results.md` was brought up to date: header date/version, unit tests 81/81 (engine 42, cli 30, mod 9; 90 executions across both variants) with the 2026-10-18 `--rerun-tasks` result (BUILD SUCCESSFUL in 1m 2s, 0 failures), Windows/Linux smoke rows marked as 0.2.2-era with 0.2.3 not re-run, release-version/row and external-review rows added, Linux-verification count corrected 54 -> 81, and new "2026-10-18: 0.2.3 test execution + review verification" and "still open" items (0.2.3 smoke, release job, issues_to_fix). This resolves the test-results.md part of DOC-01; the single-source test result and the handoff `status:` line remain open (N19).
 
+- V40: 2026-10-19 Linux managed cloud, branch 1019fix. Full JDK 8/17/21 from verified Adoptium assets; Gradle 9.7.1, pinned CC:T/Cobalt. Strict dependency verification used for all module builds/tests and both real dev servers. Actual test totals, failures/skips and cached-report times come from scripts/test_summary.py; commands and results: issues_to_fix/evidence/dynamic/results-1019fix/README.md. Regression covers deep inputs, typed OOM versus forged text, harness tampering, quota/handles, malformed trace, interrupted summary/state writes, fixture bounds/order, cancellation, baselines and long seq/tick.
+- V41: Forge 1.20.1 / 47.4.10 (recording off) and NeoForge 1.21.1 / 21.1.262 (recording on), disposable loopback dev servers, no player world access. Both passed real auth/Host/413/slow-body recovery, monitor screen/replay, wired chest discovery with two computers sharing one full wired modem, files/snapshot round trip/path regressions, call ids across reboot, installed MCP Lua return 42/long status, bounded rotation, unload without auto-control, real lease expiry and owned endpoint cleanup. NeoForge also verified continuous history handover. First reports preserve dormant no-session-directory proof; final reruns explicitly skip that completed check on reused worlds. JSONs: results-1019fix. Windows/macOS clients and production deployments not exercised.
+- V42: Linux distribution/version/release-gate validation is recorded in results-1019fix. actionlint 1.7.12 passes; release helper unit tests verify mismatch refusal before mutation and identical-asset retry. Tag match/mismatch and prepare-only SHA256SUMS checks create no tags/releases. Dependency metadata covers actual build/dev-server profiles, not every future OS/profile dependency.
+- V43: User docs now reference generated verification rather than synchronized counts; docs/test-results.md preserves explicitly dated historical snapshots. See results-1019fix/README.md and issue fixed_in commits for final local/remote checks. Tag publication, Windows and macOS remain separate validation boundaries.
+
 ## JVM_COST
 
 Measured on this machine (4 cores), program `print("done")`:
@@ -706,7 +729,7 @@ Order set by D16; incremental.
 16. N17 (appended 2026-10-18): P0 review fixes before the next release -- `ENG-RT-01` (fs write quota + byte stats + OOM type-based attribution), `ENG-RT-02` (one-shot token on `HarnessApi.done`; localize `printError/tostring/debug` in harness; OOM not by message), `CLI-01` (validate `endpoint.json` scheme/host: loopback only), `ENG-FX-02` (depth/size limits for fixture `event.args` and `JsonValues.toLua`, catch Error in Runner/Main so a summary is still written), and `BLD-02`+`BLD-14` (single-source version + release tag check). Issue text/evidence: `issues_to_fix/INDEX.md`.
 17. N18 (appended 2026-10-18): CI/trust hardening -- wire `scripts/smoke-test.sh` into CI as a release gate, add wrapper-validation + dependency-review + CodeQL/dependabot, download the tested mod artefacts in the release job instead of rebuilding, drop the merged branches from the push trigger, and switch the README badge from `?branch=multi-version-build` to main (BLD-01/03/04/09, V34).
 18. N19 (appended 2026-10-18): Documentation/bookkeeping -- make the test result single-source (test-results.md / README test table / this header currently disagree: 54/81/41, DOC-01), add `SECURITY.md` (the project has a real path-escape fix history, PROJ-02), and keep `issues_to_fix/` updated as fixes land (`status: fixed` + `fixed_in`). The stale review-fix list in N14 above is superseded by the 2026-10-18 table: A4/B5, A12/old-M1, body limit and `ticks=-` are already fixed; A9 is the only open item of the old A batch (now CLI-01).
-19. N20 (appended 2026-10-19): Repair planning against HEAD 851f25d: `issues_to_fix/REPAIR_PLAN.md` classifies all 95 IDs, including existing fixes and decisions deferred by this handoff; contains autonomous batches, technical gates and acceptance criteria. Planning only, not a fix or a new verification pass. Follow its recorded baseline-check result before implementing A1; keep the module issue files authoritative for status.
+19. N20 (planning snapshot, superseded by user authorization D64 and the execution section of REPAIR_PLAN.md): Repair planning against HEAD 851f25d: `issues_to_fix/REPAIR_PLAN.md` classifies all 95 IDs, including existing fixes and decisions deferred by this handoff; contains autonomous batches, technical gates and acceptance criteria. Planning only, not a fix or a new verification pass. Follow its recorded baseline-check result before implementing A1; keep the module issue files authoritative for status.
 - Deferred: N9 turtles (D19).
 
 ## REFERENCES
