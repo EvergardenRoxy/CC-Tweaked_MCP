@@ -4,7 +4,7 @@ cctweaked = "1.120.2"
 cobalt = "0.9.9"
 gson = "2.11.0"
 junit = "5.11.4"
-slf4j = "2.0.16"
+slf4j = "2.0.20"
 
 [libraries]
 cctweaked-core = { module = "cc.tweaked:cc-tweaked-1.20.1-core", version.ref = "cctweaked" }
