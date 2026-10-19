@@ -6,5 +6,6 @@
   "cctlive.revoked": "[cct-live] Took control of computer %s back from the AI",
   "cctlive.list.none": "[cct-live] No computer is controlled by an AI",
   "cctlive.list.entry": "[cct-live] Computer %s: controlled by an AI, lease ends in %s s",
-  "cctlive.detach.none": "[cct-live] Computer %s is not controlled by an AI"
+  "cctlive.detach.none": "[cct-live] Computer %s is not controlled by an AI",
+  "cctlive.unavailable": "[cct-live] Computer %s is no longer loaded or available; the AI control ended"
 }

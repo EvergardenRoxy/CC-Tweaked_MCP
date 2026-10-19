@@ -55,6 +55,7 @@ public final class CctLive {
         var home = FMLPaths.GAMEDIR.get().resolve("cct-live");
         try {
             var session = LiveSession.start(event.getServer(), home);
+            LOG.info("cct-live CC:T capabilities: terminal={}, wired_query={}", Terminals.available(), PeripheralQuery.available());
             if (LiveConfig.HTTP_ENABLED.get()) session.startHttp(LiveConfig.HTTP_PORT.get());
         } catch (IOException e) {
             LOG.error("cct-live could not start; computers cannot be attached", e);

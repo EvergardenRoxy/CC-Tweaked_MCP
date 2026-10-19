@@ -91,7 +91,7 @@ final class LiveMachine implements ILuaMachine {
     static final class Recorder {
         private final MetricsObserver metrics;
         private final Handles handles = new Handles();
-        private final AtomicLong callIds = new AtomicLong();
+        private static final AtomicLong FALLBACK_CALL_IDS = new AtomicLong();
 
         Recorder(MetricsObserver metrics) {
             this.metrics = metrics;
@@ -109,7 +109,8 @@ final class LiveMachine implements ILuaMachine {
 
         /** Pairs a peripheral_call with its peripheral_return; per VM, so it also works in the recording ring. */
         long nextCallId() {
-            return callIds.incrementAndGet();
+            var session = LiveSession.current();
+            return session == null ? FALLBACK_CALL_IDS.incrementAndGet() : session.nextCallId();
         }
 
         /** While attached (not in recording mode): saves an HTTP response body in full; returns its number or -1. */
@@ -135,9 +136,7 @@ final class LiveMachine implements ILuaMachine {
         void record(String kind, JsonObject data) {
             var session = LiveSession.current();
             if (session == null) return;
-            var attachment = session.attachedTo(metrics);
-            if (attachment != null) attachment.trace().record(kind, data);
-            else if (session.recording()) session.ring(metrics).add(session.tickCount(), session.millis(), kind, data);
+            session.record(metrics, kind, data);
         }
     }
 }

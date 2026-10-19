@@ -13,22 +13,14 @@ final class Terminals {
     record Snapshot(int width, int height, String[] text, String[] fg, String[] bg, int cursorX, int cursorY, boolean blink) {
     }
 
-    private static final Field TERMINAL;
-
-    static {
-        try {
-            // ServerComputer keeps its terminal private; getTerminalState() only builds a compressed network packet.
-            TERMINAL = ServerComputer.class.getDeclaredField("terminal");
-            TERMINAL.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            throw new IllegalStateException("cct-live does not match this CC: Tweaked version (ServerComputer.terminal)", e);
-        }
-    }
+    private static final Field TERMINAL = CcInternals.optionalField(ServerComputer.class, "terminal", Terminal.class);
+    static boolean available() { return TERMINAL != null; }
 
     private Terminals() {
     }
 
     static Terminal of(ServerComputer computer) {
+        if (TERMINAL == null) throw new CcInternals.MissingCapability("terminal observation unavailable: expected CC:T 1.120.2 internals");
         try {
             return (Terminal) TERMINAL.get(computer);
         } catch (IllegalAccessException e) {

@@ -9,7 +9,7 @@ plugins {
 val mcVersion = "1.21.1"
 val neoForgeVersion = "21.1.262"
 // CC: Tweaked publishes its NeoForge build under the "forge" artifact name for 1.21.1.
-val ccTweakedVersion = "1.120.2"
+val ccTweakedVersion = libs.versions.cctweaked.get()
 
 base {
     archivesName = "cct-live-$mcVersion"
@@ -24,6 +24,8 @@ sourceSets {
         java.srcDir(rootProject.file("mod/src/common/test/java"))
     }
 }
+
+java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
 
 tasks.withType<JavaCompile>().configureEach {
     options.release = 21
@@ -62,10 +64,10 @@ dependencies {
     // neoforge [21.1.9,21.2)); it contains the core API and the shared classes this mod uses.
     implementation("cc.tweaked:cc-tweaked-$mcVersion-forge:$ccTweakedVersion")
 
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("com.google.code.gson:gson:2.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.gson)
+    testRuntimeOnly(libs.junit.launcher)
 }
 
 tasks.test {

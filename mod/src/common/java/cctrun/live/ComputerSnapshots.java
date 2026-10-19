@@ -42,7 +42,9 @@ final class ComputerSnapshots {
     }
 
     private static Path dir(Path home, int id, String name) {
-        return home.resolve("snapshots").resolve("computer-" + id).resolve(name);
+        var target = home.resolve("snapshots").resolve("computer-" + id).resolve(name);
+        try { SnapshotStore.recover(target); } catch (IOException e) { throw new java.io.UncheckedIOException(e); }
+        return target;
     }
 
     /** Files and directories of the computer, without the temporary directory. */
@@ -94,8 +96,9 @@ final class ComputerSnapshots {
         var mount = computer.createRootMount();
         var tree = scan(mount);
         var dir = dir(home, computer.getID(), name);
-        deleteTree(dir);
-        var filesDir = dir.resolve("files");
+        final long[] copiedBytes = {0};
+        SnapshotStore.replace(dir, stage -> {
+        var filesDir = stage.resolve("files");
         Files.createDirectories(filesDir);
         var manifest = new JsonObject();
         manifest.addProperty("id", computer.getID());
@@ -109,18 +112,20 @@ final class ComputerSnapshots {
             var data = readAll(mount, path);
             Files.write(target, data);
             bytes += data.length;
-            files.addProperty(path, tree.files().get(path));
+            files.addProperty(path, sha256(data));
         }
         manifest.add("files", files);
         manifest.add("dirs", strings(tree.dirs()));
-        Files.writeString(dir.resolve(MANIFEST), manifest.toString(), StandardCharsets.UTF_8);
+        Files.writeString(stage.resolve(MANIFEST), manifest.toString(), StandardCharsets.UTF_8);
+        copiedBytes[0] = bytes;
+        });
 
         var out = new JsonObject();
         out.addProperty("id", computer.getID());
         out.addProperty("name", name);
         out.addProperty("files", tree.files().size());
         out.addProperty("dirs", tree.dirs().size());
-        out.addProperty("bytes", bytes);
+        out.addProperty("bytes", copiedBytes[0]);
         out.addProperty("dir", dir.toString());
         return out;
     }
@@ -227,21 +232,27 @@ final class ComputerSnapshots {
         var out = new JsonObject();
         out.addProperty("id", id);
         var names = new JsonArray();
+        var skipped = new JsonArray();
         var root = home.resolve("snapshots").resolve("computer-" + id);
+        SnapshotStore.recoverAll(root);
         if (Files.isDirectory(root)) {
             try (var dirs = Files.list(root)) {
                 for (var d : (Iterable<Path>) dirs.sorted()::iterator) {
+                    if (d.getFileName().toString().startsWith(".") || !Files.isDirectory(d)) continue;
                     if (!Files.exists(d.resolve(MANIFEST))) continue;
+                    try {
                     var m = manifest(d);
                     var entry = new JsonObject();
                     entry.addProperty("name", d.getFileName().toString());
                     entry.addProperty("saved", m.saved());
                     entry.addProperty("files", m.files().size());
                     names.add(entry);
+                    } catch (IOException | RuntimeException e) { skipped.add(d.getFileName().toString()); }
                 }
             }
         }
         out.add("snapshots", names);
+        if (!skipped.isEmpty()) out.add("skipped", skipped);
         return out;
     }
 

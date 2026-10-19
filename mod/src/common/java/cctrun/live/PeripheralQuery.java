@@ -36,18 +36,11 @@ import java.util.regex.Pattern;
 final class PeripheralQuery {
     static final Pattern READ_ONLY = Pattern.compile("(get|is|has|can|list|size|tanks|count)([A-Z_0-9].*)?");
     private static final int MAX_STEPS = 16;
-    private static final Field WRAPPERS, WRAPPED_PERIPHERAL;
-
-    static {
-        try {
-            WRAPPERS = WiredModemPeripheral.class.getDeclaredField("peripheralWrappers");
-            WRAPPERS.setAccessible(true);
-            var wrapper = Class.forName(WiredModemPeripheral.class.getName() + "$RemotePeripheralWrapper");
-            WRAPPED_PERIPHERAL = wrapper.getDeclaredField("peripheral");
-            WRAPPED_PERIPHERAL.setAccessible(true);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("cct-live needs CC: Tweaked 1.120.2 (WiredModemPeripheral internals)", e);
-        }
+    private static final Field WRAPPERS = CcInternals.optionalField(WiredModemPeripheral.class, "peripheralWrappers", Map.class);
+    private static final Field WRAPPED_PERIPHERAL = CcInternals.optionalField(WiredModemPeripheral.class.getName() + "$RemotePeripheralWrapper", "peripheral");
+    static boolean available() { return WRAPPERS != null && WRAPPED_PERIPHERAL != null; }
+    private static void putUnique(Map<String, IPeripheral> map, String name, IPeripheral value) {
+        PeripheralNames.put(map,name,value,(a,b)->a.equals(b));
     }
 
     private PeripheralQuery() {
@@ -59,20 +52,21 @@ final class PeripheralQuery {
         for (var side : ComputerSide.values()) {
             var peripheral = computer.getPeripheral(side);
             if (peripheral == null) continue;
-            out.put(side.getName(), peripheral);
-            if (peripheral instanceof WiredModemPeripheral modem) out.putAll(remote(modem));
+            putUnique(out, side.getName(), peripheral);
+            if (peripheral instanceof WiredModemPeripheral modem && available()) remote(modem).forEach((name, value) -> putUnique(out, name, value));
         }
         return out;
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, IPeripheral> remote(WiredModemPeripheral modem) {
+        if (!available()) throw new CcInternals.MissingCapability("wired peripheral queries unavailable: expected CC:T 1.120.2 internals");
         var out = new HashMap<String, IPeripheral>();
         try {
             var wrappers = (Map<IComputerAccess, Map<String, Object>>) WRAPPERS.get(modem);
             synchronized (wrappers) {
                 for (var perComputer : wrappers.values()) {
-                    for (var entry : perComputer.entrySet()) out.put(entry.getKey(), (IPeripheral) WRAPPED_PERIPHERAL.get(entry.getValue()));
+                    for (var entry : perComputer.entrySet()) putUnique(out, entry.getKey(), (IPeripheral) WRAPPED_PERIPHERAL.get(entry.getValue()));
                 }
             }
         } catch (IllegalAccessException e) {
@@ -86,6 +80,7 @@ final class PeripheralQuery {
         var peripherals = available(computer);
         var peripheral = peripherals.get(name);
         if (peripheral == null) {
+            if (!available()) throw new CcInternals.MissingCapability("no such peripheral on a side; wired lookup unavailable: expected CC:T 1.120.2 internals");
             throw new IllegalArgumentException("no peripheral '" + name + "' on computer " + computer.getID() + "; available: " + new TreeSet<>(peripherals.keySet()));
         }
         var methods = ServerContext.get(computer.getLevel().getServer()).peripheralMethods().getSelfMethods(peripheral);
