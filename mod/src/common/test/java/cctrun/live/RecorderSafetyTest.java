@@ -10,6 +10,27 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RecorderSafetyTest {
     @TempDir Path dir;
+    @Test void malformedMatchingRecordAndScreenRowsDoNotHideLaterValidScreen() throws Exception {
+        var trace = new ComputerTrace(() -> 1L, () -> 1.0, dir.resolve("corrupt.jsonl"), 4096);
+        for (int i = 0; i < 4; i++) trace.record("event", new JsonObject());
+        trace.close();
+        Files.writeString(trace.file(), """
+            {"seq":1,"tick":1,"kind":"trace_start"}
+            {"seq":2,"tick":1,"kind":"screen","source":[],"size":[2,1],"lines":{"1":"bad"}}
+            {"seq":3,"tick":1,"kind":"screen","source":"term","size":[2,1],"lines":{"1":"ok"},"fg":{"1":"12"},"bg":{"1":"34"}}
+            {"seq":4,"tick":1,"kind":"screen","source":"term","lines":{"99999999":"bad"}}
+            {"seq":5,"tick":1,"kind":"screen","source":
+            """);
+        assertNull(trace.recordAt(2));
+        assertNull(trace.recordAt(4));
+        assertNull(trace.recordAt(5));
+        assertEquals(3, trace.recordAt(3).get("seq").getAsLong());
+        var screen = Screens.replay(trace, Long.MAX_VALUE, "term");
+        assertNotNull(screen);
+        assertArrayEquals(new String[]{"ok"}, screen.text());
+        assertArrayEquals(new String[]{"12"}, screen.fg());
+        assertArrayEquals(new String[]{"34"}, screen.bg());
+    }
     @Test void rotationBoundsIndexAndReaderSnapshotSurvivesFurtherRotation() throws Exception {
         var trace = new ComputerTrace(() -> 1L, () -> 1.0, dir.resolve("computer.jsonl"), 4096);
         var data = new JsonObject(); data.addProperty("text", "x".repeat(100));
