@@ -23,9 +23,9 @@ if [ -z "$cct" ] || [ ! -x "$cct" ]; then
     exit 2
 fi
 examples="$root/examples"
-report="$PWD/cct-run-smoke-report.txt"
-
 work="$(mktemp -d "${TMPDIR:-/tmp}/cct-run-smoke.XXXXXX")"
+report="${2:-$work/cct-run-smoke-report.txt}"
+mkdir -p "$(dirname "$report")"
 odd="$work/dir with space $(printf '\346\265\213\350\257\225')" # two CJK characters, as UTF-8 bytes
 out="$work/runs"
 mkdir -p "$odd" "$out"
