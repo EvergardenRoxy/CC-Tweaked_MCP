@@ -2,7 +2,7 @@
 
 日期：2026-10-19。当前代码基线：`851f25d`（分支 `work`，版本 0.2.3）；原问题核对基线：`bf68ac4`。
 
-本计划覆盖 `engine.md`、`cli.md`、`mod.md`、`build-ci.md`、`docs-project.md` 的全部 95 个 ID。它是执行安排，不是新的 issue 清单，不改变原 issue 状态，也不代表问题已修复。本次交付限于计划与开工检查，未修改功能代码。
+本计划覆盖 `engine.md`、`cli.md`、`mod.md`、`build-ci.md`、`docs-project.md` 的全部 95 个 ID。它是执行安排，不是新的 issue 清单。最初交付限于计划与开工检查；后续用户已授权 A/T 全部自主修复、验证后推送 `1019fix`。本轮完成范围与证据见文末执行记录，实际状态仍以模块 issue 文件为准。
 
 ## 范围与约束
 
@@ -363,3 +363,14 @@ JAVA_HOME=/workspace/.tools/jdk-21.0.12.1+1 \
 | PROJ-06 | O | 未上架 Modrinth/CurseForge | [docs-project.md](docs-project.md) |
 | PROJ-07 | O | 分支/提交身份卫生 | [docs-project.md](docs-project.md) |
 | PROJ-08 | O | 单维护者 + AI 主写（bus factor） | [docs-project.md](docs-project.md) |
+
+
+## 2026-10-19 执行记录（1019fix）
+
+用户后续明确授权：A/T 自主推进并完成，按难易度和关联度修复，验证通过后推送 `1019fix`。因此上文“规划阶段”的限制只描述最初交付，不再限制本轮已授权实施。
+
+A1/A2/A3/T1/T6 先处理输入、可信结果、配额、取消和运行目录状态；A4/T2/T3/T4 随后处理双版本 mod 的追踪/快照/HTTP/能力降级，再完成 A5/T5 构建发布门禁与 A6 文档。技术探针确认：Cobalt 的错误报告器能在 Lua 文案转换前观察原始 Java OOM；Lua 字符串的 dataLength 应保留每字符一字节语义；相同物理外设的多个 wrapper 应允许同名，只有不同目标才报冲突。相关实现与差异已记入 handoff D64–D69、DV10/DV15/DV17/DV18。
+
+完整命令、各 issue 对应测试/实现与提交、机器结果、真实 Linux Forge/NeoForge 开发服务器证据见 [results-1019fix](evidence/dynamic/results-1019fix/README.md)。模块 issue 只在这些门禁完成后追加真实 `fixed_in` / `fixed_at`，保留原证据。此前部分 issue 的纯文本 YAML 含未加引号的反引号/冒号，本轮只将四个字符串字段规范为仓库规定的块字符串，95 个原条目的含义和 ID 保留。
+
+本轮不发布、不推 tag、不合并、不改变 D 类策略。CLI-01 的 URL 范围仍待既有互联决策；默认 EOF drain 保留。Windows/macOS 与真实玩家客户端、生产部署及正式 tag 发布仍未在本轮演练，不能把 Linux 测试写成跨平台实测。

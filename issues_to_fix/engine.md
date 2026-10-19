@@ -95,9 +95,12 @@ files:
 evidence: |
   catch (InterruptedException e) { Thread.currentThread().interrupt(); return "timeout"; }（Runner:252-255）；
   真正超时是 if (tick >= maxTicks) return "timeout";（:191）；两者都映射 exit_code=2，summary 无 interrupted 标记。
-impact: 上层关闭/中断引擎线程时被误报为程序超时；CLI 有 System.exit、MCP 取消杀子 JVM，实际面窄。
-fix: 新增 interrupted/cancelled 状态（独立 exit code 或 summary.interrupted=true），或在 run_end 记录原因。
-tests: 对 Runner 线程发 interrupt，断言状态与 exit_code。
+impact: |
+  上层关闭/中断引擎线程时被误报为程序超时；CLI 有 System.exit、MCP 取消杀子 JVM，实际面窄。
+fix: |
+  新增 interrupted/cancelled 状态（独立 exit code 或 summary.interrupted=true），或在 run_end 记录原因。
+tests: |
+  对 Runner 线程发 interrupt，断言状态与 exit_code。
 ```
 
 ## ENG-RT-04 — context.close 不等线程退出（库嵌入泄漏）
@@ -116,9 +119,12 @@ files:
 evidence: |
   Runner:41 javadoc 声明 one run per JVM；:152-157 close(50, MILLISECONDS) 失败只 trace.record("context_close_pending")。
   CLI 每 run 一次进程并 System.exit；MCP 每 run 子 JVM + waitFor/destroyForcibly，故当前无泄漏后果。
-impact: 作为库在同一 JVM 连续跑 run 时线程会累积。
-fix: javadoc 明确 embedding 限制，或 close 等待并在失败时 fail loud；可提供 closeAll()。
-tests: none
+impact: |
+  作为库在同一 JVM 连续跑 run 时线程会累积。
+fix: |
+  javadoc 明确 embedding 限制，或 close 等待并在失败时 fail loud；可提供 closeAll()。
+tests: |
+  none
 ```
 
 ## ENG-RT-05 — harness `fs.open` 无 nil 检查
@@ -139,9 +145,12 @@ files:
 evidence: |
   harness.lua:33 `local file = fs.open(path, "r")`，:34 直接 file.readAll()；Runner 在装 harness 前写入程序文件，
   故当前流程必成功；只有 addFile 异常/重构时才会暴露。
-impact: 错误信息是 `attempt to index ? (a nil value)`，不指向真实原因（程序文件缺失）。
-fix: `if not file then report.done(false, "setup", "program file missing: "..path, nil) end`。
-tests: none
+impact: |
+  错误信息是 `attempt to index ? (a nil value)`，不指向真实原因（程序文件缺失）。
+fix: |
+  `if not file then report.done(false, "setup", "program file missing: "..path, nil) end`。
+tests: |
+  none
 ```
 
 ## ENG-RT-06 — CoreConfig 进程级静态跨 run 残留
@@ -157,10 +166,14 @@ origin: [REVIEW-L-Cfg]
 files:
   - path: engine/src/main/java/cctrun/engine/Runner.java
     lines: "79-84"
-evidence: javap 显示 CoreConfig 字段全 public static；Runner:79-84 每次 run 覆写，无恢复/无状态检查；one-run-per-JVM 下无影响。
-impact: 库多 run 时 http 永久关闭、上一 run 的设置渗入下一 run。
-fix: run 前后保存/恢复 CoreConfig，或文档声明进程级副作用并加运行期断言。
-tests: none
+evidence: |
+  javap 显示 CoreConfig 字段全 public static；Runner:79-84 每次 run 覆写，无恢复/无状态检查；one-run-per-JVM 下无影响。
+impact: |
+  库多 run 时 http 永久关闭、上一 run 的设置渗入下一 run。
+fix: |
+  run 前后保存/恢复 CoreConfig，或文档声明进程级副作用并加运行期断言。
+tests: |
+  none
 ```
 
 ## ENG-RT-07 — maxTicks 的 int 溢出（库调用面）
@@ -183,9 +196,12 @@ files:
 evidence: |
   Runner:183 int 乘法；RunSpec:29 只校验 timeoutSeconds < 1 无上界；CLI Main:133 intOption(--timeout, 15, 1, 3600) 钳制，
   故仅库调用面成立（timeoutSeconds ≥ 2^31/20 ≈ 1.07 亿时 tick 0 立即 timeout）。
-impact: 库调用方可得到 "timeout" 且无诊断。
-fix: RunSpec 增加合理上限或 Math.multiplyExact/long。
-tests: none
+impact: |
+  库调用方可得到 "timeout" 且无诊断。
+fix: |
+  RunSpec 增加合理上限或 Math.multiplyExact/long。
+tests: |
+  none
 ```
 
 ## ENG-RT-08 — Trace close 后静默丢记录
@@ -201,10 +217,14 @@ origin: [REVIEW-L-Close]
 files:
   - path: engine/src/main/java/cctrun/engine/Trace.java
     lines: "60-61, 107-109"
-evidence: record 首行 `if (closed) return;`；droppedNotes 只覆盖 MAX_NOTES 截断；当前时序 run_end 先于 close，无实际丢失路径。
-impact: 未来时序改动中的丢数据不可见。
-fix: close 后丢弃计数进 summary，或在 close 前断言。
-tests: none
+evidence: |
+  record 首行 `if (closed) return;`；droppedNotes 只覆盖 MAX_NOTES 截断；当前时序 run_end 先于 close，无实际丢失路径。
+impact: |
+  未来时序改动中的丢数据不可见。
+fix: |
+  close 后丢弃计数进 summary，或在 close 前断言。
+tests: |
+  none
 ```
 
 ## ENG-RT-09 — 每条记录 flush（有意权衡）
@@ -220,10 +240,14 @@ origin: [REVIEW-L-Flush]
 files:
   - path: engine/src/main/java/cctrun/engine/Trace.java
     lines: "71-73"
-evidence: Trace:72 注释 "A killed run must still leave every earlier record readable: no buffered tail."；:73 每记录 flush。
-impact: 高频 trace 每条一次 flush syscall；属有意选择。
-fix: 可选按 tick/每 N 条 flush，保留大部分崩溃可读性；若改需基准测试。
-tests: none
+evidence: |
+  Trace:72 注释 "A killed run must still leave every earlier record readable: no buffered tail."；:73 每记录 flush。
+impact: |
+  高频 trace 每条一次 flush syscall；属有意选择。
+fix: |
+  可选按 tick/每 N 条 flush，保留大部分崩溃可读性；若改需基准测试。
+tests: |
+  none
 ```
 
 ## ENG-RT-10 — TraceQuery 缺字段 NPE 且不计 skipped
@@ -242,9 +266,12 @@ files:
 evidence: |
   matches(): record.get("tick").getAsInt()（:66）、kind 同（:69）；screenAt(): record.get("tick").getAsInt()（:111）；
   read() 的容错只包 JsonParser.parseString（:47-52），字段缺失时 NPE 冒泡，skipped 不增加。
-impact: 合法 JSON 缺字段时整个查询 internal error。
-fix: 统一 has()/isJsonPrimitive 校验并计入 skipped。
-tests: none
+impact: |
+  合法 JSON 缺字段时整个查询 internal error。
+fix: |
+  统一 has()/isJsonPrimitive 校验并计入 skipped。
+tests: |
+  none
 ```
 
 ## ENG-RT-11 — storedName 对畸形 programName 不设防
@@ -265,9 +292,12 @@ files:
 evidence: |
   Runner:442 Path.of(programName).getFileName().toString()；空串时 getFileName()==null → NPE；
   ".." 未拦；写路径 :75 单段不逃逸；MCP 的 PROGRAM_NAME 正则与 CLI 文件名已挡。
-impact: 库 API 传空串得内部 NPE，保留名/.. 行为异常。
-fix: RunSpec 校验非空且拒绝 ../Windows 保留名。
-tests: none
+impact: |
+  库 API 传空串得内部 NPE，保留名/.. 行为异常。
+fix: |
+  RunSpec 校验非空且拒绝 ../Windows 保留名。
+tests: |
+  none
 ```
 
 ## ENG-RT-12 — Clock tick/ms 亚毫秒错位
@@ -285,10 +315,14 @@ files:
     lines: "8, 19-21"
   - path: engine/src/main/java/cctrun/engine/Trace.java
     lines: "64-65"
-evidence: Clock 有 volatile int tick（:8）与实时 millis（:19-21）；Trace:64-65 分两次读取，多线程 record 下可能跨 tick 边界。
-impact: 诊断用 tick/ms 轻微不一致，不影响判定。
-fix: record 时一次性快照 (tick, ms) 或由 loop 线程写时间戳。
-tests: none
+evidence: |
+  Clock 有 volatile int tick（:8）与实时 millis（:19-21）；Trace:64-65 分两次读取，多线程 record 下可能跨 tick 边界。
+impact: |
+  诊断用 tick/ms 轻微不一致，不影响判定。
+fix: |
+  record 时一次性快照 (tick, ms) 或由 loop 线程写时间戳。
+tests: |
+  none
 ```
 
 ## ENG-RT-13 — run()/loop() 巨型方法与魔法数
@@ -307,9 +341,12 @@ files:
 evidence: |
   run() 64-178、loop() 181-257；魔法数 START_DELAY+5(:267)、50/10/40/1000000(:49,52,53,58)；
   startRequestedField() 失败 return null（:276-278）无 note。
-impact: 可维护性差；反射失败后 reboot 判定静默退化。
-fix: 拆分 loop 为 tickOnce/decideOutcome；反射失败记 trace.note；魔法数提常量。
-tests: none
+impact: |
+  可维护性差；反射失败后 reboot 判定静默退化。
+fix: |
+  拆分 loop 为 tickOnce/decideOutcome；反射失败记 trace.note；魔法数提常量。
+tests: |
+  none
 ```
 
 ## ENG-RT-14 — RootMount 两步改名非原子
@@ -325,10 +362,14 @@ origin: [REVIEW-NEW-2]
 files:
   - path: engine/src/main/java/cctrun/engine/RootMount.java
     lines: "34-42"
-evidence: rename 的 /a→/ab 分支经 temp=.cctrun-rename 两步改名（:36-42），只对 IOException 回滚；JVM 崩溃/强杀不清理。
-impact: 残留顶层文件；后续 run 是新 mount，不受影响。
-fix: 启动时清理，或在 trace.note 说明。
-tests: none
+evidence: |
+  rename 的 /a→/ab 分支经 temp=.cctrun-rename 两步改名（:36-42），只对 IOException 回滚；JVM 崩溃/强杀不清理。
+impact: |
+  残留顶层文件；后续 run 是新 mount，不受影响。
+fix: |
+  启动时清理，或在 trace.note 说明。
+tests: |
+  none
 ```
 
 ## ENG-RT-15 — 保护链外 OOM/VM error 不进入状态判定
@@ -346,10 +387,14 @@ files:
     lines: "76-81"
   - path: engine/src/main/java/cctrun/engine/Runner.java
     lines: "136"
-evidence: RecordingMachine:76-81 只 trace.note("vm_error")；Runner:136 只读 api 的 finished/message，不读 MachineResult。
-impact: out_of_memory 只覆盖被 harness 捕获的 OOM；保护调用外 OOM 与真实 timeout/shutdown 混淆。
-fix: Runner 读取 MachineResult error 并映射状态。
-tests: none
+evidence: |
+  RecordingMachine:76-81 只 trace.note("vm_error")；Runner:136 只读 api 的 finished/message，不读 MachineResult。
+impact: |
+  out_of_memory 只覆盖被 harness 捕获的 OOM；保护调用外 OOM 与真实 timeout/shutdown 混淆。
+fix: |
+  Runner 读取 MachineResult error 并映射状态。
+tests: |
+  none
 ```
 
 ## ENG-RT-16 — run_id 随机段仅 4 位十六进制
@@ -365,10 +410,14 @@ origin: [LEGACY-L-runid]
 files:
   - path: engine/src/main/java/cctrun/engine/Runner.java
     lines: "66, 68"
-evidence: runId = UTC 毫秒时间戳 + HexFormat.of().toHexDigits((short) nextInt())（4 位）；Files.createDirectories(runDir) 不检查已存在。
-impact: 同毫秒同随机数时两次运行互相覆盖 trace/summary。
-fix: 随机段扩到 8 位以上，createDirectory + 冲突重试。
-tests: 抽 helper 单测冲突重试。
+evidence: |
+  runId = UTC 毫秒时间戳 + HexFormat.of().toHexDigits((short) nextInt())（4 位）；Files.createDirectories(runDir) 不检查已存在。
+impact: |
+  同毫秒同随机数时两次运行互相覆盖 trace/summary。
+fix: |
+  随机段扩到 8 位以上，createDirectory + 冲突重试。
+tests: |
+  抽 helper 单测冲突重试。
 ```
 
 ## ENG-RT-17 — 被杀/超时运行无 summary、无 killed 标记
@@ -386,10 +435,14 @@ files:
     lines: "167-175"
   - path: cli/src/main/java/cctrun/cli/McpServer.java
     lines: "261-263"
-evidence: Runner 只在 loop 正常结束后写 summary.json/run_end，运行前不写 state；MCP wall 超时直接 destroyForcibly，只回一句 did not finish，不在 run 目录留标记。
-impact: 被杀 run 目录只有半截 trace，agent 无法判断是取消、崩溃还是未结束。
-fix: 启动时写 state:running 小文件、结束时更新；MCP 杀进程后补 killed:true + 原因。
-tests: none
+evidence: |
+  Runner 只在 loop 正常结束后写 summary.json/run_end，运行前不写 state；MCP wall 超时直接 destroyForcibly，只回一句 did not finish，不在 run 目录留标记。
+impact: |
+  被杀 run 目录只有半截 trace，agent 无法判断是取消、崩溃还是未结束。
+fix: |
+  启动时写 state:running 小文件、结束时更新；MCP 杀进程后补 killed:true + 原因。
+tests: |
+  none
 ```
 
 ## ENG-FX-01 — 默认值在 validate/build 两阶段重复、靠异常字符串耦合
@@ -409,9 +462,12 @@ evidence: |
   27 在 169/306/364；100_000 在 188/298/374；64 只在 365 的 slotLimit（421/422 的 64 是物品 maxCount 语义）。
   build 阶段抛 IllegalStateException("validated earlier")（410/441）会丢 JSON 路径。
   FixtureTest.java:52-53 注释记录过 slot 越界回归（曾导致 Runner.apply 运行期 AIOOBE、无 summary）。
-impact: 改默认值/校验规则时易只改一处，两阶段不一致导致运行期异常或语义漂移。
-fix: 抽 DEFAULT_INVENTORY_SIZE / DEFAULT_ENERGY_CAPACITY 常量两阶段共用；build 阶段异常补 JSON 路径。
-tests: FixtureTest.timelineItemSlotMustFitTheInventory 已覆盖一条回归。
+impact: |
+  改默认值/校验规则时易只改一处，两阶段不一致导致运行期异常或语义漂移。
+fix: |
+  抽 DEFAULT_INVENTORY_SIZE / DEFAULT_ENERGY_CAPACITY 常量两阶段共用；build 阶段异常补 JSON 路径。
+tests: |
+  FixtureTest.timelineItemSlotMustFitTheInventory 已覆盖一条回归。
 ```
 
 ## ENG-FX-02 — timeline args 深嵌套可致 StackOverflowError（无 summary）
@@ -439,9 +495,12 @@ evidence: |
   Runner.loop 只 catch RuntimeException，Main 不 catch StackOverflowError。
   动态实测（evidence/dynamic/event_deep_*.json）：args 嵌套 1000 层 status=error；20000/100000/300000 层
   全部 `Exception in thread "main" java.lang.StackOverflowError`，exit 1，无 summary.json。
-impact: 恶意/粗心 fixture 使 cct-run 子进程崩溃且丢失 summary，MCP 只看到子进程失败；fixture 内存无上限。
-fix: 在 Fixture.parse 对 args 做深度/节点数上限校验；给 toLua/noteWideText 加同一 MAX_DEPTH；Runner/Main 捕获 Error 并写 summary。
-tests: none
+impact: |
+  恶意/粗心 fixture 使 cct-run 子进程崩溃且丢失 summary，MCP 只看到子进程失败；fixture 内存无上限。
+fix: |
+  在 Fixture.parse 对 args 做深度/节点数上限校验；给 toLua/noteWideText 加同一 MAX_DEPTH；Runner/Main 捕获 Error 并写 summary。
+tests: |
+  none
 ```
 
 ## ENG-FX-03 — longValue 只查下限，Infinity/超范围静默饱和
@@ -462,9 +521,12 @@ evidence: |
   build 阶段改用 JsonPrimitive.getAsLong()（:374），LazilyParsedNumber → BigDecimal.longValue()。
   动态实测 {"capacity":1e999}：validate 通过，程序读到 getEnergyCapacity()=0（build 阶段取值为 0），
   即 validate 与 build 对同一值给出不同结果。
-impact: fixture 可声明 1e999/Long.MAX 而不报错，能量/容量模型失真且两阶段不一致。
-fix: longValue 增加 max 与 Double.isFinite 检查；build 阶段复用 validate 的解析结果而不是重读 JSON。
-tests: 无；加 1e999、Long.MAX+1、NaN 用例。
+impact: |
+  fixture 可声明 1e999/Long.MAX 而不报错，能量/容量模型失真且两阶段不一致。
+fix: |
+  longValue 增加 max 与 Double.isFinite 检查；build 阶段复用 validate 的解析结果而不是重读 JSON。
+tests: |
+  无；加 1e999、Long.MAX+1、NaN 用例。
 ```
 
 ## ENG-FX-04 — timeline 不排序、每 tick 全表扫描、超 timeout 动作静默丢弃
@@ -485,9 +547,12 @@ files:
 evidence: |
   timeline 存 ArrayList，不排序不查重无条数上限；Runner.loop 每 tick 遍历全表、tick 相等才执行，复杂度 O(ticks×actions)；
   tick>=maxTicks 直接 return timeout，超过 timeout 的动作无提示。
-impact: 大 timeline 拖慢 tick loop；过期动作不执行也无从得知，调试易误判。同一 tick 多条按 fixture 顺序执行（测试证实均执行）。
-fix: parse 期对 tick>timeout 的条目告警/notes；按 tick 排序或建索引；限制 timeline 条数。
-tests: PeripheralTest.energyFluidAndTimelineChanges 覆盖同 tick 多条。
+impact: |
+  大 timeline 拖慢 tick loop；过期动作不执行也无从得知，调试易误判。同一 tick 多条按 fixture 顺序执行（测试证实均执行）。
+fix: |
+  parse 期对 tick>timeout 的条目告警/notes；按 tick 排序或建索引；限制 timeline 条数。
+tests: |
+  PeripheralTest.energyFluidAndTimelineChanges 覆盖同 tick 多条。
 ```
 
 ## ENG-FX-05 — 外设 RuntimeException 细节写入对客户端可见的 trace
@@ -508,9 +573,12 @@ files:
 evidence: |
   catch RuntimeException → data.addProperty("error", "internal: " + e)，随 peripheral_return 进 trace；
   note 只保留前 10 条进 summary.notes，其余只计 droppedNotes，详细错误只在 trace.jsonl。
-impact: 泄漏限于异常类名+message（无堆栈）；大量失败时 summary.notes 不完整。
-fix: internal 错误改固定文案，详细异常只写 trace；文档说明 notes 配额与 trace.jsonl 是完整来源。
-tests: PeripheralTest.inventoryErrorsUseTheGamesMessages 覆盖 notes。
+impact: |
+  泄漏限于异常类名+message（无堆栈）；大量失败时 summary.notes 不完整。
+fix: |
+  internal 错误改固定文案，详细异常只写 trace；文档说明 notes 配额与 trace.jsonl 是完整来源。
+tests: |
+  PeripheralTest.inventoryErrorsUseTheGamesMessages 覆盖 notes。
 ```
 
 ## ENG-FX-06 — trace 数值类型有界化未文档化
@@ -529,9 +597,12 @@ files:
 evidence: |
   整数 |d|<1e15 转 long；更大整数转 double 丢精度；NaN/±Inf 转字符串；类 javadoc 仅 "bounded JSON for the trace"，
   未记录强转/类型变化。属有界化取舍。
-impact: trace 消费方按 JSON 类型判断时可能误读；不影响运行结果。
-fix: 在 JsonValues javadoc 与 handoff TRACE_FORMAT 记录规则。
-tests: none
+impact: |
+  trace 消费方按 JSON 类型判断时可能误读；不影响运行结果。
+fix: |
+  在 JsonValues javadoc 与 handoff TRACE_FORMAT 记录规则。
+tests: |
+  none
 ```
 
 ## ENG-FX-07 — ItemStack 详情用 HashMap，trace 键序非插入序
@@ -547,10 +618,14 @@ origin: [REVIEW-F9]
 files:
   - path: engine/src/main/java/cctrun/engine/peripheral/ItemStack.java
     lines: "42-48, 51-61"
-evidence: basicDetail 用 HashMap，fullDetail 复用后追加；HashMap 迭代序由字符串 hash 决定，对固定键集确定但非插入/排序；测试不断言键序。
-impact: trace 可读性与跨版本可比性略差，无功能影响。
-fix: 改用 LinkedHashMap 固定字段顺序。
-tests: PeripheralTest 仅断言字段值。
+evidence: |
+  basicDetail 用 HashMap，fullDetail 复用后追加；HashMap 迭代序由字符串 hash 决定，对固定键集确定但非插入/排序；测试不断言键序。
+impact: |
+  trace 可读性与跨版本可比性略差，无功能影响。
+fix: |
+  改用 LinkedHashMap 固定字段顺序。
+tests: |
+  PeripheralTest 仅断言字段值。
 ```
 
 ## ENG-FX-08 — getInt 对小数静默截断（与游戏一致，缺测试）
@@ -569,9 +644,12 @@ files:
 evidence: |
   IArguments.getInt 委托 getLong（Number 检查 + checkFiniteNum + Number.longValue）后 l2i；1.5→1 不报错；
   cct-run 直接复用 CC:T 默认实现。动态实测：getItemDetail(1.5) 返回槽 1 的 table，不报错；"1" 报 number expected。
-impact: 用户可能意外 1.5 静默取槽 1，但与游戏一致。
-fix: 保持现状；补小数参数测试并在 guide/handoff 说明截断行为。
-tests: 无小数参数用例。
+impact: |
+  用户可能意外 1.5 静默取槽 1，但与游戏一致。
+fix: |
+  保持现状；补小数参数测试并在 guide/handoff 说明截断行为。
+tests: |
+  无小数参数用例。
 ```
 
 ## ENG-FX-09 — ItemStack.count 线程约束未文档化（当前无竞争）
@@ -595,8 +673,11 @@ evidence: |
   count 非 volatile；move 在 Inventory 锁内改、getItemDetail 在锁外读；但 InventoryPeripheral 全部 method(true) 经
   executeMainThreadTask 由 mainThread.tick() 在 Runner.loop 同一线程执行，apply 也在该线程，
   javap 证实 CC:T 1.120.2 MainThread.tick() 在调用线程内执行任务 => 当前无数据竞争。
-impact: 现状安全；若将来新增非 main-thread 方法或改线程模型即成真竞争，且无注释提醒。
-fix: 在 Inventory/ItemStack 注明所有访问必须在主线程，或统一持锁/volatile。
-tests: none
+impact: |
+  现状安全；若将来新增非 main-thread 方法或改线程模型即成真竞争，且无注释提醒。
+fix: |
+  在 Inventory/ItemStack 注明所有访问必须在主线程，或统一持锁/volatile。
+tests: |
+  none
 ```
 
