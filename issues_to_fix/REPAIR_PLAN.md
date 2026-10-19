@@ -374,3 +374,5 @@ A1/A2/A3/T1/T6 先处理输入、可信结果、配额、取消和运行目录�
 完整命令、各 issue 对应测试/实现与提交、机器结果、真实 Linux Forge/NeoForge 开发服务器证据见 [results-1019fix](evidence/dynamic/results-1019fix/README.md)。模块 issue 只在这些门禁完成后追加真实 `fixed_in` / `fixed_at`，保留原证据。此前部分 issue 的纯文本 YAML 含未加引号的反引号/冒号，本轮只将四个字符串字段规范为仓库规定的块字符串，95 个原条目的含义和 ID 保留。
 
 本轮不发布、不推 tag、不合并、不改变 D 类策略。CLI-01 的 URL 范围仍待既有互联决策；默认 EOF drain 保留。Windows/macOS 与真实玩家客户端、生产部署及正式 tag 发布仍未在本轮演练，不能把 Linux 测试写成跨平台实测。
+
+执行补验完成：冷缓存校验与已有 CodeQL Default setup 的兼容问题已修复，实际 GitHub 构建/安全工作流及下载产物已核对。提交身份按维护者指定信息逐条核验；最新证据见 results-1019fix 的 identity / ci 文件，详见 handoff D70、V44–V46。

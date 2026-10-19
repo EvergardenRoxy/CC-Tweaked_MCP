@@ -51,10 +51,10 @@
 | MOD-22 | T4 | `4faa031` | registry 消失统一报告 unavailable/unloaded，避免误称电脑已破坏；reload 不自动恢复 AI 控制。两版真实 forceload 卸载/重载与 detach reason 验证通过。 |
 | MOD-23 | T2 | `4faa031` | 外设调用 id 来自 session 级原子计数，跨 VM reboot 保持唯一；两版真实两次 reboot 后 trace call ids 去重检查通过。 |
 | MOD-24 | A4 | `4faa031` | PeripheralNames 对不同目标重名报歧义，对语义相等的同物理外设 wrapper 保留合法别名。纯单测与两电脑共享 wired modem 的实机 chest 查询通过。 |
-| BLD-01 | T5 | `e5f721e` | CI 解压并冒烟同次测试生成的 CLI zip，接 wrapper validation/dependency review/CodeQL/Dependabot，badge 指 main。本地全构建、zip smoke、actionlint 通过；GitHub 实际运行另记。 |
+| BLD-01 | T5 | `6999b2b` | CI 解压并冒烟同次测试生成的 CLI zip，接 wrapper validation/dependency review/CodeQL/Dependabot，badge 指 main。本地全构建、zip smoke、actionlint 通过；GitHub 实际运行另记。 实际冷缓存 CI 与 SARIF 产物已核对（ci-results-identity.json）。 |
 | BLD-02 | A5 | `0968269` | Gradle 从唯一 Versions.TOOL 读取版本，test 比较运行/构建版本，release 在下载资产前验证 tag。匹配 v0.2.3 通过，v0.2.4 拒绝；未推 tag。 |
 | BLD-03 | T5 | `0968269` | release 下载同 run 已测 zip/jar，先核对已有同名资产 hash，再上传缺失文件；不重新构建或 clobber。发布 helper 幂等/不匹配单测与 prepare-only 通过，未正式发布。 |
-| BLD-04 | T5 | `0968269` | 新增 dependency-review、CodeQL 和 Dependabot，wrapper/actions/依赖校验均固定；真实全模块 build/开发服务器 strict 校验及 actionlint 通过。元数据不是安全审计。 |
+| BLD-04 | T5 | `6999b2b` | 新增 dependency-review、CodeQL 和 Dependabot，wrapper/actions/依赖校验均固定；真实全模块 build/开发服务器 strict 校验及 actionlint 通过。元数据不是安全审计。 实际冷缓存 CI 与 SARIF 产物已核对（ci-results-identity.json）。 |
 | BLD-05 | A5 | `4faa031` | 两份 mod 脚本的 gson/junit/CC:T 引用 catalog；仅测试 scope 对齐，不声称改变游戏实际 Gson。两版完整 build/test 与真实服务器通过。 |
 | BLD-07 | A5 | `0968269` | text=auto，脚本/Java/Lua/JSON/TOML/mcmeta 明确 LF，bat 保留 CRLF。验证 zip shell LF/权限和两版 pack.mcmeta LF；不声称 jar 已完全可复现。 |
 | BLD-08 | A5 | `0968269` | sh/PS1 smoke 默认报告写临时目录并可显式指定，加入忽略规则；最终 zip smoke 使用专门证据路径，普通运行不污染仓库根。 |

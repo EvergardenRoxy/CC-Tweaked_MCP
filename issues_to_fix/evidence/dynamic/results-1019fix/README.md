@@ -65,3 +65,8 @@ RELEASE_TAG=v0.2.3 ./gradlew verifyReleaseVersion
 严格校验补验命令：`./gradlew build :mod-forge:build :mod-neoforge:build assembleMods --dependency-verification strict --refresh-dependencies`，本地成功；测试任务可复用既有结果，报告保留原时间。GitHub 最新实际执行状态另记。
 
 GitHub 实测还确认已有 CodeQL Default setup 会拒绝 Advanced 配置重复提交 SARIF；扫描查询本身成功。补充工作流保留手动构建/分析，改为 `upload: never`、不上传数据库，并要求保存 `codeql-sarif` 构建产物；不关闭 Default setup，不忽略分析失败。
+
+
+当前交付以 `verification-identity.json`、`local-checks-identity.json`、`smoke-linux-identity.txt` 和 `SHA256SUMS-identity` 为本地证据；GitHub 实际输出见 `verification-ci.json`、`smoke-ci.json`、`codeql-summary-ci.json` 和 `ci-results-identity.json`。已下载并核对两个 artifact ZIP 的 GitHub SHA256，实际 XML 汇总四模块齐全、无失败/错误/跳过；包冒烟日志无失败或跳过；CodeQL SARIF 无结果、无错误通知。此结论只覆盖该分析配置，不替代实机与平台测试。
+
+当前远端历史的所有本轮提交已逐条验证 author 和 committer 为维护者指定身份。曾观察到全局配置在跨命令检查时恢复旧值，因此仓库级身份固定，并在提交命令中显式设置四个 author/committer 字段，推送前再次验证。旧 PR 保持关闭，本轮用 workflow_dispatch 验证当前分支；PR-only dependency review 与 tag-only release 按设计跳过，没有重开旧 PR、合并或发版。

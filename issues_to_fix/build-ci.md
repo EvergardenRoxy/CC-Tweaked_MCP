@@ -35,11 +35,12 @@ fix: |
   3) 加 CodeQL/dependabot；4) badge 切回 main。
 tests: |
   none
-fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
+fixed_in: 6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8
 fixed_at: 2026-10-19
 resolution: |
   CI 解压并冒烟同次测试生成的 CLI zip，接 wrapper validation/dependency review/CodeQL/Dependabot，badge 指 main。本地全构建、zip smoke、actionlint 通过；GitHub 实际运行另记。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  冷缓存补验：八项 BOM metadata 校验已交叉核对；GitHub 构建、双 mod、包冒烟、汇总与 CodeQL SARIF 实跑成功，证据见 ci-results-identity.json 和 verification-ci.json。
 ```
 
 ## BLD-02 — 版本号双源，release 不校验 tag
@@ -136,11 +137,12 @@ fix: |
   补 dependabot、wrapper-validation-action、dependency-review-action；生成 Gradle verification-metadata；wrapper 加 distributionSha256Sum。
 tests: |
   none
-fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
+fixed_in: 6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8
 fixed_at: 2026-10-19
 resolution: |
   新增 dependency-review、CodeQL 和 Dependabot，wrapper/actions/依赖校验均固定；真实全模块 build/开发服务器 strict 校验及 actionlint 通过。元数据不是安全审计。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  冷缓存补验：八项 BOM metadata 校验已交叉核对；GitHub 构建、双 mod、包冒烟、汇总与 CodeQL SARIF 实跑成功，证据见 ci-results-identity.json 和 verification-ci.json。
 ```
 
 ## BLD-05 — mod 构建脚本绕过 version catalog 手写 gson 2.10.1

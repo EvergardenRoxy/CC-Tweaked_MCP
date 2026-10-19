@@ -1,0 +1,64 @@
+{
+  "verified_at": "2026-10-19T07:41:51.906447+00:00",
+  "source_commit": "6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8",
+  "runs": {
+    "build": {
+      "run_id": 39216813473,
+      "url": "https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/runs/39216813473",
+      "conclusion": "success",
+      "head_sha": "6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8",
+      "jobs": [
+        {
+          "id": 117942491439,
+          "name": "mod (forge)",
+          "conclusion": "success"
+        },
+        {
+          "id": 117942491770,
+          "name": "mod (neoforge)",
+          "conclusion": "success"
+        },
+        {
+          "id": 117942491881,
+          "name": "tests",
+          "conclusion": "success"
+        },
+        {
+          "id": 117943720752,
+          "name": "verification",
+          "conclusion": "success"
+        },
+        {
+          "id": 117943771018,
+          "name": "release",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    "security": {
+      "run_id": 39216813630,
+      "url": "https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/runs/39216813630",
+      "conclusion": "success",
+      "head_sha": "6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8",
+      "jobs": [
+        {
+          "id": 117942492750,
+          "name": "codeql",
+          "conclusion": "success"
+        },
+        {
+          "id": 117942494188,
+          "name": "dependencies",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  },
+  "artifacts": {
+    "verification_id": 12170380850,
+    "verification_zip_sha256": "42eb0575141131379dba1efbf823d16d61c585327732c765f84e2490caf0075c",
+    "codeql_sarif_id": 12169923521,
+    "codeql_zip_sha256": "447de3a24ede10ad2fd0c2e362b5a6f431f410dadf061c38b79fc4e0b52979e3"
+  },
+  "note": "Both workflows were manually dispatched on 1019fix; the closed old PR was not reopened. PR-only dependency review and tag-only release were intentionally skipped. Artifact ZIP digests, four-module JUnit verification and actual smoke log were checked; CodeQL SARIF has zero results and zero error notifications."
+}

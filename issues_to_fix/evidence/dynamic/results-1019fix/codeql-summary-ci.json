@@ -1,0 +1,15 @@
+{
+  "source_commit": "6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8",
+  "artifact_sha256": "447de3a24ede10ad2fd0c2e362b5a6f431f410dadf061c38b79fc4e0b52979e3",
+  "artifact_id": 12169923521,
+  "reports": [
+    {
+      "file": "java.sarif",
+      "tool": "CodeQL",
+      "results": 0,
+      "rule_counts": {},
+      "error_notifications": 0
+    }
+  ],
+  "note": "Supplemental manual Java/Kotlin analysis exported as an artifact; existing GitHub Default setup remains responsible for Code Scanning. Query completion does not replace live-world or cross-platform testing."
+}
