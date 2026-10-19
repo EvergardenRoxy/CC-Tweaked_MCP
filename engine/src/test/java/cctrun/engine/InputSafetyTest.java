@@ -12,6 +12,36 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class InputSafetyTest {
     @TempDir Path dir;
+    @Test void completionRequiresTheTokenAndCannotReplaceAnAcceptedResult() throws Exception {
+        try (var trace = new Trace(dir.resolve("completion.jsonl"), new Clock())) {
+            var api = new HarnessApi(trace, TracingTerminal.create(10, 3, true, "term", trace), "expected");
+            assertThrows(dan200.computercraft.api.lua.LuaException.class,
+                () -> api.done(new dan200.computercraft.api.lua.ObjectArguments("wrong", true)));
+            assertFalse(api.finished);
+            api.done(new dan200.computercraft.api.lua.ObjectArguments("expected", true));
+            assertThrows(dan200.computercraft.api.lua.LuaException.class,
+                () -> api.done(new dan200.computercraft.api.lua.ObjectArguments("expected", false, "runtime", "replacement")));
+            assertTrue(api.ok);
+            assertTrue(api.finished);
+        }
+    }
+    @Test void buildAndRuntimeReportOneVersion() {
+        assertEquals(Versions.TOOL, System.getProperty("cctrun.build.version"));
+    }
+    @Test void interruptedRunWritesItsCauseAndRestoresTheInterruptFlag() throws Exception {
+        var restored=new java.util.concurrent.atomic.AtomicBoolean();
+        var future=new java.util.concurrent.FutureTask<RunResult>(()->{
+            Thread.currentThread().interrupt();
+            var result=RunHelper.run(dir,"while true do sleep(1) end",null,10);
+            restored.set(Thread.currentThread().isInterrupted());return result;
+        });
+        new Thread(future).start();
+        var result=future.get(10,java.util.concurrent.TimeUnit.SECONDS);
+        assertEquals("timeout",result.status());
+        assertEquals("interrupted",result.summary().get("termination_reason").getAsString());
+        assertTrue(Files.exists(result.runDir().resolve("summary.json")));
+        assertTrue(restored.get());
+    }
 
     @Test void deepValuesAreRejectedBeforeRecursiveConversion() {
         String value = "[".repeat(20_000) + "0" + "]".repeat(20_000);

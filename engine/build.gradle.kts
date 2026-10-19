@@ -17,6 +17,7 @@ dependencies {
 }
 
 tasks.test {
+    systemProperty("cctrun.build.version", project.version.toString())
     useJUnitPlatform()
     // Several tests wait for real game time (timeouts, "Too long without yielding").
     maxParallelForks = 2

@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Lua API {@code __cctrun}, used only by harness.lua (which removes it from {@code _G} before the
- * program starts). {@code done(ok, phase, message, traceback)} records the outcome and captures the
+ * program starts). {@code done(token, ok, phase, message, traceback)} records the outcome once and captures the
  * screen; shutting the computer down afterwards clears the terminal.
  */
 public final class HarnessApi implements ILuaAPI {
