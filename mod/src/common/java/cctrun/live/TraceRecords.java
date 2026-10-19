@@ -15,6 +15,10 @@ final class TraceRecords {
         }
         var kind = record.get("kind");
         if (kind == null || !kind.isJsonPrimitive() || !kind.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("invalid kind");
+        if (record.has("source")) {
+            var source = record.get("source");
+            if (!source.isJsonPrimitive() || !source.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("invalid source");
+        }
         if ("screen".equals(kind.getAsString())) {
             if (record.has("size")) {
                 var size=record.getAsJsonArray("size");
