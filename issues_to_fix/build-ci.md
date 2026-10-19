@@ -1,7 +1,7 @@
 # build / CI issues
 
 基线：`bf68ac4`（项目版本 0.2.3；`.github/workflows/build.yml` 为 110 行单 workflow）。
-字段定义见 `README.md`；只收录核对后确实存在且未修复的问题。
+字段定义见 `README.md`；保留原始核对条目，当前修复状态以 status/fixed_in 字段为准。
 
 ---
 
@@ -11,7 +11,7 @@
 id: BLD-01
 title: "CI 三个 job 只构建与单测；smoke-test.sh/ps1 完全未接入；无 CodeQL/dependency-review/wrapper-validation/dependabot"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-H3]
@@ -35,6 +35,11 @@ fix: |
   3) 加 CodeQL/dependabot；4) badge 切回 main。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  CI 解压并冒烟同次测试生成的 CLI zip，接 wrapper validation/dependency review/CodeQL/Dependabot，badge 指 main。本地全构建、zip smoke、actionlint 通过；GitHub 实际运行另记。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-02 — 版本号双源，release 不校验 tag
@@ -43,7 +48,7 @@ tests: |
 id: BLD-02
 title: "打包版本在 build.gradle.kts:5，运行时自报在 Versions.java:8；release job 不校验 tag↔version"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-H4]
@@ -72,6 +77,11 @@ fix: |
   tag == Gradle version == Versions.TOOL，不等则失败。
 tests: |
   RunnerTest.java:35 只锁 Versions.java 字面量。
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  Gradle 从唯一 Versions.TOOL 读取版本，test 比较运行/构建版本，release 在下载资产前验证 tag。匹配 v0.2.3 通过，v0.2.4 拒绝；未推 tag。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-03 — release job 重新检出重建
@@ -80,7 +90,7 @@ tests: |
 id: BLD-03
 title: "release job 重新 checkout 重建全部资产，不下载 tests/mod job 的 artifact；gh release 不幂等"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-B1]
@@ -96,6 +106,11 @@ fix: |
   release 下载 mod artifact 复用；创建前检查 release 是否存在或改用 gh release upload --clobber。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  release 下载同 run 已测 zip/jar，先核对已有同名资产 hash，再上传缺失文件；不重新构建或 clobber。发布 helper 幂等/不匹配单测与 prepare-only 通过，未正式发布。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-04 — 无安全扫描/依赖审计/wrapper 校验
@@ -104,7 +119,7 @@ tests: |
 id: BLD-04
 title: "无 CodeQL、dependency-review、wrapper-validation、dependabot、gradle/verification-metadata.xml"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-B2]
@@ -121,6 +136,11 @@ fix: |
   补 dependabot、wrapper-validation-action、dependency-review-action；生成 Gradle verification-metadata；wrapper 加 distributionSha256Sum。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  新增 dependency-review、CodeQL 和 Dependabot，wrapper/actions/依赖校验均固定；真实全模块 build/开发服务器 strict 校验及 actionlint 通过。元数据不是安全审计。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-05 — mod 构建脚本绕过 version catalog 手写 gson 2.10.1
@@ -129,7 +149,7 @@ tests: |
 id: BLD-05
 title: "两份 mod 构建脚本 testImplementation gson 2.10.1，catalog/THIRD-PARTY-NOTICES 为 2.11.0"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-B3]
@@ -150,6 +170,11 @@ fix: |
   两份 mod 脚本改用 libs.versions.toml 的 gson/junit 别名（或至少加对齐检查）。
 tests: |
   test scope 不进发布物（均 testImplementation），已静态确认。
+fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_at: 2026-10-19
+resolution: |
+  两份 mod 脚本的 gson/junit/CC:T 引用 catalog；仅测试 scope 对齐，不声称改变游戏实际 Gson。两版完整 build/test 与真实服务器通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-06 — 两份 mod 构建脚本约八成逐行重复
@@ -183,7 +208,7 @@ tests: |
 id: BLD-07
 title: ".gitattributes 仅 2 行；无 * text=auto；smoke-test.sh 不受 eol=lf 保护且随发布包出厂"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-B4, REVIEW-NEW-5]
@@ -203,6 +228,11 @@ fix: |
   加 * text=auto、*.sh text eol=lf、*.toml text eol=lf、*.mcmeta -text；processResources 统一行尾。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  text=auto，脚本/Java/Lua/JSON/TOML/mcmeta 明确 LF，bat 保留 CRLF。验证 zip shell LF/权限和两版 pack.mcmeta LF；不声称 jar 已完全可复现。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-08 — smoke 报告落在仓库根目录，.gitignore 未覆盖
@@ -211,7 +241,7 @@ tests: |
 id: BLD-08
 title: "smoke-test.sh/ps1 默认把报告写到当前目录，.gitignore 无对应条目"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-#8]
@@ -230,6 +260,11 @@ fix: |
   报告默认落 --out 或临时目录，并把 cct-run-smoke-report.* 加进 .gitignore。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  sh/PS1 smoke 默认报告写临时目录并可显式指定，加入忽略规则；最终 zip smoke 使用专门证据路径，普通运行不污染仓库根。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-09 — push/PR 触发器残留已合并分支
@@ -238,7 +273,7 @@ tests: |
 id: BLD-09
 title: "push 触发列表含 1018/multi-version-build/neoforge-1.21.1（均已合并）；pull_request 无 branches 过滤会双跑"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: build-ci
 origin: [REVIEW-#9, REVIEW-L9, REVIEW-NEW-4]
@@ -253,6 +288,11 @@ fix: |
   只保留 main；pull_request 加 branches: [main]。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  push 仅 main/v*，PR 面向 main，保留手动触发，消除旧分支 push/PR 重复，badge 回 main。actionlint/配置核对通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-10 — wrapper 无 SHA256、actions 用可变主版本 tag
@@ -261,7 +301,7 @@ tests: |
 id: BLD-10
 title: "gradle-wrapper.properties 无 distributionSha256Sum；actions 全部用主版本 tag 而非 commit SHA"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-#10, REVIEW-L10, REVIEW-NEW-6]
@@ -278,6 +318,11 @@ fix: |
   加 distributionSha256Sum；actions 钉 commit SHA；启用 gradle wrapper-validation-action。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  wrapper 使用 Gradle 官方发行 SHA-256，actions 使用经 GitHub API 核实的提交 SHA，CI 做 wrapper validation。实际 strict 构建与 actionlint 通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-11 — 发布资产无签名/校验和，jar glob 宽松
@@ -286,7 +331,7 @@ tests: |
 id: BLD-11
 title: "release 无 SHA256/签名；assets 用 *.jar 通配收集；gh release create 不幂等"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-#11]
@@ -303,6 +348,11 @@ fix: |
   生成 SHA256SUMS 作为 release asset 并考虑签名；glob 改显式文件名或排除 -sources/-javadoc；创建 release 幂等处理。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  精确三份版本文件名，SHA256SUMS 覆盖产物/verification；已有资产先校验，不同字节拒绝覆盖。prepare-only 清单逐项复核、helper 单测通过；密码签名和正式 tag 发布未执行。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-12 — THIRD-PARTY-NOTICES 手工维护无 CI 绑定
@@ -361,7 +411,7 @@ fix: |
 id: BLD-14
 title: "v0.2.3 tag 之后有 9 个未发版提交，版本号仍 0.2.3；推 v0.2.4 会发布名为 0.2.3 的资产"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [REVIEW-NEW-3]
@@ -380,6 +430,11 @@ fix: |
   release 首步比较 tag 与构建中的 version，不等则失败（与 BLD-02 同修）。
 tests: |
   none
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  版本单源+tag gate 消除新 tag 携带旧版本资产的路径，未擅定新版本号或重推历史 tag。匹配/不匹配门禁验证通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## BLD-15 — mod 构建缺 toolchain、cobalt compileOnly 未使用
@@ -388,7 +443,7 @@ tests: |
 id: BLD-15
 title: "mod 构建只有 options.release 无 java.toolchain；forge 仍有未使用的 compileOnly cobalt"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: build-ci
 origin: [LEGACY-L-build]
@@ -405,4 +460,9 @@ fix: |
   显式声明 java.toolchain；删除 cobalt compileOnly。
 tests: |
   CI 构建可覆盖。
+fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_at: 2026-10-19
+resolution: |
+  两版显式 JDK 21 构建工具链，Forge release17、NeoForge release21，移除未用 mod cobalt compileOnly；双版完整构建/开发服务器及 class major 检查通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```

@@ -1,6 +1,6 @@
 # docs / project issues
 
-基线：`bf68ac4`（v0.2.3）。字段定义见 `README.md`；只收录核对后确实存在且未修复的问题。
+基线：`bf68ac4`（v0.2.3）。字段定义见 `README.md`；保留原始核对条目，当前修复状态以 status/fixed_in 字段为准。
 本文件同时覆盖审查报告第七节（文档 5 项）与第八节（项目管理）中应修的部分。
 
 ---
@@ -11,7 +11,7 @@
 id: DOC-01
 title: "test-results.md 54/54、README 81/81、handoff 41/41 三处不一致；test-results.md 被打进发布包"
 severity: medium
-status: open
+status: fixed
 confidence: confirmed
 module: docs
 origin: [REVIEW-DOC1, REVIEW-DOC4, REVIEW-NEW-1, REVIEW-NEW-2]
@@ -36,6 +36,11 @@ fix: |
   发布前更新 test-results.md，或从 distZip 清单移除该文件直到可自动生成；更新 handoff:15 status 或指向最新 VERIFICATION。
 tests: |
   静态 @Test 计数 42+30+9=81 已核实。
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  scripts/test_summary.py 从实际四模块 XML 生成机器报告，README/handoff 指向该源，test-results 明确为历史，zip 携带 validation/verification.json。包内报告与源报告比对通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## DOC-02 — 内部过程记录 handoff.md 被对外文档当作 LIMITATIONS 出处
@@ -44,7 +49,7 @@ tests: |
 id: DOC-02
 title: "127KB 的 handoff.md 放仓库根目录，自述 audience 是 machine reviewer，却被 README 引用为面向用户的 LIMITATIONS 出处"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: docs
 origin: [REVIEW-DOC2]
@@ -63,6 +68,11 @@ fix: |
   抽 docs/limitations.md 作为用户向单一出处；handoff 保留机器记录并引用它。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  docs/limitations.md 作为用户限制单源，README/building 指向它；handoff 保留历史与差异账本并引用当前用户文档。zip 中包含新文件。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## DOC-03 — docs 受众混杂（内部实测记录与用户文档同级）
@@ -101,7 +111,7 @@ tests: |
 id: DOC-04
 title: "macOS 分支从未测试：README 测试表已标注，但安装节直接给 macOS 命令未提示；仓库无 bin/（由 application 插件生成）"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: docs
 origin: [REVIEW-DOC5]
@@ -120,6 +130,11 @@ fix: |
   安装节 macOS 命令旁显式标注未测试，并把 macOS 列入已知缺口。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  README 安装命令与 docs/install 的 macOS 命令旁就地标注尚未实测，limitations/测试说明保持相同边界。静态文档/包内容核对通过。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## DOC-05 — 三处测试记录手工同步（机制）
@@ -128,7 +143,7 @@ tests: |
 id: DOC-05
 title: "test-results.md / README 测试表 / handoff VERIFICATION 三处手工同步同一事实"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: docs
 origin: [REVIEW-DOC4]
@@ -147,6 +162,11 @@ fix: |
   由测试脚本生成一份机器可读结果（如 build/test-results.json），其余文档引用该结果。
 tests: |
   none
+fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_at: 2026-10-19
+resolution: |
+  以实际 JUnit XML -> verification.json 为唯一当前计数源，记录 commit/dirty/report time/失败与跳过，缺模块明确 unverified；CI 汇总，其他文档不再手工同步数字。
+  验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
 ```
 
 ## PROJ-01 — 仓库 description/topics/homepage 全空
