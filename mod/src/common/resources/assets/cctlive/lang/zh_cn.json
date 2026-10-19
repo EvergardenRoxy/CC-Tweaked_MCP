@@ -6,5 +6,6 @@
   "cctlive.revoked": "[cct-live] 已收回 AI 对 %s 号电脑的控制",
   "cctlive.list.none": "[cct-live] 当前没有被 AI 接管的电脑",
   "cctlive.list.entry": "[cct-live] %s 号电脑：AI 接管中，租约剩余 %s 秒",
-  "cctlive.detach.none": "[cct-live] %s 号电脑没有被 AI 接管"
+  "cctlive.detach.none": "[cct-live] %s 号电脑没有被 AI 接管",
+  "cctlive.unavailable": "[cct-live] %s 号电脑当前未加载或不可用，接管结束"
 }

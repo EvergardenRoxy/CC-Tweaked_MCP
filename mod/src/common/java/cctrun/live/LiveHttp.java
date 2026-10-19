@@ -65,6 +65,7 @@ final class LiveHttp {
     private final int port;
     private final byte[] token;
     private HttpServer server;
+    private final java.util.concurrent.ScheduledExecutorService readDeadlines = Executors.newSingleThreadScheduledExecutor(r -> { var t = new Thread(r, "cct-live-body-deadline"); t.setDaemon(true); return t; });
     private ExecutorService executor;
 
     LiveHttp(LiveSession session, int port, String token) {
@@ -96,6 +97,7 @@ final class LiveHttp {
     void stop() {
         if (server != null) server.stop(0);
         if (executor != null) executor.shutdownNow();
+        readDeadlines.shutdownNow();
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -162,11 +164,17 @@ final class LiveHttp {
             } else {
                 send(exchange, 404, error("unknown endpoint " + method + " " + path));
             }
+        } catch (HttpPolicy.ReadTimeout e) {
+            // The deadline closed this connection before any response; no computer task has been scheduled.
         } catch (BadRequest e) {
             send(exchange, e.status, error(e.getMessage()));
+        } catch (CcInternals.MissingCapability e) {
+            send(exchange, 503, error(e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            send(exchange, 400, error(e.getMessage()));
         } catch (Exception e) {
             CctLive.LOG.warn("cct-live: request failed", e);
-            send(exchange, 500, error("internal: " + e));
+            send(exchange, 500, error("internal error; see the cct-live server log"));
         } finally {
             exchange.close();
         }
@@ -250,7 +258,8 @@ final class LiveHttp {
         } catch (IllegalArgumentException e) {
             throw new BadRequest(400, e.getMessage());
         } catch (IOException e) {
-            throw new BadRequest(500, "snapshot " + op + " failed: " + e.getMessage());
+            CctLive.LOG.warn("Snapshot operation failed", e);
+            throw new BadRequest(500, "snapshot " + op + " failed; see the server log");
         }
     }
 
@@ -318,7 +327,7 @@ final class LiveHttp {
     /** Small enough to poll: what happened since seq {@code after}, and what the screen says now. */
     private JsonObject status(int id, Map<String, String> query) throws IOException {
         var source = query.getOrDefault("source", "term");
-        var after = intParam(query, "after", 0, 0, Integer.MAX_VALUE);
+        var after = longParam(query, "after", 0);
         var wanted = new HashSet<String>();
         if (query.containsKey("kinds")) for (var k : query.get("kinds").split(",")) if (!k.isBlank()) wanted.add(k.trim());
 
@@ -339,12 +348,13 @@ final class LiveHttp {
             o.add("monitors", strings(Terminals.monitors(computer).keySet().toArray(String[]::new)));
             o.addProperty("source", source);
             o.add("lines", Screens.compactLines(s.text()));
-            o.addProperty("screen_hash", Integer.toHexString(java.util.Arrays.hashCode(s.text()) * 31 + java.util.Arrays.hashCode(s.bg())));
+            o.addProperty("screen_hash", ScreenHash.of(s.width(), s.height(), s.text(), s.fg(), s.bg()));
             return o;
         });
         var trace = session.traceOf(id);
         if (trace != null) {
             out.addProperty("last_seq", trace.lastSeq());
+            out.add("trace_health", trace.health());
             // Records before first_seq were dropped to keep the trace within its size (trace.max_megabytes_per_computer).
             if (trace.rotations() > 0) out.addProperty("first_seq", trace.firstSeq());
             var counts = new JsonObject();
@@ -360,20 +370,11 @@ final class LiveHttp {
         return out;
     }
 
-    private static JsonObject recordAt(ComputerTrace trace, long seq) throws IOException {
-        var prefix = "{\"seq\":" + seq + ",";
-        try (var lines = trace.lines()) {
-            for (var it = lines.iterator(); it.hasNext(); ) {
-                var line = it.next();
-                if (line.startsWith(prefix)) return JsonParser.parseString(line).getAsJsonObject();
-            }
-        }
-        return null;
-    }
+    private static JsonObject recordAt(ComputerTrace trace, long seq) throws IOException { return trace.recordAt(seq); }
 
     /** The screen at a past tick, rebuilt from the computer's trace (only ticks while it was attached). */
     private JsonObject pastScreen(int id, Map<String, String> query) throws IOException {
-        var tick = intParam(query, "tick", 0, 0, Integer.MAX_VALUE);
+        var tick = longParam(query, "tick", 0);
         var trace = onServer(() -> {
             var computer = session.find(id);
             if (computer != null) {
@@ -427,7 +428,8 @@ final class LiveHttp {
         } catch (IllegalArgumentException e) {
             throw new BadRequest(400, e.getMessage());
         } catch (IOException e) {
-            throw new BadRequest(500, "cannot read the computer's files: " + e.getMessage());
+            CctLive.LOG.warn("Computer file read failed", e);
+            throw new BadRequest(500, "cannot read the computer's files; see the server log");
         }
     }
 
@@ -449,7 +451,8 @@ final class LiveHttp {
             } catch (IllegalArgumentException e) {
                 throw new BadRequest(400, e.getMessage());
             } catch (IOException e) {
-                throw new BadRequest(500, "cannot delete: " + e.getMessage());
+                CctLive.LOG.warn("Computer file delete failed", e);
+                throw new BadRequest(500, "cannot delete the file; see the server log");
             }
         }
         if (!body.has("path") || !body.has("text")) throw new BadRequest(400, "body needs \"path\" and \"text\"");
@@ -469,7 +472,8 @@ final class LiveHttp {
         } catch (IllegalArgumentException e) {
             throw new BadRequest(400, e.getMessage());
         } catch (IOException e) {
-            throw new BadRequest(500, "cannot write the file: " + e.getMessage());
+            CctLive.LOG.warn("Computer file write failed", e);
+            throw new BadRequest(500, "cannot write the file; see the server log");
         }
     }
 
@@ -564,7 +568,7 @@ final class LiveHttp {
         if (file == null) throw new BadRequest(409, "nothing recorded for computer " + id + " yet: POST /computers/" + id + "/attach starts recording");
         var kinds = new HashSet<String>();
         if (query.containsKey("kind")) for (var k : query.get("kind").split(",")) if (!k.isBlank()) kinds.add(k.trim());
-        var after = intParam(query, "after", 0, 0, Integer.MAX_VALUE);
+        var after = longParam(query, "after", 0);
         long fromTick = 0, toTick = Long.MAX_VALUE;
         if (query.containsKey("ticks")) {
             var range = query.get("ticks").trim();
@@ -599,7 +603,7 @@ final class LiveHttp {
                 if (line.isBlank()) continue;
                 JsonObject record;
                 try {
-                    record = JsonParser.parseString(line).getAsJsonObject();
+                    record = TraceRecords.parse(line);
                 } catch (RuntimeException e) {
                     skipped++; // partial line from a concurrent write or rotation: skip it, keep the rest
                     continue;
@@ -625,6 +629,7 @@ final class LiveHttp {
                 }
                 if (matched++ < offset) continue;
                 if (records.size() < limit) records.add(record);
+                else break; // one-record lookahead; next_offset is still exact, matched is a lower bound
             }
         }
         var out = new JsonObject();
@@ -633,6 +638,7 @@ final class LiveHttp {
         out.addProperty("attached", attachment != null);
         out.addProperty("tick", session.tickCount());
         out.addProperty("matched", matched);
+        if (!summary && matched > offset + records.size()) out.addProperty("matched_at_least", true);
         if (skipped > 0) out.addProperty("skipped", skipped);
         if (computerTrace.rotations() > 0) out.addProperty("first_seq", computerTrace.firstSeq());
         if (summary) {
@@ -641,8 +647,8 @@ final class LiveHttp {
                 var v = e.getValue();
                 var k = new JsonObject();
                 k.addProperty("count", v[0]);
-                k.add("seq", pair((int) v[1], (int) v[2]));
-                k.add("ticks", pair((int) v[3], (int) v[4]));
+                k.add("seq", pair(v[1], v[2]));
+                k.add("ticks", pair(v[3], v[4]));
                 kindsOut.add(e.getKey(), k);
             }
             out.add("kinds", kindsOut);
@@ -730,38 +736,26 @@ final class LiveHttp {
         return table;
     }
 
-    private boolean hostAllowed(HttpExchange exchange) {
-        var host = exchange.getRequestHeaders().getFirst("Host");
-        return host == null || host.equals("127.0.0.1:" + port) || host.equals("localhost:" + port) || host.equals("[::1]:" + port);
-    }
+    private boolean hostAllowed(HttpExchange exchange) { return HttpPolicy.hostAllowed(exchange.getRequestHeaders().getFirst("Host"), port()); }
+    private boolean authorised(HttpExchange exchange) { return HttpPolicy.authorised(exchange.getRequestHeaders().getFirst("Authorization"), token); }
 
-    private boolean authorised(HttpExchange exchange) {
-        var header = exchange.getRequestHeaders().getFirst("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) return false;
-        return MessageDigest.isEqual(token, header.substring(7).trim().getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static JsonObject body(HttpExchange exchange) throws IOException {
-        var declared = exchange.getRequestHeaders().getFirst("Content-Length");
-        if (declared != null) {
-            try {
-                if (Long.parseLong(declared) > ComputerFiles.MAX_READ) {
-                    throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes");
-                }
-            } catch (NumberFormatException ignored) {
-                // The length check below uses the bytes actually read.
-            }
-        }
-        var bytes = exchange.getRequestBody().readNBytes(ComputerFiles.MAX_READ + 1);
-        if (bytes.length > ComputerFiles.MAX_READ) throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes");
+    private JsonObject body(HttpExchange exchange) throws IOException {
+        final byte[] bytes;
+        try { bytes = HttpPolicy.read(exchange, ComputerFiles.MAX_READ, 5000, readDeadlines); }
+        catch (HttpPolicy.TooLarge e) { throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes"); }
         var text = new String(bytes, StandardCharsets.UTF_8);
         try {
             var parsed = JsonParser.parseString(text.isBlank() ? "{}" : text);
             if (!parsed.isJsonObject()) throw new BadRequest(400, "body must be a JSON object");
+            TraceRecords.checkDepth(parsed);
             return parsed.getAsJsonObject();
-        } catch (com.google.gson.JsonParseException e) {
-            throw new BadRequest(400, "body is not valid JSON: " + e.getMessage());
-        }
+        } catch (com.google.gson.JsonParseException e) { throw new BadRequest(400, "body is not valid JSON"); }
+    }
+
+    private static long longParam(Map<String, String> query, String key, long fallback) {
+        if (!query.containsKey(key)) return fallback;
+        try { long v = Long.parseLong(query.get(key)); if (v < 0) throw new NumberFormatException(); return v; }
+        catch (NumberFormatException e) { throw new BadRequest(400, key + " must be a nonnegative integer"); }
     }
 
     private static Map<String, String> query(HttpExchange exchange) {
@@ -787,7 +781,7 @@ final class LiveHttp {
         }
     }
 
-    private static JsonArray pair(int a, int b) {
+    private static JsonArray pair(long a, long b) {
         var out = new JsonArray();
         out.add(a);
         out.add(b);
