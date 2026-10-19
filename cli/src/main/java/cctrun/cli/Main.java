@@ -91,6 +91,10 @@ public final class Main {
         } catch (InputException e) {
             System.err.println("cct-run: " + e.getMessage());
             code = EX_DATAERR;
+        } catch (cctrun.engine.RunInputException e) {
+            cctrun.engine.RunState.failedCurrent("invalid_input");
+            System.err.println("cct-run: " + e.getMessage());
+            code = EX_DATAERR;
         } catch (java.nio.file.InvalidPathException e) {
             // Typically a non-ASCII path under a POSIX/C locale, where Java cannot encode file names.
             System.err.println("cct-run: path cannot be used with this system's file name encoding (sun.jnu.encoding="

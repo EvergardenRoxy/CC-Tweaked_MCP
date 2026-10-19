@@ -38,6 +38,8 @@ class LiveToolsTest {
     private volatile String statusJson = "{\"last_seq\":5,\"lines\":[\"hello\",\"Ready.\"],\"screen_hash\":\"ab\"";
     /** Milliseconds the fake endpoint takes to answer /status (0 = immediately). */
     private volatile long statusDelayMillis;
+    private volatile java.util.concurrent.CountDownLatch statusStarted;
+    private volatile int statusCode = 200;
 
     private Path game() throws Exception {
         fake = HttpServer.create(new InetSocketAddress(InetAddress.getByAddress(new byte[]{127, 0, 0, 1}), 0), 0);
@@ -51,6 +53,7 @@ class LiveToolsTest {
                 status = 401;
                 reply = "{\"error\":\"missing or wrong token\"}";
             } else if (uri.getPath().endsWith("/status")) {
+                if (statusStarted != null) statusStarted.countDown();
                 if (statusDelayMillis > 0) {
                     try {
                         Thread.sleep(statusDelayMillis);
@@ -58,7 +61,7 @@ class LiveToolsTest {
                         Thread.currentThread().interrupt();
                     }
                 }
-                status = 200;
+                status = statusCode;
                 var match = uri.getRawQuery() != null && uri.getRawQuery().contains("kinds=printed_error")
                     ? ",\"match\":{\"seq\":6,\"kind\":\"printed_error\",\"text\":\"boom\"}" : "";
                 reply = statusJson + match + "}";
@@ -102,23 +105,43 @@ class LiveToolsTest {
         assertTrue(text(answer).contains("timeout"));
         assertTrue(text(answer).contains("baseline_warning"));
     }
+    @Test void longSequenceArgumentsReachTheEndpointWithoutIntTruncation() throws Exception {
+        var game=game();var live=new LiveTools(game,dir);
+        live.call(LiveTools.STATUS,JsonParser.parseString("{\"computer\":0,\"after\":9223372036854775807}").getAsJsonObject());
+        assertTrue(requests.stream().anyMatch(r->r.contains("after=9223372036854775807")));
+    }
 
     @Test
     void cancellingLiveWaitInterruptsPollAndKeepsServerResponsive() throws Exception {
         var game = game();
+        statusStarted = new java.util.concurrent.CountDownLatch(1);
+        statusDelayMillis = 1000;
         var input = new java.io.PipedInputStream();
         var writer = new java.io.PipedOutputStream(input);
         var output = new ByteArrayOutputStream();
         var serving = new java.util.concurrent.FutureTask<Integer>(() -> new McpServer(input, output, dir.resolve("runs"), dir, game).serve());
         var thread = new Thread(serving);
         thread.start();
-        writer.write(("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"cct_live_wait\",\"arguments\":{\"computer\":0,\"text\":\"absent\",\"timeout\":60}}}\n"
-            + "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":1}}\n"
+        writer.write(("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"cct_live_wait\",\"arguments\":{\"computer\":0,\"text\":\"absent\",\"timeout\":60}}}\n").getBytes(StandardCharsets.UTF_8));
+        writer.flush();
+        assertTrue(statusStarted.await(5,java.util.concurrent.TimeUnit.SECONDS));
+        writer.write(("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":1}}\n"
             + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n").getBytes(StandardCharsets.UTF_8));
         writer.close();
         assertEquals(0, serving.get(10, java.util.concurrent.TimeUnit.SECONDS));
         assertTrue(output.toString(StandardCharsets.UTF_8).contains("\"id\":2"));
         assertFalse(output.toString(StandardCharsets.UTF_8).contains("\"id\":1"));
+        assertEquals(1,requests.size(),"the cancelled wait made no further HTTP calls");
+    }
+    @Test void endpointFailureAndMalformedDiscoveryAreClearAndRecoverable() throws Exception {
+        var game=game();var live=new LiveTools(game,dir);
+        statusCode=500;
+        var args=JsonParser.parseString("{\"computer\":0}").getAsJsonObject();
+        var error=org.junit.jupiter.api.Assertions.assertThrows(McpTools.ToolError.class,()->live.call(LiveTools.STATUS,args));
+        assertTrue(error.getMessage().contains("HTTP 500"));
+        statusCode=200;assertFalse(live.call(LiveTools.STATUS,args).get("isError").getAsBoolean());
+        Files.writeString(game.resolve("cct-live/endpoint.json"),"{\"url\":[]}");
+        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(McpTools.ToolError.class,()->live.call(LiveTools.STATUS,args)).getMessage().contains("cannot read"));
     }
 
     private Map<String, JsonObject> session(Path liveDir, String... calls) throws Exception {
