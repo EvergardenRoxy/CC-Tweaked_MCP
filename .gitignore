@@ -5,3 +5,6 @@ build/
 .idea/
 *.iml
 run/
+cct-run-smoke-report.*
+__pycache__/
+*.pyc

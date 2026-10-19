@@ -25,7 +25,7 @@
 param(
     [string]$CctRun = "",
     [string]$Examples = "",
-    [string]$Report = "cct-run-smoke-report.json", # note: PowerShell names are case-insensitive, so no $report below
+    [string]$Report = (Join-Path ([System.IO.Path]::GetTempPath()) ("cct-run-smoke-report-" + [Guid]::NewGuid().ToString("N") + ".json")),
     [switch]$NoJavaSearch
 )
 
