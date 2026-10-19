@@ -35,7 +35,7 @@ fix: |
   3) 加 CodeQL/dependabot；4) badge 切回 main。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   CI 解压并冒烟同次测试生成的 CLI zip，接 wrapper validation/dependency review/CodeQL/Dependabot，badge 指 main。本地全构建、zip smoke、actionlint 通过；GitHub 实际运行另记。
@@ -77,7 +77,7 @@ fix: |
   tag == Gradle version == Versions.TOOL，不等则失败。
 tests: |
   RunnerTest.java:35 只锁 Versions.java 字面量。
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   Gradle 从唯一 Versions.TOOL 读取版本，test 比较运行/构建版本，release 在下载资产前验证 tag。匹配 v0.2.3 通过，v0.2.4 拒绝；未推 tag。
@@ -106,7 +106,7 @@ fix: |
   release 下载 mod artifact 复用；创建前检查 release 是否存在或改用 gh release upload --clobber。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   release 下载同 run 已测 zip/jar，先核对已有同名资产 hash，再上传缺失文件；不重新构建或 clobber。发布 helper 幂等/不匹配单测与 prepare-only 通过，未正式发布。
@@ -136,7 +136,7 @@ fix: |
   补 dependabot、wrapper-validation-action、dependency-review-action；生成 Gradle verification-metadata；wrapper 加 distributionSha256Sum。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   新增 dependency-review、CodeQL 和 Dependabot，wrapper/actions/依赖校验均固定；真实全模块 build/开发服务器 strict 校验及 actionlint 通过。元数据不是安全审计。
@@ -170,7 +170,7 @@ fix: |
   两份 mod 脚本改用 libs.versions.toml 的 gson/junit 别名（或至少加对齐检查）。
 tests: |
   test scope 不进发布物（均 testImplementation），已静态确认。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   两份 mod 脚本的 gson/junit/CC:T 引用 catalog；仅测试 scope 对齐，不声称改变游戏实际 Gson。两版完整 build/test 与真实服务器通过。
@@ -228,7 +228,7 @@ fix: |
   加 * text=auto、*.sh text eol=lf、*.toml text eol=lf、*.mcmeta -text；processResources 统一行尾。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   text=auto，脚本/Java/Lua/JSON/TOML/mcmeta 明确 LF，bat 保留 CRLF。验证 zip shell LF/权限和两版 pack.mcmeta LF；不声称 jar 已完全可复现。
@@ -260,7 +260,7 @@ fix: |
   报告默认落 --out 或临时目录，并把 cct-run-smoke-report.* 加进 .gitignore。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   sh/PS1 smoke 默认报告写临时目录并可显式指定，加入忽略规则；最终 zip smoke 使用专门证据路径，普通运行不污染仓库根。
@@ -288,7 +288,7 @@ fix: |
   只保留 main；pull_request 加 branches: [main]。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   push 仅 main/v*，PR 面向 main，保留手动触发，消除旧分支 push/PR 重复，badge 回 main。actionlint/配置核对通过。
@@ -318,7 +318,7 @@ fix: |
   加 distributionSha256Sum；actions 钉 commit SHA；启用 gradle wrapper-validation-action。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   wrapper 使用 Gradle 官方发行 SHA-256，actions 使用经 GitHub API 核实的提交 SHA，CI 做 wrapper validation。实际 strict 构建与 actionlint 通过。
@@ -348,7 +348,7 @@ fix: |
   生成 SHA256SUMS 作为 release asset 并考虑签名；glob 改显式文件名或排除 -sources/-javadoc；创建 release 幂等处理。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   精确三份版本文件名，SHA256SUMS 覆盖产物/verification；已有资产先校验，不同字节拒绝覆盖。prepare-only 清单逐项复核、helper 单测通过；密码签名和正式 tag 发布未执行。
@@ -430,7 +430,7 @@ fix: |
   release 首步比较 tag 与构建中的 version，不等则失败（与 BLD-02 同修）。
 tests: |
   none
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   版本单源+tag gate 消除新 tag 携带旧版本资产的路径，未擅定新版本号或重推历史 tag。匹配/不匹配门禁验证通过。
@@ -460,7 +460,7 @@ fix: |
   显式声明 java.toolchain；删除 cobalt compileOnly。
 tests: |
   CI 构建可覆盖。
-fixed_in: 2d16c9a3a79afc960785ffaa636434362b6ee264
+fixed_in: 09682692e40c9b136874cf08d3646a11f2808fc1
 fixed_at: 2026-10-19
 resolution: |
   两版显式 JDK 21 构建工具链，Forge release17、NeoForge release21，移除未用 mod cobalt compileOnly；双版完整构建/开发服务器及 class major 检查通过。

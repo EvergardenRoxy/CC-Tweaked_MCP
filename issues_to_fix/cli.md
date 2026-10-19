@@ -54,7 +54,7 @@ fix: |
   serve() 外层 catch Throwable 并回 -32603 / 继续服务；可选限制行长度（如 16-64 MiB）。
 tests: |
   McpServerTest 已覆盖 not json/-32700、method 非字符串/-32600；补超长行用例。
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   ProtocolReader 按字节有界读行并排空超限行；深度/节点在递归使用前验证，致命 framing OOM 走独立 stderr/exit 4 边界。ProtocolReaderTest 和 McpServerTest 通过。
@@ -86,7 +86,7 @@ fix: |
   serve() 外层 catch Throwable；id 只允许 string/number/null（JSON-RPC 2.0 规范已限定）。
 tests: |
   补深嵌套 id 用例。
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   JSON-RPC id 限 string/number/null，拒绝深层对象/数组/布尔且不回显；McpServerTest 验证 20000 层 id 后同一服务仍能 ping。
@@ -117,7 +117,7 @@ fix: |
   Call 记录 Future/Thread，cancel 时 interrupt()；wait/collect 已有 InterruptedException 分支可复用。
 tests: |
   McpServerTest.cancelStopsARunningChild 只覆盖 cct_run。
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   Call 在提交前绑定 Future，取消时 interrupt live 调用并杀 child，处理取消/启动交错；LiveToolsTest 的在途 wait 取消及 McpServerTest 子进程/状态测试通过。默认 EOF drain 保留。
@@ -173,7 +173,7 @@ fix: |
   至少对无 id 的 tools/call 打一行 stderr；可选微调错误码。
 tests: |
   McpServerTest.handshakeAndToolList。
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   无 id 的 tools/call 保持忽略但输出 stderr 诊断；其他既有协议约定保持。握手/工具/通知回归及 zip mcp-stdio 冒烟通过。
@@ -270,7 +270,7 @@ fix: |
   ToolError 带类型/枚举，替代字符串匹配。
 tests: |
   LiveToolsTest.waitEndsWhenTheEndpointStopsAnswering。
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   ToolError.Kind 区分 TIMEOUT/CANCELLED/OTHER，wait 不再用错误文案子串判断。端点超时/500/取消回归通过。
@@ -327,7 +327,7 @@ fix: |
   补上述 5 类测试。
 tests: |
   4 个测试类共 30 用例。
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   新增真实 Java 8 launcher 子进程切换/69、深层 id、500/坏 discovery、在途取消和并发 run 测试。endpoint 文件解析覆盖补齐；CLI-01 的外部 URL 策略仍按 D 类延期。
@@ -356,7 +356,7 @@ fix: |
   mcp 模式单独处理 Error，不向 stdout 写摘要。
 tests: |
   none
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   Main 的 mcp OOM 路径仅 stderr 和 exit 4；McpServerTest 在受限堆子 JVM 验证协议 stdout 无 run summary。
@@ -384,7 +384,7 @@ fix: |
   try/catch RejectedExecutionException，移除条目并回 -32603。
 tests: |
   none
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   RejectedExecutionException 清理 active、取消任务并回 -32603；active 使用 putIfAbsent/remove(key,call) 避免请求交错误删。McpServerTest.rejectedSubmissionDoesNotLeaveActiveCalls 通过。
@@ -412,7 +412,7 @@ fix: |
   杀进程后读取 stderr 末尾若干行并入工具结果，再删临时文件。
 tests: |
   none
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   墙钟强杀后保留并返回 stderr 最后最多 8 KiB，过滤 inline 临时路径，再清理重定向文件。代码核对通过；未人为卡死 JVM 等满 120 秒宽限，验证边界在本轮 README 明示。
@@ -463,7 +463,7 @@ fix: |
   失败时保留旧基线，或在结果加 warning: baseline unavailable。
 tests: |
   none
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   动作基线采集失败用不可用 sentinel 替代旧值，wait 给 baseline_warning，不把旧文字当新匹配；unchanged=true 可显式接受。LiveToolsTest 对应回归通过。

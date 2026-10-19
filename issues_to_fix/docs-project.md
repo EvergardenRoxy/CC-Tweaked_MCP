@@ -36,7 +36,7 @@ fix: |
   发布前更新 test-results.md，或从 distZip 清单移除该文件直到可自动生成；更新 handoff:15 status 或指向最新 VERIFICATION。
 tests: |
   静态 @Test 计数 42+30+9=81 已核实。
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   scripts/test_summary.py 从实际四模块 XML 生成机器报告，README/handoff 指向该源，test-results 明确为历史，zip 携带 validation/verification.json。包内报告与源报告比对通过。
@@ -68,7 +68,7 @@ fix: |
   抽 docs/limitations.md 作为用户向单一出处；handoff 保留机器记录并引用它。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   docs/limitations.md 作为用户限制单源，README/building 指向它；handoff 保留历史与差异账本并引用当前用户文档。zip 中包含新文件。
@@ -130,7 +130,7 @@ fix: |
   安装节 macOS 命令旁显式标注未测试，并把 macOS 列入已知缺口。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   README 安装命令与 docs/install 的 macOS 命令旁就地标注尚未实测，limitations/测试说明保持相同边界。静态文档/包内容核对通过。
@@ -162,7 +162,7 @@ fix: |
   由测试脚本生成一份机器可读结果（如 build/test-results.json），其余文档引用该结果。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   以实际 JUnit XML -> verification.json 为唯一当前计数源，记录 commit/dirty/report time/失败与跳过，缺模块明确 unverified；CI 汇总，其他文档不再手工同步数字。

@@ -1,6 +1,6 @@
 {
   "verified_at": "2026-10-19T03:43:27.008215+00:00",
-  "source_commit": "b9b177999d6afd8efc5dcb0ad1090c5914efbd53",
+  "source_commit": "5b8c64018f91fe0f170ae9581ac2986557e830de",
   "checks": {
     "junit_modules_passed": true,
     "zip_docs_verification_script_permissions_ascii_lf": true,
@@ -23,5 +23,6 @@
     "Production deployment not run",
     "GitHub tag publication not run",
     "120-second wall-grace kill not forced"
-  ]
+  ],
+  "commit_reference_note": "Commit references were remapped after the maintainer-authorized identity correction. Original measurements and timestamps are retained; old checksums describe the original local-only packages."
 }

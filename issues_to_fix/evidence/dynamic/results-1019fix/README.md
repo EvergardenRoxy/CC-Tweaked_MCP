@@ -54,3 +54,12 @@ RELEASE_TAG=v0.2.3 ./gradlew verifyReleaseVersion
 
 
 最终本地完整验收：`verification-verified.json` 为实际 XML 汇总，`smoke-linux-verified.txt` 为最后打包 zip 的冒烟；`local-checks-verified.json` 包括包内文件/报告比对、真实 Java 17 运行、目标 class 版本、与最新游戏报告的源码 hash 比对、版本门禁和 prepare-only 校验和；`SHA256SUMS-verified` 只对应该轮本地产物。早一轮无 verified 后缀的文件保留各自 commit/time，不替代最新报告。构建/打包实际输出：`build-verified.txt` / `package-verified.txt`。
+
+
+## 提交身份与冷缓存 CI 补验
+
+按维护者指定身份核对本轮全部 author/committer；采用远端已修正的 11 条历史，避免覆盖同内容的并行身份修正。`fixed_in`、矩阵和旧报告中的 commit 引用已同步到该历史，不公开旧→新映射；原执行数、时间与游戏源码 hash 保留，报告注明引用修正。原 SHA256SUMS 对应原始本地包，后续重新打包应采用新一轮报告与清单，不能把旧包校验和用于新包。
+
+首次 GitHub 冷缓存构建暴露 BOM 的 POM/Gradle module 路径与本地暖缓存不同：Kotlin BOM 2.3.21 POM、JUnit BOM 5.7.1/5.7.2/5.9.0/5.9.3/5.10.0/5.10.1 module，以及刷新依赖后出现的 JUnit BOM 5.11.4 POM。新增八项 metadata 校验值均从 Maven Central 核对，且与 CI 的 NeoForged 镜像字节一致；来源与 SHA256 见 `dependency-metadata-verified.json`。不调整依赖版本、不忽略工件、不关闭 strict。
+
+严格校验补验命令：`./gradlew build :mod-forge:build :mod-neoforge:build assembleMods --dependency-verification strict --refresh-dependencies`，本地成功；测试任务可复用既有结果，报告保留原时间。GitHub 最新实际执行状态另记。

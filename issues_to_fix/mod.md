@@ -28,7 +28,7 @@ fix: |
   kinds 改为以 firstSeq 为基线的窗口（rotate 丢弃已落盘旧段并记录 baseSeq），或按 kind 维护 seq 列表/流式扫文件。
 tests: |
   可加纯 JUnit：rotate 后 kinds 窗口与 countsAfter/firstAfter 一致性。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   kinds 只保留双段窗口，first_seq 后 long 运算再安全索引；counts/firstAfter 不含轮转丢弃段。RecorderSafetyTest 窗口压力与真实双版本轮转通过。
@@ -126,7 +126,7 @@ fix: |
   集中到 CcInternals 适配类 + 启动自检，失败时禁用对应功能并给版本提示。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   CcInternals 集中可选反射字段与类型检查，缺失能力诊断后降级，不抛静态初始化错误；精确版本 pin 保留。故意缺失字段测试及两版真实 terminal/wired 能力通过。
@@ -159,7 +159,7 @@ fix: |
   为 ComputerTrace rotate、LiveHttp 鉴权/Host/413、JsonValues、Ring、Screens.replay 补 JUnit 或抽出可测层。
 tests: |
   现有 9 个 @Test 不覆盖上述路径。
-fixed_in: 7a4b269522e24cc2504df598327e294e12703327
+fixed_in: fbfd68a67d56a7836d7c0b8a5ac79498e5a81ac3
 fixed_at: 2026-10-19
 resolution: |
   补 HTTP auth/Host/慢 body、Trace/Ring/JsonValues/Screens/快照等纯 JUnit，真实双版本验证 413、接管/租约、回放及 endpoint 清理。当前覆盖与平台边界见两份 final JSON，不虚报 Windows/macOS。
@@ -187,7 +187,7 @@ fix: |
   host 为 null 也拒绝（HTTP/1.1 合法请求必带 Host）。
 tests: |
   需 HTTP 客户端级测试。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   HttpPolicy 对缺 Host 与非 loopback Host 拒绝，Bearer 常量时间比较；单测和两版真实 HTTP/1.0 缺 Host/401/403 通过。
@@ -215,7 +215,7 @@ fix: |
   POSIX 平台创建后 setPosixFilePermissions(0600)，或在文档标明风险。
 tests: |
   平台相关，可跳过。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   POSIX token 创建即 0600，已有文件权限收紧；Windows 不调用 POSIX API。RecorderSafetyTest 与两版 Linux 真实权限检查通过。
@@ -243,7 +243,7 @@ fix: |
   增加读超时，或加大线程池并按端点隔离。
 tests: |
   none
-fixed_in: 7a4b269522e24cc2504df598327e294e12703327
+fixed_in: fbfd68a67d56a7836d7c0b8a5ac79498e5a81ac3
 fixed_at: 2026-10-19
 resolution: |
   所有响应前执行 body 5 秒总期限，包含拒绝鉴权/Host、GET、未知路径与忽略 body 的端点；超限有界排空，慢 body 在发响应头前关闭连接，不设置全局 JVM HTTP 参数。已实测复现两条拒绝请求卡死两个 worker，单 worker 回归及两版新脚本验证回收。
@@ -273,7 +273,7 @@ fix: |
   用 kinds/seq 索引或分段偏移定位；至少到 limit 即停。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   recordAt 在锁内流式读避免整个 trace 深拷贝；分页只做一条 lookahead 即停止，matched_at_least 明示下界，summary 才精确计数。轮转/读取回归与游戏 trace/回放通过。
@@ -303,7 +303,7 @@ fix: |
   按错误类型分状态码；list 内 per-entry try/catch 并计 skipped。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   内部失败返回泛化信息，日志留详细诊断；snapshot list 对坏条目单独 skipped 并继续列有效项。两版坏 manifest 与有效快照混合验证通过。
@@ -335,7 +335,7 @@ fix: |
   明确文档口径；大整数按需字符串化；估算用廉价长度；dataLength 改用 Utf8.length。
 tests: |
   Utf8Test 可复用。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   核实 Lua 字符串每字符一字节，不错误改成 UTF-8 长度；文档记录 double/预览语义；trace 只序列化实际写入行，去掉重复长度估算。JsonValuesTest/Utf8Test 与双版本记录通过。
@@ -365,7 +365,7 @@ fix: |
   目录名加毫秒/随机后缀或已存在加 -2；start 时校验 pid/port 并删除陈旧 endpoint.json。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   session 名用毫秒+UUID，首次 attach 排他创建，不破坏 dormant；endpoint 原子发布、仅清理 dead pid 或 owned session。纯文件测试、首轮 dormant 与最终关闭清理通过。
@@ -439,7 +439,7 @@ fix: |
   同 trace() 一样 catch RuntimeException 并计 skipped。
 tests: |
   none
-fixed_in: fbb6c72d76b81150b41a6875d6b5bcaf73ba26cb
+fixed_in: 265149543eccc154e422adb06115676cc11cbba1
 fixed_at: 2026-10-19
 resolution: |
   recordAt 使用 TraceRecords 容错验证，坏行不再导致 status match 500；RecorderSafetyTest、TraceRecords/replay 回归与真实 trace 检查通过。
@@ -467,7 +467,7 @@ fix: |
   改 64 位哈希；pair 改用 long 参数。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   screen_hash 使用包括尺寸/文字/fg/bg 的 SHA-256；seq/tick 经 HTTP/MCP 全路径保留 long。digest 单测、Long.MAX_VALUE 参数回归和实机调用通过。
@@ -496,7 +496,7 @@ fix: |
   读方在锁内取段并用独立句柄/临时副本读、容忍旧段缺失；rotate 失败重试；写失败记录并下次重开 writer 且补 trace_error。
 tests: |
   需实机并发压力。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   锁内复制不可变磁盘读快照，读完清理；完整 write 后才提交 seq/index，失败截断、暴露 trace_health、退避重试并补 trace_error。注入部分写入/并发轮转单测和两版压力通过；Windows 未实测。
@@ -549,7 +549,7 @@ fix: |
   写 <dir>.tmp，成功后整体替换（old→.old、tmp→dir、删 .old），失败清 tmp。
 tests: |
   需实机/挂载级验证（可先抽路径纯逻辑测试）。
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   先复制并按实际复制内容生成 hash/校验 manifest，再 old->backup/stage->target 可恢复切换；失败保留旧副本，list 恢复中断切换。SnapshotStoreTest 与两版 mount save/diff/restore 通过。
@@ -602,7 +602,7 @@ fix: |
   把 drain 放进 trace 锁内，或发布 attachment 后再 drain 一次。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   record 选 ring/attachment 与 attach drain/publish 共用 ring monitor，包含已在途写线程。NeoForge recording 真实 handover 连续事件验证通过；Ring 容量/排空回归通过。
@@ -630,7 +630,7 @@ fix: |
   区分 unload 与真正移除（同一 UUID 重新加载时保留/恢复）。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   registry 消失统一报告 unavailable/unloaded，避免误称电脑已破坏；reload 不自动恢复 AI 控制。两版真实 forceload 卸载/重载与 detach reason 验证通过。
@@ -658,7 +658,7 @@ fix: |
   call id 改用 session 级计数或加 epoch 前缀。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   外设调用 id 来自 session 级原子计数，跨 VM reboot 保持唯一；两版真实两次 reboot 后 trace call ids 去重检查通过。
@@ -686,7 +686,7 @@ fix: |
   冲突时报错，或给网络名加前缀区分。
 tests: |
   none
-fixed_in: 6e5198e3dee269b277a8e1f6d1b6680fbefc8533
+fixed_in: 4faa031635975700cc59e9321426cf9002c42504
 fixed_at: 2026-10-19
 resolution: |
   PeripheralNames 对不同目标重名报歧义，对语义相等的同物理外设 wrapper 保留合法别名。纯单测与两电脑共享 wired modem 的实机 chest 查询通过。

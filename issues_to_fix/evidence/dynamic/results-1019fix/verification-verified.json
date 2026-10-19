@@ -1,7 +1,7 @@
 {
   "schema": "cct-run/verification@1",
   "generated_at": "2026-10-19T03:42:06.717688+00:00",
-  "commit": "b9b177999d6afd8efc5dcb0ad1090c5914efbd53",
+  "commit": "5b8c64018f91fe0f170ae9581ac2986557e830de",
   "dirty": false,
   "modules": {
     "engine": {
@@ -75,5 +75,6 @@
     }
   },
   "executions": 136,
-  "note": "Counts are executions, including each mod variant. Report times identify cached results; unlisted platforms and game checks are unverified."
+  "note": "Counts are executions, including each mod variant. Report times identify cached results; unlisted platforms and game checks are unverified.",
+  "commit_reference_note": "Commit references were remapped after the maintainer-authorized identity correction. Original measurements and timestamps are retained; old checksums describe the original local-only packages."
 }

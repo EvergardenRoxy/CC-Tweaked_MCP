@@ -35,7 +35,7 @@ tests: |
   新增 engine 测试：写入超过 capacity 后 getSize 与 fs.getFreeSpace 行为；OOM marker 不再依赖字符串。
 verify: |
   动态：cct-run run 写 20MB 程序（见 D:/AI/DSH/cc-t/CC-Tweaked_MCP/issues_to_fix/evidence/dynamic/fs_write.lua）。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   RootMount 对创建/增长/追加/seek/截断/删除/改名及打开句柄实施容量配额，summary.disk 区分 free 与累计写入；VmFailures 在 Lua 文案转换前观察真实 Java OOM。RootMountTest、MainTest.heapExhaustionIsItsOwnStatus、InputSafetyTest 的伪造错误回归通过；删除句柄差异见 DV17。
@@ -80,7 +80,7 @@ fix: |
 tests: |
   动态探针：debug 函数表 + registry 遍历 + _G 篡改（D:/AI/DSH/cc-t/CC-Tweaked_MCP/issues_to_fix/evidence/dynamic/debug_probe2.lua）。
   建议加一条 Java 测试：done 二次调用被拒绝。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   harness 提前捕获收尾函数并保护调用，完成报告需 token 且只接受一次；OOM 不再按文案分类。InputSafetyTest 的 globals 篡改/伪造 OOM/重复报告测试通过。保持完整 debug，未声称恶意程序隔离。
@@ -111,7 +111,7 @@ fix: |
   新增 interrupted/cancelled 状态（独立 exit code 或 summary.interrupted=true），或在 run_end 记录原因。
 tests: |
   对 Runner 线程发 interrupt，断言状态与 exit_code。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   保留 timeout/exit 2，附 termination_reason=interrupted 和 run_interrupted；写完 summary/state 后恢复线程 interrupt。InputSafetyTest.interruptedRunWritesItsCauseAndRestoresTheInterruptFlag 通过。
@@ -140,7 +140,7 @@ fix: |
   javadoc 明确 embedding 限制，或 close 等待并在失败时 fail loud；可提供 closeAll()。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   Runner Javadoc 明示每 JVM 一次 run、close(50ms) 后线程仍可能收尾，嵌入调用不提供隔离；保留已有 CLI/MCP 进程模型。文档核对通过。
@@ -171,7 +171,7 @@ fix: |
   `if not file then report.done(false, "setup", "program file missing: "..path, nil) end`。
 tests: |
   none
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   harness 对 fs.open 返回 nil 提供 setup 错误并等待 runner 收尾，避免索引 nil 后退回 shell 超时。代码核对；Runner 正常/语法/运行时回归通过。
@@ -199,7 +199,7 @@ fix: |
   run 前后保存/恢复 CoreConfig，或文档声明进程级副作用并加运行期断言。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   Runner Javadoc 与 limitations 记录 CoreConfig 进程级副作用及不支持重复/并发嵌入隔离；不改变一 run 一 JVM 的既有决定。
@@ -232,7 +232,7 @@ fix: |
   RunSpec 增加合理上限或 Math.multiplyExact/long。
 tests: |
   none
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   RunSpec 限定 timeoutSeconds 为 1..3600，防止 ticks 乘法溢出。InputSafetyTest 拒绝 Integer.MAX_VALUE；既有 timeout 回归通过。
@@ -307,7 +307,7 @@ fix: |
   统一 has()/isJsonPrimitive 校验并计入 skipped。
 tests: |
   none
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   TraceQuery 在过滤/回放前校验字段类型、尺寸和行号，坏对象与坏 JSON 统一计 skipped。InputSafetyTest.missingAndWrongTraceFieldsDoNotAbortQueriesOrReplay 通过。
@@ -338,7 +338,7 @@ fix: |
   RunSpec 校验非空且拒绝 ../Windows 保留名。
 tests: |
   none
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   RunSpec 按宿主 Path 检查有效末段，拒绝空白、根路径、点与点点；未引入被审查驳回的 Windows 保留名假设。InputSafetyTest 边界通过。
@@ -440,7 +440,7 @@ fix: |
   Runner 读取 MachineResult error 并映射状态。
 tests: |
   none
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   RecordingMachine 观察保护调用外 OOM 与非正常 MachineResult，Runner 统一归因并保留原始错误通道；类型 OOM、语法/运行时/无 yield/关机重启回归通过。
@@ -468,7 +468,7 @@ fix: |
   随机段扩到 8 位以上，createDirectory + 冲突重试。
 tests: |
   抽 helper 单测冲突重试。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   UUID 随机空间与原子 createDirectory/冲突重试结合；InputSafetyTest 确定性制造第一次同名并验证不覆盖。
@@ -498,7 +498,7 @@ fix: |
   启动时写 state:running 小文件、结束时更新；MCP 杀进程后补 killed:true + 原因。
 tests: |
   none
-fixed_in: 5345093899ab76c289df4fdc14f893513648c100
+fixed_in: 364dd5c5878156131b3ddce5dc1f10b2446b1b92
 fixed_at: 2026-10-19
 resolution: |
   原子 state.json 和父子进程精确 reservation，记录 pid/start identity；取消确认子进程终止后补 failed/cancelled。RunStateTest 与 McpServerTest 通过。外部强杀可能残留最后已知 running，不保证 summary。
@@ -528,7 +528,7 @@ fix: |
   抽 DEFAULT_INVENTORY_SIZE / DEFAULT_ENERGY_CAPACITY 常量两阶段共用；build 阶段异常补 JSON 路径。
 tests: |
   FixtureTest.timelineItemSlotMustFitTheInventory 已覆盖一条回归。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   fixture 校验与构建共用 inventory/energy 默认常量，精确数值解析异常带 JSON 路径；FixtureTest 的 timeline 槽位/容量与 InputSafetyTest 边界通过。
@@ -566,7 +566,7 @@ fix: |
   在 Fixture.parse 对 args 做深度/节点数上限校验；给 toLua/noteWideText 加同一 MAX_DEPTH；Runner/Main 捕获 Error 并写 summary。
 tests: |
   none
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   JsonLimits 迭代限制输入深度/节点/字节，在 deepCopy、宽字符检查和 toLua 递归前拒绝。InputSafetyTest 覆盖 20000 层拒绝和合法边界；不复用展示深度 4。
@@ -597,7 +597,7 @@ fix: |
   longValue 增加 max 与 Double.isFinite 检查；build 阶段复用 validate 的解析结果而不是重读 JSON。
 tests: |
   无；加 1e999、Long.MAX+1、NaN 用例。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   BigDecimal.longValueExact 校验整数和 long 范围，两阶段复用同一解析规则。InputSafetyTest 拒绝 1e999、Long.MAX+1、小数/负值并接受 Long.MAX。
@@ -628,7 +628,7 @@ fix: |
   parse 期对 tick>timeout 的条目告警/notes；按 tick 排序或建索引；限制 timeline 条数。
 tests: |
   PeripheralTest.energyFluidAndTimelineChanges 覆盖同 tick 多条。
-fixed_in: c0101a80144ba510dde353ec0b09d96460651804
+fixed_in: be72dd0ad3796f184779cb01825215e20b1261c3
 fixed_at: 2026-10-19
 resolution: |
   timeline 稳定排序、tick 循环用迭代器推进，同 tick 原顺序保留；超出 timeout 的动作给有界 note，整体输入节点上限约束规模。顺序与既有能量/流体动作回归通过。
@@ -683,7 +683,7 @@ fix: |
   在 JsonValues javadoc 与 handoff TRACE_FORMAT 记录规则。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   JsonValues Javadoc、guide、handoff TRACE_FORMAT 明确 double、大整数精度、非有限数字符串、字符串/容器预览边界；mod JsonValuesTest 同步验证字节与非有限值语义。
@@ -735,7 +735,7 @@ fix: |
   保持现状；补小数参数测试并在 guide/handoff 说明截断行为。
 tests: |
   无小数参数用例。
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   保留上游 IArguments.getInt 小数截断；新增 PeripheralTest.fractionalInventorySlotUsesTheUpstreamIntegerConversion，并在 guide/handoff 区分方法参数与 exact-integer fixture。
@@ -769,7 +769,7 @@ fix: |
   在 Inventory/ItemStack 注明所有访问必须在主线程，或统一持锁/volatile。
 tests: |
   none
-fixed_in: 05d21039575f6708bec2b4fc1bab1363750fc744
+fixed_in: e5f721eaed2945cdcc099ea4f73547de441f4b65
 fixed_at: 2026-10-19
 resolution: |
   Inventory 与 ItemStack Javadoc 明确主线程访问约束，未因已驳回的竞争假设增加无关锁。PeripheralTest 回归通过。
