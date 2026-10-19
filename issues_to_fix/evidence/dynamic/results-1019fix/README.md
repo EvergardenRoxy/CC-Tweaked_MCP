@@ -21,10 +21,10 @@ RELEASE_TAG=v0.2.3 ./gradlew verifyReleaseVersion
 # 不匹配的 RELEASE_TAG=v0.2.4 必须拒绝
 ```
 
-- JUnit 实际执行结果从 XML 生成到 `verification.json`，保留模块明细、失败/跳过、commit、dirty、报告时间。复用缓存会如实保留报告时间，不声称同一 commit 上全新执行。
+- JUnit 实际执行结果从 XML 生成到 `verification-verified.json`，保留模块明细、失败/跳过、commit、dirty、报告时间。复用缓存会如实保留报告时间，不声称同一 commit 上全新执行。
 - 发布脚本的两个标准库测试验证：已有资产 hash 不同，在任何上传前拒绝；相同资产跳过并稳定生成清单。prepare-only 只计算本地产物校验和，不调用发布操作。
 - `actionlint` 1.7.12 静态检查通过，下载二进制对照该 release 的 SHA256 清单。GitHub CI 的实际运行状态另列；本地静态检查不代表线上运行。
-- `git diff --check`、英文 ASCII guide/PowerShell、zip 脚本权限/LF、Java class 目标版本等通过结果在 `local-checks.json`。
+- `git diff --check`、英文 ASCII guide/PowerShell、zip 脚本权限/LF、Java class 目标版本等通过结果在 `local-checks-verified.json`。
 
 ## 游戏运行场景
 
@@ -51,3 +51,6 @@ RELEASE_TAG=v0.2.3 ./gradlew verifyReleaseVersion
 
 
 最后补强中，单测新增坏 source/坏行号/截断记录后仍恢复有效彩色屏幕；并实测发现旧 HTTP 处理在两条 wrong-token 慢 body 返回 401 后仍被 JDK close/drain 卡住。新实现覆盖所有响应路径，认证慢 body、两条错误 token 慢 body、恶意 Host 慢 body和携带慢 body 的 GET 都必须在期限断开，随后 GET 正常。旧 `*-final.json` 和首次校验/包报告仍保留历史，最新完整结果使用 `*-verified` 名称，不覆盖旧轮次。
+
+
+最终本地完整验收：`verification-verified.json` 为实际 XML 汇总，`smoke-linux-verified.txt` 为最后打包 zip 的冒烟；`local-checks-verified.json` 包括包内文件/报告比对、真实 Java 17 运行、目标 class 版本、与最新游戏报告的源码 hash 比对、版本门禁和 prepare-only 校验和；`SHA256SUMS-verified` 只对应该轮本地产物。早一轮无 verified 后缀的文件保留各自 commit/time，不替代最新报告。构建/打包实际输出：`build-verified.txt` / `package-verified.txt`。
