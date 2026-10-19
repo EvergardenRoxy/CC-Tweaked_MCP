@@ -315,8 +315,15 @@ final class McpTools {
 
     /** A bad tool argument: reported to the agent as a tool result with isError. */
     static final class ToolError extends Exception {
+        enum Kind { OTHER, TIMEOUT, CANCELLED }
+        private final Kind kind;
         ToolError(String message) {
-            super(message);
+            this(Kind.OTHER, message);
         }
+        ToolError(Kind kind, String message) {
+            super(message);
+            this.kind = kind;
+        }
+        Kind kind() { return kind; }
     }
 }

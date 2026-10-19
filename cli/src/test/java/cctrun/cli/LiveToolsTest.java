@@ -91,6 +91,36 @@ class LiveToolsTest {
         if (fake != null) fake.stop(0);
     }
 
+    @Test
+    void unavailableActionBaselineNeverAcceptsStaleText() throws Exception {
+        var game = game();
+        var live = new LiveTools(game, dir);
+        statusJson = "{\"last_seq\":5,\"lines\":[\"Ready.\"]"; // baseline cannot be captured
+        live.call(LiveTools.TYPE, JsonParser.parseString("{\"computer\":0,\"text\":\"noop\"}").getAsJsonObject());
+        statusJson = "{\"last_seq\":5,\"lines\":[\"Ready.\"],\"screen_hash\":\"ab\"";
+        var answer = live.call(LiveTools.WAIT, JsonParser.parseString("{\"computer\":0,\"text\":\"Ready.\",\"timeout\":1}").getAsJsonObject());
+        assertTrue(text(answer).contains("timeout"));
+        assertTrue(text(answer).contains("baseline_warning"));
+    }
+
+    @Test
+    void cancellingLiveWaitInterruptsPollAndKeepsServerResponsive() throws Exception {
+        var game = game();
+        var input = new java.io.PipedInputStream();
+        var writer = new java.io.PipedOutputStream(input);
+        var output = new ByteArrayOutputStream();
+        var serving = new java.util.concurrent.FutureTask<Integer>(() -> new McpServer(input, output, dir.resolve("runs"), dir, game).serve());
+        var thread = new Thread(serving);
+        thread.start();
+        writer.write(("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"cct_live_wait\",\"arguments\":{\"computer\":0,\"text\":\"absent\",\"timeout\":60}}}\n"
+            + "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":1}}\n"
+            + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n").getBytes(StandardCharsets.UTF_8));
+        writer.close();
+        assertEquals(0, serving.get(10, java.util.concurrent.TimeUnit.SECONDS));
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("\"id\":2"));
+        assertFalse(output.toString(StandardCharsets.UTF_8).contains("\"id\":1"));
+    }
+
     private Map<String, JsonObject> session(Path liveDir, String... calls) throws Exception {
         var lines = new ArrayList<String>();
         for (var i = 0; i < calls.length; i++) {

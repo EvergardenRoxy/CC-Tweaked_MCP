@@ -3,6 +3,7 @@
 package cctrun.cli;
 
 import cctrun.engine.Versions;
+import cctrun.engine.JsonLimits;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -98,10 +99,14 @@ final class McpServer {
     }
 
     int serve() throws IOException, InterruptedException {
-        var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            line = line.strip();
+        var reader = new ProtocolReader(in, JsonLimits.MAX_BYTES);
+        ProtocolReader.Line framed;
+        while ((framed = reader.read()) != null) {
+            if (framed.oversized()) {
+                send(error(JsonNull.INSTANCE, -32600, "Invalid Request: line exceeds " + JsonLimits.MAX_BYTES + " UTF-8 bytes"));
+                continue;
+            }
+            var line = framed.text().strip();
             if (line.isEmpty()) continue;
             JsonElement message;
             try {
@@ -115,6 +120,13 @@ final class McpServer {
                 continue;
             }
             try {
+                var requestId = message.getAsJsonObject().get("id");
+                if (requestId != null && !requestId.isJsonNull() && !(requestId.isJsonPrimitive()
+                    && (requestId.getAsJsonPrimitive().isString() || requestId.getAsJsonPrimitive().isNumber()))) {
+                    send(error(JsonNull.INSTANCE, -32600, "Invalid Request: id must be a string, number or null"));
+                    continue;
+                }
+                JsonLimits.check(message);
                 handle(message.getAsJsonObject());
             } catch (RuntimeException e) {
                 // Malformed but parsable message (e.g. a non-string method): answer it, keep serving.
@@ -143,27 +155,40 @@ final class McpServer {
                 reply(id, result);
             }
             case "tools/call" -> {
-                if (id == null) return;
+                if (id == null) {
+                    System.err.println("cct-run mcp: ignoring tools/call without a request id");
+                    return;
+                }
                 var call = new Call();
-                active.put(id.toString(), call);
-                pool.submit(() -> {
-                    JsonObject response;
+                var key = id.toString();
+                if (active.putIfAbsent(key, call) != null) {
+                    send(error(id, -32600, "Request id is already active"));
+                    return;
+                }
+                var task = new java.util.concurrent.FutureTask<Void>(() -> {
                     try {
-                        response = callTool(params, call);
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        response = toolResult("internal error: " + e, true);
+                        var response = callTool(params, call);
+                        if (!call.cancelled) {
+                            if (response.has("jsonrpcError")) send(error(id, -32602, response.get("jsonrpcError").getAsString()));
+                            else reply(id, response);
+                        }
+                    } catch (Exception e) {
+                        if (!call.cancelled) reply(id, toolResult("internal error: " + e, true));
                     } finally {
-                        active.remove(id.toString());
+                        active.remove(key, call);
                     }
-                    if (!call.cancelled) {
-                        if (response.has("jsonrpcError")) send(error(id, -32602, response.get("jsonrpcError").getAsString()));
-                        else reply(id, response);
-                    }
+                    return null;
                 });
+                call.bind(task);
+                try { pool.execute(task); }
+                catch (java.util.concurrent.RejectedExecutionException e) {
+                    active.remove(key, call);
+                    call.cancel();
+                    send(error(id, -32603, "Server is shutting down"));
+                }
             }
             case "notifications/cancelled" -> {
-                var call = params.has("requestId") ? active.get(params.get("requestId").toString()) : null;
+                var call = params.has("requestId") ? active.remove(params.get("requestId").toString()) : null;
                 if (call != null) call.cancel();
             }
             default -> {
@@ -227,6 +252,9 @@ final class McpServer {
 
     private JsonObject run(JsonObject arguments, Call call) throws Exception {
         Path temp = null;
+        Path reserved = null;
+        Process child = null;
+        String stoppedReason = "child_failed";
         try {
             var request = McpTools.runArgs(arguments, outDir, workDir);
             if (request.needsTempDir()) {
@@ -236,17 +264,22 @@ final class McpServer {
             var stdoutFile = Files.createTempFile("cct-run-mcp-", ".out");
             var stderrFile = Files.createTempFile("cct-run-mcp-", ".err");
             try {
-                var builder = new ProcessBuilder(childCommand(request.argv()))
+                reserved = cctrun.engine.RunState.reserve(outDir);
+                var command = childCommand(request.argv());
+                command.add(1, "-D" + cctrun.engine.RunState.RESERVED_DIRECTORY + "=" + reserved);
+                var builder = new ProcessBuilder(command)
                     .directory(workDir.toFile())
                     .redirectOutput(stdoutFile.toFile())
                     .redirectError(stderrFile.toFile());
                 var process = builder.start();
+                child = process;
                 process.getOutputStream().close(); // never let a run read the protocol stream
                 if (!call.attach(process)) return toolResult("cancelled", true);
                 boolean finished;
                 try {
                     finished = process.waitFor(request.timeoutSeconds() + CHILD_GRACE_SECONDS, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
+                    stoppedReason = "cancelled";
                     // The server is stopping (or the request was interrupted): never leave the child JVM behind.
                     process.destroyForcibly();
                     try {
@@ -259,8 +292,12 @@ final class McpServer {
                     return toolResult("cancelled", true);
                 }
                 if (!finished) {
+                    stoppedReason = "wall_timeout";
                     process.destroyForcibly();
-                    return toolResult("cct-run did not finish within " + (request.timeoutSeconds() + CHILD_GRACE_SECONDS) + " s of wall time and was stopped.", true);
+                    process.waitFor(5, TimeUnit.SECONDS);
+                    var tail = request.hideTempPaths(stderrTail(stderrFile));
+                    return toolResult("cct-run did not finish within " + (request.timeoutSeconds() + CHILD_GRACE_SECONDS) + " s of wall time and was stopped."
+                        + (tail.isEmpty() ? "" : "\nLast stderr:\n" + tail), true);
                 }
                 if (call.cancelled) return toolResult("cancelled", true);
                 var code = process.exitValue();
@@ -279,7 +316,26 @@ final class McpServer {
                 }
             }
         } finally {
+            if (reserved != null && !Files.isRegularFile(reserved.resolve("summary.json"))) {
+                boolean interrupted = Thread.interrupted();
+                try {
+                if (child == null || !child.isAlive()) {
+                    try { cctrun.engine.RunState.update(reserved, "failed", call.cancelled ? "cancelled" : stoppedReason); }
+                    catch (IOException e) { System.err.println("cct-run mcp: could not record stopped run state"); }
+                }
+                } finally { if (interrupted) Thread.currentThread().interrupt(); }
+            }
             if (temp != null) deleteTree(temp);
+        }
+    }
+
+    private static String stderrTail(Path file) throws IOException {
+        try (var channel = java.nio.channels.FileChannel.open(file, java.nio.file.StandardOpenOption.READ)) {
+            channel.position(Math.max(0, channel.size() - 8192));
+            var bytes = java.nio.ByteBuffer.allocate(8192);
+            while (bytes.hasRemaining() && channel.read(bytes) > 0) { }
+            bytes.flip();
+            return StandardCharsets.UTF_8.decode(bytes).toString().strip();
         }
     }
 
@@ -433,6 +489,11 @@ final class McpServer {
     static final class Call {
         volatile boolean cancelled;
         private Process process;
+        private java.util.concurrent.Future<?> task;
+        synchronized void bind(java.util.concurrent.Future<?> task) {
+            this.task = task;
+            if (cancelled) task.cancel(true);
+        }
 
         synchronized boolean attach(Process process) {
             this.process = process;
@@ -442,6 +503,7 @@ final class McpServer {
 
         synchronized void cancel() {
             cancelled = true;
+            if (task != null) task.cancel(true);
             if (process != null) process.destroyForcibly();
         }
     }

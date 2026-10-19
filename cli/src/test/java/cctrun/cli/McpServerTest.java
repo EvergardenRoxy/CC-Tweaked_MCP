@@ -95,6 +95,16 @@ class McpServerTest {
     }
 
     @Test
+    void deeplyNestedAndBooleanIdsAreRejectedWithoutStoppingService() throws Exception {
+        var nested = "[".repeat(20_000) + "0" + "]".repeat(20_000);
+        var r = session("{\"jsonrpc\":\"2.0\",\"id\":" + nested + ",\"method\":\"ping\"}",
+            "{\"jsonrpc\":\"2.0\",\"id\":true,\"method\":\"ping\"}",
+            "{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"ping\"}");
+        assertEquals(-32600, r.get("null").getAsJsonObject("error").get("code").getAsInt());
+        assertTrue(r.get("42").has("result"));
+    }
+
+    @Test
     void runsCodeAndFilesInChildProcesses() throws Exception {
         var program = dir.resolve("my prog.lua");
         Files.writeString(program, "print('from file', ...)");

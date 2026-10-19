@@ -45,12 +45,12 @@ public final class TraceQuery {
                 var line = it.next();
                 JsonObject record;
                 try {
-                    record = JsonParser.parseString(line).getAsJsonObject();
+                    record = checkedRecord(line);
+                    if (!matches(record, filter)) continue;
                 } catch (RuntimeException e) {
                     skipped++;
                     continue;
                 }
-                if (!matches(record, filter)) continue;
                 if (matched++ < filter.offset()) continue;
                 out.add(record);
             }
@@ -60,6 +60,44 @@ public final class TraceQuery {
 
     public static List<JsonObject> records(Path runDir, Filter filter) throws IOException {
         return read(runDir, filter).records();
+    }
+
+    private static JsonObject checkedRecord(String line) {
+        var record = JsonParser.parseString(line).getAsJsonObject();
+        JsonLimits.check(record);
+        exactInt(record.get("tick"));
+        text(record.get("kind"));
+        if ("screen".equals(record.get("kind").getAsString())) {
+            text(record.get("source"));
+            var cursor = record.getAsJsonArray("cursor");
+            if (cursor == null || cursor.size() != 2) throw new IllegalArgumentException("invalid cursor");
+            exactInt(cursor.get(0)); exactInt(cursor.get(1));
+            if (record.has("size")) {
+                var size = record.getAsJsonArray("size");
+                if (size.size() != 2) throw new IllegalArgumentException("invalid screen size");
+                for (var n : size) {
+                    int v = exactInt(n);
+                    if (v < 1 || v > 1024) throw new IllegalArgumentException("invalid screen size");
+                }
+            }
+            var rows = record.getAsJsonObject("lines");
+            if (rows == null) throw new IllegalArgumentException("missing screen lines");
+            for (var e : rows.entrySet()) {
+                int row = Integer.parseInt(e.getKey());
+                if (row < 1 || row > 1024) throw new IllegalArgumentException("invalid screen row");
+                text(e.getValue());
+            }
+        }
+        return record;
+    }
+
+    private static int exactInt(com.google.gson.JsonElement value) {
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) throw new IllegalArgumentException("expected integer");
+        return value.getAsBigDecimal().intValueExact();
+    }
+
+    private static void text(com.google.gson.JsonElement value) {
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("expected string");
     }
 
     private static boolean matches(JsonObject record, Filter filter) {
@@ -102,7 +140,7 @@ public final class TraceQuery {
             for (var it = stream.iterator(); it.hasNext(); ) {
                 JsonObject record;
                 try {
-                    record = JsonParser.parseString(it.next()).getAsJsonObject();
+                    record = checkedRecord(it.next());
                 } catch (RuntimeException e) {
                     continue; // half-written last line of a killed run
                 }
