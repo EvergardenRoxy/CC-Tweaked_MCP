@@ -12,12 +12,13 @@ import java.util.List;
 
 /**
  * Lua API {@code __cctrun}, used only by harness.lua (which removes it from {@code _G} before the
- * program starts). {@code done(ok, phase, message, traceback)} records the outcome and captures the
+ * program starts). {@code done(token, ok, phase, message, traceback)} records the outcome once and captures the
  * screen; shutting the computer down afterwards clears the terminal.
  */
 public final class HarnessApi implements ILuaAPI {
     private final Trace trace;
     private final TracingTerminal terminal;
+    private final String token;
 
     volatile boolean started;
     volatile boolean finished;
@@ -27,9 +28,10 @@ public final class HarnessApi implements ILuaAPI {
     volatile String traceback;
     volatile List<String> screen = List.of();
 
-    HarnessApi(Trace trace, TracingTerminal terminal) {
+    HarnessApi(Trace trace, TracingTerminal terminal, String token) {
         this.trace = trace;
         this.terminal = terminal;
+        this.token = token;
     }
 
     @Override
@@ -46,12 +48,13 @@ public final class HarnessApi implements ILuaAPI {
     }
 
     @LuaFunction
-    public final void done(IArguments args) throws LuaException {
-        if (finished) return;
-        ok = args.getBoolean(0);
-        phase = args.optString(1, null);
-        message = args.optString(2, null);
-        traceback = args.optString(3, null);
+    public final synchronized void done(IArguments args) throws LuaException {
+        if (!token.equals(args.getString(0))) throw new LuaException("invalid harness report token");
+        if (finished) throw new LuaException("harness result already reported");
+        ok = args.getBoolean(1);
+        phase = args.optString(2, null);
+        message = args.optString(3, null);
+        traceback = args.optString(4, null);
         screen = terminal.lines();
         finished = true;
 

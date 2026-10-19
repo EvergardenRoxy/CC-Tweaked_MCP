@@ -38,7 +38,9 @@ import java.util.concurrent.TimeUnit;
  * a run directory: {@code summary.json}, {@code trace.jsonl}, {@code program/<name>} and
  * {@code fixture.json}.
  * <p>
- * Designed for one run per JVM (the CLI exits afterwards): {@link CoreConfig} is global state.
+ * Designed for one run per JVM (the CLI exits afterwards): {@link CoreConfig} is global state and is not restored.
+ * Repeated/concurrent embedded runs are not a supported isolation boundary. ComputerContext.close is bounded
+ * to 50 ms; computer threads can still be winding down when this method returns. Use child JVMs, as MCP does.
  */
 public final class Runner {
     public static final int TPS = 20;
@@ -51,10 +53,8 @@ public final class Runner {
     private static final java.lang.reflect.Field START_REQUESTED = startRequestedField();
     private static final int START_GRACE_TICKS = 10;
     private static final int MIN_TICKS_FOR_RATE = 40;
-    /** How Cobalt words a Java OutOfMemoryError it turned into a Lua error. */
-    static final String OOM_MARKER = "vm error: java.lang.OutOfMemoryError";
     private static final long MB = 1024 * 1024;
-    /** CC: Tweaked's default computer_space_limit. Reported by fs.getFreeSpace; writes are not limited (see handoff.md). */
+    /** CC: Tweaked's default computer_space_limit, enforced by RootMount. */
     private static final long DISK_CAPACITY = 1_000_000;
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
 
@@ -62,10 +62,20 @@ public final class Runner {
     }
 
     public static RunResult run(RunSpec spec) throws IOException {
+        var interrupted = new boolean[]{Thread.interrupted()};
+        try { return runInternal(spec, interrupted); }
+        finally {
+            if (Thread.interrupted()) interrupted[0] = true;
+            if (interrupted[0]) Thread.currentThread().interrupt();
+        }
+    }
+
+    private static RunResult runInternal(RunSpec spec, boolean[] interrupted) throws IOException {
         var created = Instant.now();
-        var runId = RUN_ID.format(created) + "-" + HexFormat.of().toHexDigits((short) ThreadLocalRandom.current().nextInt());
-        var runDir = spec.outDir().resolve(runId);
-        Files.createDirectories(runDir.resolve("program"));
+        var runDir = RunState.directory(spec.outDir());
+        RunState.started(runDir);
+        var runId = runDir.getFileName().toString();
+        Files.createDirectory(runDir.resolve("program"));
 
         var fixture = spec.fixture();
         var advanced = spec.advanced() != null ? spec.advanced() : fixture.advanced != null ? fixture.advanced : Boolean.TRUE;
@@ -96,9 +106,13 @@ public final class Runner {
                 trace.note("fixture_file_overwritten", data);
             }
             addFile(mount, storedName, spec.programSource());
-            addFile(mount, "startup.lua", harness(storedName, spec.args()));
+            var reportToken = java.util.UUID.randomUUID().toString();
+            addFile(mount, "startup.lua", harness(storedName, spec.args(), reportToken));
 
-            var env = new RunnerEnvironment(new RootMount(mount));
+            final RootMount rootMount;
+            try { rootMount = new RootMount(mount); }
+            catch (IOException e) { throw new RunInputException("program, harness and fixture files exceed the simulated disk capacity (" + DISK_CAPACITY + " bytes)", e); }
+            var env = new RunnerEnvironment(rootMount);
             var terminal = TracingTerminal.create(size[0], size[1], advanced, "term", trace);
             var mainThread = new MainThread(MainThreadConfig.DEFAULT);
             var machines = new RecordingMachine.Holder();
@@ -108,7 +122,7 @@ public final class Runner {
                 .build();
             var computer = new Computer(context, env, terminal, fixture.computerId);
             if (fixture.label != null) computer.setLabel(fixture.label);
-            var api = new HarnessApi(trace, terminal);
+            var api = new HarnessApi(trace, terminal, reportToken);
             computer.addApi(api);
 
             var built = fixture.build(trace, advanced);
@@ -128,10 +142,11 @@ public final class Runner {
             }
 
             var pacer = TickPacer.realTime(TPS);
-            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer);
-            // Cobalt turns a Java OutOfMemoryError inside Lua into a Lua error ("vm error: java.lang.OutOfMemoryError: ...").
-            // When that error ends the program, report it as its own status: the heap limit (1 GB, D33) was reached.
-            if (outcome.equals("error") && api.message != null && api.message.contains(OOM_MARKER)) outcome = "out_of_memory";
+            var outcome = loop(spec, clock, trace, computer, mainThread, terminal, built, machines, api, fixture, pacer, interrupted);
+            if (machines.failures.outOfMemory) {
+                outcome = "out_of_memory";
+                if (api.message == null) { api.phase = "runtime"; api.message = "Java VM reported an OutOfMemoryError"; }
+            }
 
             var timeoutState = outcome.equals("timeout") ? machines.executionState() : null;
             // The VM only has a state to print while Lua code is running, not while it waits for an event.
@@ -153,7 +168,7 @@ public final class Runner {
             try {
                 if (!context.close(50, TimeUnit.MILLISECONDS)) trace.record("context_close_pending", new JsonObject());
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                interrupted[0] = true;
             }
 
             var exitCode = switch (outcome) {
@@ -171,27 +186,49 @@ public final class Runner {
 
             var summary = summary(spec, fixture, created, runId, storedName, outcome, exitCode, clock, pacer, api, finalScreen,
                 terminal, monitorScreens, timeoutState, advanced, size, trace);
+            var disk = new JsonObject();
+            disk.addProperty("capacity_bytes", rootMount.getCapacity());
+            disk.addProperty("free_bytes", rootMount.getRemainingSpace());
+            disk.addProperty("written_bytes", rootMount.writtenBytes());
+            summary.add("disk", disk);
+            if (interrupted[0]) summary.addProperty("termination_reason", "interrupted");
             trace.close();
             Files.writeString(runDir.resolve("summary.json"), Trace.GSON.newBuilder().setPrettyPrinting().create().toJson(summary) + "\n", StandardCharsets.UTF_8);
+            RunState.update(runDir, "finished", outcome);
             return new RunResult(outcome, exitCode, runDir, summary);
         }
     }
 
     /** Tick loop. Returns ok | error | timeout | shutdown | reboot. */
     private static String loop(RunSpec spec, Clock clock, Trace trace, Computer computer, MainThread mainThread, TracingTerminal terminal,
-                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture, TickPacer pacer) {
+                               Fixture.Built built, RecordingMachine.Holder machines, HarnessApi api, Fixture fixture, TickPacer pacer, boolean[] interrupted) {
         var maxTicks = spec.timeoutSeconds() * TPS;
         var everOn = false;
         var bootTick = 0;
         var boots = 0;
         var lastStartPending = -1;
+        var actions = fixture.timeline.iterator();
+        Fixture.TimelineAction nextAction = actions.hasNext() ? actions.next() : null;
+        var outside = fixture.timeline.stream().filter(a -> a.tick() >= maxTicks).count();
+        if (outside > 0) {
+            var note = new JsonObject();
+            note.addProperty("count", outside);
+            note.addProperty("message", "timeline actions at or after the timeout will not run");
+            trace.note("fixture_actions_outside_timeout", note);
+        }
         computer.turnOn();
         for (var tick = 0; ; tick++) {
             clock.setTick(tick);
+            if (interrupted[0] || Thread.currentThread().isInterrupted()) {
+                Thread.interrupted(); interrupted[0] = true;
+                var reason = new JsonObject(); reason.addProperty("reason", "interrupted"); trace.note("run_interrupted", reason);
+                return "timeout";
+            }
             if (tick >= maxTicks) return "timeout";
 
-            for (var action : fixture.timeline) {
-                if (action.tick() != tick) continue;
+            while (nextAction != null && nextAction.tick() <= tick) {
+                var action = nextAction;
+                nextAction = actions.hasNext() ? actions.next() : null;
                 try {
                     apply(action, computer, built, trace);
                 } catch (RuntimeException e) {
@@ -229,6 +266,11 @@ public final class Runner {
             for (var monitor : built.monitors()) monitor.terminal().snapshot();
 
             if (api.finished) return api.ok ? "ok" : "error";
+            if (machines.failures.machineError != null) {
+                api.phase = "vm";
+                api.message = machines.failures.machineError;
+                return "error";
+            }
             if (machines.created.get() > 1) return "reboot";
             // A warm JVM can boot, run and shut down within one tick, so "has started" is "a VM was created".
             everOn |= computer.isOn() || machines.created.get() > 0;
@@ -250,7 +292,10 @@ public final class Runner {
                     trace.note("tick_lag", data);
                 }
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                var reason = new JsonObject();
+                reason.addProperty("reason", "interrupted");
+                trace.note("run_interrupted", reason);
+                interrupted[0] = true; // restore only after writing summary/state; NIO writes otherwise abort
                 return "timeout";
             }
         }
@@ -444,7 +489,7 @@ public final class Runner {
         return name;
     }
 
-    static String harness(String path, List<String> args) {
+    static String harness(String path, List<String> args, String token) {
         String template;
         try (var in = Runner.class.getResourceAsStream("/cctrun/harness.lua")) {
             if (in == null) throw new IllegalStateException("harness.lua missing from the jar");
@@ -457,7 +502,17 @@ public final class Runner {
             if (i > 0) luaArgs.append(", ");
             luaArgs.append(luaString(args.get(i)));
         }
-        return template.replace("__CCTRUN_PATH__", luaString(path)).replace("__CCTRUN_ARGS__", luaArgs);
+        return template.replace("__CCTRUN_PATH__", luaString(path)).replace("__CCTRUN_ARGS__", luaArgs).replace("__CCTRUN_TOKEN__", luaString(token));
+    }
+
+    static Path allocateRunDirectory(Path parent, String timestamp, java.util.function.Supplier<String> suffix) throws IOException {
+        Files.createDirectories(parent);
+        for (int attempt = 0; attempt < 100; attempt++) {
+            var path = parent.resolve(timestamp + "-" + suffix.get());
+            try { return Files.createDirectory(path); }
+            catch (java.nio.file.FileAlreadyExistsException ignored) { }
+        }
+        throw new IOException("could not allocate a unique run directory");
     }
 
     /** A Lua string literal for any text: printable ASCII as is, everything else as \ddd bytes (UTF-8). */

@@ -1,0 +1,80 @@
+{
+  "schema": "cct-run/verification@1",
+  "generated_at": "2026-10-19T03:42:06.717688+00:00",
+  "commit": "5b8c64018f91fe0f170ae9581ac2986557e830de",
+  "dirty": false,
+  "modules": {
+    "engine": {
+      "tests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "verified": true,
+      "reports": [
+        "engine/build/test-results/test/TEST-cctrun.engine.FixtureTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.InputSafetyTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.PeripheralTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.RootMountTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.RunStateTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.RunnerTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.TickPacerTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.TraceQueryTest.xml",
+        "engine/build/test-results/test/TEST-cctrun.engine.TraceTest.xml"
+      ],
+      "report_mtime_utc": "2026-10-19T03:26:16.398415+00:00"
+    },
+    "cli": {
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "verified": true,
+      "reports": [
+        "cli/build/test-results/test/TEST-cctrun.cli.JavaFinderTest.xml",
+        "cli/build/test-results/test/TEST-cctrun.cli.LauncherTest.xml",
+        "cli/build/test-results/test/TEST-cctrun.cli.LiveToolsTest.xml",
+        "cli/build/test-results/test/TEST-cctrun.cli.MainTest.xml",
+        "cli/build/test-results/test/TEST-cctrun.cli.McpServerTest.xml",
+        "cli/build/test-results/test/TEST-cctrun.cli.ProtocolReaderTest.xml"
+      ],
+      "report_mtime_utc": "2026-10-19T03:29:56.016433+00:00"
+    },
+    "mod-forge": {
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "verified": true,
+      "reports": [
+        "mod/forge/build/test-results/test/TEST-cctrun.live.ComputerPathsTest.xml",
+        "mod/forge/build/test-results/test/TEST-cctrun.live.HttpPolicyTest.xml",
+        "mod/forge/build/test-results/test/TEST-cctrun.live.JsonValuesTest.xml",
+        "mod/forge/build/test-results/test/TEST-cctrun.live.RecorderSafetyTest.xml",
+        "mod/forge/build/test-results/test/TEST-cctrun.live.SnapshotManifestTest.xml",
+        "mod/forge/build/test-results/test/TEST-cctrun.live.SnapshotStoreTest.xml",
+        "mod/forge/build/test-results/test/TEST-cctrun.live.Utf8Test.xml"
+      ],
+      "report_mtime_utc": "2026-10-19T03:42:04.388997+00:00"
+    },
+    "mod-neoforge": {
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "verified": true,
+      "reports": [
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.ComputerPathsTest.xml",
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.HttpPolicyTest.xml",
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.JsonValuesTest.xml",
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.RecorderSafetyTest.xml",
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.SnapshotManifestTest.xml",
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.SnapshotStoreTest.xml",
+        "mod/neoforge/build/test-results/test/TEST-cctrun.live.Utf8Test.xml"
+      ],
+      "report_mtime_utc": "2026-10-19T03:42:06.528604+00:00"
+    }
+  },
+  "executions": 136,
+  "note": "Counts are executions, including each mod variant. Report times identify cached results; unlisted platforms and game checks are unverified.",
+  "commit_reference_note": "Commit references were remapped after the maintainer-authorized identity correction. Original measurements and timestamps are retained; old checksums describe the original local-only packages."
+}

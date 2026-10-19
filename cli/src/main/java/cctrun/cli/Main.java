@@ -91,6 +91,10 @@ public final class Main {
         } catch (InputException e) {
             System.err.println("cct-run: " + e.getMessage());
             code = EX_DATAERR;
+        } catch (cctrun.engine.RunInputException e) {
+            cctrun.engine.RunState.failedCurrent("invalid_input");
+            System.err.println("cct-run: " + e.getMessage());
+            code = EX_DATAERR;
         } catch (java.nio.file.InvalidPathException e) {
             // Typically a non-ASCII path under a POSIX/C locale, where Java cannot encode file names.
             System.err.println("cct-run: path cannot be used with this system's file name encoding (sun.jnu.encoding="
@@ -98,9 +102,14 @@ public final class Main {
                 + "\n  Use an ASCII path, or a UTF-8 locale (e.g. LC_ALL=C.UTF-8 on Linux/macOS).");
             code = EX_DATAERR;
         } catch (OutOfMemoryError e) {
+            cctrun.engine.RunState.failedCurrent("out_of_memory");
             // Outside Lua (Cobalt reports those as Lua errors): the run could not finish its summary.
-            code = outOfMemory(stdout, e);
+            if (argv.length > 0 && argv[0].equals("mcp")) {
+                System.err.println("cct-run mcp: out of memory; closing protocol stream");
+                code = EX_OUT_OF_MEMORY;
+            } else code = outOfMemory(stdout, e);
         } catch (Exception e) {
+            cctrun.engine.RunState.failedCurrent("internal_error");
             System.err.println("cct-run: internal error: " + e);
             e.printStackTrace();
             code = EX_SOFTWARE;

@@ -1,0 +1,9 @@
+{
+  "verified_at": "2026-10-19T08:01:57.608261+00:00",
+  "commit": "d159cc58547d5ef9a7252352a96262fb969a833e",
+  "checks": {
+    "zip_docs_report_permissions_ascii_class_versions": true,
+    "both_mod_versions_targets_and_game_source_hashes": true,
+    "actual_java17_run_and_runtime_mcp_version": true
+  }
+}

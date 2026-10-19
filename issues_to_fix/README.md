@@ -9,6 +9,7 @@
 | `README.md` | 本说明：schema、状态机、使用方式、统计 |
 | `TREE.md` | 目录结构总览 |
 | `INDEX.md` | 全量索引（一行一个 issue） |
+| `REPAIR_PLAN.md` | 2026-10-19 自主修复计划：95 条分派、执行批次、依赖与验收标准（不替代 issue 状态） |
 | `engine.md` | ENG-RT-*（engine 运行时）/ ENG-FX-*（fixture/外设） |
 | `cli.md` | CLI-*（cct-run 命令 + stdio MCP 服务器） |
 | `mod.md` | MOD-*（cct-live mod） |
@@ -77,6 +78,19 @@ tests: |
 | info | 5 | engine 2、cli 1、build 2 |
 
 核对结论分布（见 `D:/AI/DSH/cc-t/CC-Tweaked_MCP/issues_to_fix/verification/verification-table.md`）：审查报告 67 条代码/工程发现中，确认/部分确认 52 条、不成立或降级 9 条、无法静态验证 6 条；另有 NEW 发现 20+ 条；文档/项目管理 12 项中确认 10 项、修正 2 项。
+
+## 2026-10-19 修复状态
+
+A/T 63 项已验证修复，附真实 `fixed_in` / `fixed_at`；其余 D/K/O/S 32 项保留原状态，不以消除计数为由改变策略。`PROJ-02` 的 SECURITY.md 已在原提交加入，S 类尚未进行独立状态同步，不能重复实现或计入本轮修复。原始证据保留，字符串字段已规范为合法 YAML 块字符串。
+
+| severity | fixed | open |
+|---|---:|---:|
+| high | 2 | 0 |
+| medium | 16 | 6 |
+| low | 44 | 22 |
+| info | 1 | 4 |
+
+证据：[results-1019fix](evidence/dynamic/results-1019fix/README.md)，矩阵：[ISSUE_MATRIX](evidence/dynamic/results-1019fix/ISSUE_MATRIX.md)。历史 severity 总数不变；95 是全部原始问题数量，并非仍有 95 项 open。
 
 ## 使用方式（AI）
 

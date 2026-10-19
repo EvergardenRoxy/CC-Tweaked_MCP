@@ -1,6 +1,16 @@
 # cct-run 测试记录
 
-截至 2026-10-18（项目版本 0.2.3，HEAD `bf68ac4`）。机器审查用的完整记录在 `handoff.md` 的 VERIFICATION 一节（V1–V39；0.2.3 相关为 V25–V39，本轮新增 V35–V39），这里是给人看的汇总。外部审查核对的逐条结论见 [`issues_to_fix/verification/verification-table.md`](../issues_to_fix/verification/verification-table.md)。
+以下历史记录截至 2026-10-18（项目版本 0.2.3，HEAD `bf68ac4`）。机器审查用的完整记录在 `handoff.md` 的 VERIFICATION 一节（V1–V39；0.2.3 相关为 V25–V39，本轮新增 V35–V39），这里是给人看的汇总。外部审查核对的逐条结论见 [`issues_to_fix/verification/verification-table.md`](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/verification/verification-table.md)。
+
+## 当前验证结果
+
+当前源码版本为 **0.2.4**。发行改动与平台验证边界见 [0.2.4 发行说明](release-notes-0.2.4.md)，正式发行步骤见 [发行流程](releasing.md)。下方 0.2.3 版本号均属于历史记录。
+
+当前数量与状态由 `python3 scripts/test_summary.py` 从四模块 JUnit XML 生成至 `build/reports/verification.json`，不手工同步数字。CI 与发布附带机器可读结果；报告中的 commit、dirty 和时间必须与待验证构建对应。打包前生成的结果进入 zip 的 `validation/`，最终四模块汇总另作发布资产。
+
+2026-10-19 分支 `1019fix` 的修复、命令、Linux zip 冒烟与 Forge/NeoForge 开发服务器检查见[本轮验证记录](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/evidence/dynamic/results-1019fix/README.md)。本轮未重跑 Windows 客户端、macOS 或生产服务器，也未触发正式标签发布。下文中的测试数、未解决列表及平台结果均为原日期的历史快照；当前 issue 状态以 [INDEX](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/INDEX.md) 为准。
+
+## 历史记录（截至 2026-10-18）
 
 ## 当前结论
 
@@ -89,13 +99,13 @@
 - 6 条只读核对 lane（engine 运行时 / engine fixture / cli / mod / 构建 CI / 旧 fix plan）+ 动态探针，逐条核对 67 条代码/工程意见：**52 条确认或部分确认、9 条驳回/降级、6 条无法静态验证**，另有 **24 条新发现**。
 - 主要纠正：F1/C2 的「Gson 2.11 有 255 层嵌套上限」不成立（实测 100 万层可解析）；E1 的目录移动风险、F7 的 `ItemStack.count` 竞争、D2 的 Windows 保留设备名安全影响均不成立；H3/H4 由高降为中。
 - 动态探针：20 MB `fs` 写入超过 1 MB 容量仍成功；MCP 正常处理 2 MB / 8 MB 单行；`timeline.event.args` 嵌套 2 万层 → `StackOverflowError`、无 summary；MCP 请求 `id` 嵌套 2 万层 → `send()` 序列化 SOE。
-- 全表与证据：[`issues_to_fix/verification/verification-table.md`](../issues_to_fix/verification/verification-table.md)、`issues_to_fix/evidence/lanes/`、`issues_to_fix/evidence/dynamic/`。这些是核对/探针结果，不改变上面的单元测试与冒烟结论。
+- 全表与证据：[`issues_to_fix/verification/verification-table.md`](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/verification/verification-table.md)、`issues_to_fix/evidence/lanes/`、`issues_to_fix/evidence/dynamic/`。这些是核对/探针结果，不改变上面的单元测试与冒烟结论。
 
 ### 冒烟状态
 
 - **0.2.3 的 Windows / Linux 冒烟尚未重跑**：上表 22/22 与 21/21 是 0.2.2 期结果。0.2.3 的改动主要是 mod 目录重构、CI 与文档，engine/cli 行为未变，但发布前仍应各重跑一次 `scripts/smoke-test.ps1` / `scripts/smoke-test.sh`（对应 handoff L30/BLD-01）。
 
-## 尚未解决 / 待测
+## 当时尚未解决 / 待测（历史快照）
 
 1. 各 AI 客户端分别接入 MCP 的结果（见上表）。
 2. Java 25 下的 Guava 警告（stderr 噪音）。
@@ -104,4 +114,4 @@
 5. 程序用 `pcall` 接住内存错误后继续运行时，不会被标记为 `out_of_memory`（`memory.heap_peak_mb` 仍会显示接近上限）。
 6. 0.2.3 的 Windows / Linux 冒烟尚未重跑（当前 22/22、21/21 是 0.2.2 期结果）；发布前应重跑一次。
 7. CI 的 `release` job 尚未用 `v*` tag 实际跑过；`tests`/`mod` 之外的冒烟与安全扫描未接入 CI（见 `issues_to_fix/BLD-01`、`BLD-03`、`BLD-04`）。
-8. 外部审查留下的待修问题集中在 [`issues_to_fix/`](../issues_to_fix/)（95 条）：P0 为 fs 写入配额、`HarnessApi.done` 一次性 token、`endpoint.json` 回环校验、fixture 嵌套深度限制、版本单源 + tag 校验。
+8. 外部审查留下的待修问题集中在 [`issues_to_fix/`](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/)（95 条）：P0 为 fs 写入配额、`HarnessApi.done` 一次性 token、`endpoint.json` 回环校验、fixture 嵌套深度限制、版本单源 + tag 校验。

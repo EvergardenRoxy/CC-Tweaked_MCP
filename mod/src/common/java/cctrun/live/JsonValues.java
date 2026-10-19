@@ -13,7 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Map;
 
-/** Copy of cctrun.engine.JsonValues (to be shared once engine and mod have a common module). Converts values crossing the Lua/Java boundary into bounded JSON for the trace. */
+/** Values as Lua receives them, bounded for trace display. Strings are Lua byte characters (U+0000..U+00FF),
+ * not UTF-8 text; a Java char above U+00FF is replaced by one byte '?'. Numbers follow Lua doubles; integers
+ * outside the exactly representable range may lose precision and non-finite numbers are strings. String
+ * previews count characters; the on-disk trace budget independently counts encoded UTF-8 bytes. */
 public final class JsonValues {
     /** Characters kept per string (config trace.max_string, set when a world opens). */
     static volatile int MAX_STRING = 200;

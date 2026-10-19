@@ -1,6 +1,6 @@
 # cct-run：给 AI 用的 CC: Tweaked 测试环境
 
-[![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg?style=for-the-badge)](LICENSE) [![build](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml/badge.svg?branch=multi-version-build)](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml) [![AI Assisted](https://img.shields.io/badge/AI-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](#ai-制作声明)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg?style=for-the-badge)](LICENSE) [![build](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/actions/workflows/build.yml) [![AI Assisted](https://img.shields.io/badge/AI-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](#ai-制作声明)
 
 > **AI 制作声明：cct-run 采用生成式 AI 参与代码编写、测试与文档撰写。** AI 生成或修改的内容由项目维护者审阅、验证并承担最终维护责任。详见[文末](#ai-制作声明)。
 
@@ -19,9 +19,9 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)（建议用 1.2.2）会告诉 AI 怎么写 CC 程序、什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
 
-> 当前版本是 **0.2.3**（2026-10），更新内容见 [`docs/release-notes-0.2.3.md`](docs/release-notes-0.2.3.md)；历史版本：[0.2.2](docs/release-notes-0.2.2.md)、[0.2.0](docs/release-notes-0.2.0.md)、[0.1.0](docs/release-notes-0.1.0.md)。cct-live 还是原型。
+> 当前源码版本是 **0.2.4**（2026-10），更新内容见 [`docs/release-notes-0.2.4.md`](docs/release-notes-0.2.4.md)；已发布版本以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。历史版本：[0.2.3](docs/release-notes-0.2.3.md)、[0.2.2](docs/release-notes-0.2.2.md)、[0.2.0](docs/release-notes-0.2.0.md)、[0.1.0](docs/release-notes-0.1.0.md)。cct-live 还是原型。
 >
-> 0.2.3 是一次代码审查后的修复版，没有新功能：cct-live 的文件接口不再能被绝对路径带到电脑目录以外；`cct_live_wait`、trace 读取、fixture 校验和快照路径都更可靠。建议连同 mod 一起升级。
+> 0.2.4 完成审查清单中的 63 项 A/T 修复：补齐模拟磁盘配额和输入边界，修正运行结果与 MCP 取消，改进 cct-live 的 trace 轮换、快照恢复和 HTTP 超时，并让发行流程校验版本、复用已测产物。建议 cct-run 与对应 mod 一起升级。
 
 ---
 
@@ -74,7 +74,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 需要 Java 17 或更高版本（系统默认是旧版 Java 时，cct-run 会自动找本机的 Java 17+）。简要步骤：
 
 1. 从 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 下载 `cct-run-<版本>.zip` 并解压，例如解压到 `C:\cct-run`；
-2. 运行 `bin\cct-run.bat version`（macOS / Linux：`bin/cct-run version`），能输出带 `"cc_tweaked": "1.120.2"` 的 JSON 就说明装好了；
+2. 运行 `bin\cct-run.bat version`（Linux：`bin/cct-run version`；macOS 尚未实测），能输出带 `"cc_tweaked": "1.120.2"` 的 JSON 就说明装好了；
 3. 把 `cct-run mcp` 配置成 AI 客户端的 MCP 服务器，例如 Claude Code（在 cmd 里运行）：
 
    ```bat
@@ -100,34 +100,22 @@ cct-run guide | version | help | mcp
 
 ## 还不能模拟的内容
 
-测试通过表示程序**在这个模拟环境里**运行正确，不保证和游戏里完全一致。目前没有：
+测试通过表示程序**在这个模拟环境里**运行正确。海龟、真实世界、HTTP、真实模组机器联动等仍需实机验证；模拟根盘执行 1 MB 配额，JVM 默认约 1 GB 堆。
 
-- 海龟（turtle）、口袋电脑、命令电脑；
-- 真实世界（方块、区块加载、服务器卡顿）；
-- HTTP / WebSocket、扬声器、打印机、磁盘驱动器、无线 / 末影调制解调器、接收调制解调器消息；
-- 容器的格子限制：任何格子都能放任何物品，上限 64（真实的熔炉、模组方块有规则）；物品详情只有部分字段；
-- 其他模组的外设只能用 `scripted` 描述：返回 fixture 里写的值，不模拟机器之间的联动（调高转速不会让应力跟着变，除非时间线这样安排）；
-- 能量和流体只在 fixture 时间线里改变；游戏内时间固定为 0（`os.time()`、`os.day()`）；
-- 磁盘容量只报告、不限制；内存上限约 1 GB（游戏里没有单台电脑的内存上限，电脑和服务器共用内存）；
-- 只记录屏幕上的文字，不记录颜色；
-- CC 无法显示中文，屏幕上看到的是 CC 自己的字符集。
-
-完整的差异清单见 `handoff.md` 的 LIMITATIONS 和 DIVERGENCES 两节。
+完整范围、数值/字符语义及异常运行记录见 [模拟范围与已知限制](docs/limitations.md)。
 
 ---
 
 ## 测试情况
 
-| 平台 / 项目 | 结果 |
+当前测试数量从实际 JUnit XML 生成：`python3 scripts/test_summary.py` → `build/reports/verification.json`。CI 汇总四个模块的结果，发布物附带 `verification.json`；不再手工同步测试数量。
+
+| 平台 / 项目 | 覆盖与证据 |
 |---|---|
-| Windows 11（PowerShell 5.1、cmd、代码页 936） | 冒烟测试 22/22：命令行、MCP 服务器（直接启动和 `cmd /c`）、内存上限、从 Java 8 自动切换、路径含空格和中文 |
-| Windows 11（0.2.3 审查修复版） | 单元测试 81/81（engine 42、cli 30、mod 9）；游戏内验证路径拦截、快照路径、`cct_live_wait` 和 `notes_dropped` |
-| Windows 11（双版本 mod 构建） | 单元测试 90 次（engine 42、cli 30、mod 的 1.20.1/1.21.1 两个变体各 9）；两个 mod 变体都在开发服务器上端到端通过：401/200、接管、事件、Lua、屏幕、trace、释放；1.21.1 版还在真实的 NeoForge 客户端里验证了接管、事件注入、Lua REPL、文件与快照端点、路径拦截、trace、wait 和释放（显示器、有线调制解调器、记录模式、body 端点未测） |
-| Linux（GitHub Actions，0.2.3） | 每次推送自动构建并测试：engine 42 + cli 30（`./gradlew build`）、两个 mod 变体各 9 个测试；`v*` 标签额外构建发布包并创建 GitHub Release。见 [`docs/building.md`](docs/building.md#自动构建github-actions) |
-| Linux | 0.2.2 时单元测试 54/54、冒烟测试全部通过、官方 MCP SDK 客户端验证通过、Java 17 / 21 / 25 均可运行；0.2.3 未重跑 |
-| macOS | 尚未测试 |
-| cct-live | Linux 上的 Forge 47.4.10 开发服务器和正式服务器；Windows 单人游戏（PCL2 启动器）七次 AI 实测：MPlayer 安装脚本排错 4 轮，联合测试 3（Create 工厂控制中心）2 次，联合测试 4（Create 订单产线）1 次 |
-| AI 客户端 | 命令行方式：Autoclaw、DeepSeek Harness 实测可用；MCP 方式：一次模拟器实测四步全部正确，DeepSeek Harness 等客户端实机实测 7 次可用。其他客户端的 MCP 接入结果待反馈 |
+| Linux，本轮 `1019fix` | engine/cli 与双 mod 变体回归、发布 zip 冒烟、Java 8 启动器切换；Forge / NeoForge 开发服务器的文件、快照、HTTP 限制、显示器、有线外设、trace 轮转、接管/释放与租约验证。见[本轮证据](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/evidence/dynamic/results-1019fix/README.md) |
+| GitHub Actions | main 推送、面向 main 的 PR、手动运行：构建、单测、发布 zip 冒烟与验证结果汇总；标签发布复用同次已测产物。见[构建说明](docs/building.md) |
+| Windows 与实际 AI 客户端 | 历史版本的 PowerShell/cmd、Java 切换、MCP 与真实客户端记录保留在[测试记录](docs/test-results.md)。本轮未重新执行 Windows 客户端验证 |
+| macOS | 尚未测试，安装命令仅供参考 |
 
 ### 性能：cct-live 平时几乎没有开销
 

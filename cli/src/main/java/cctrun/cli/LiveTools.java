@@ -47,6 +47,7 @@ final class LiveTools {
      * power): cct_live_wait does not accept 'text' on that unchanged screen, which still shows what was there before.
      */
     private final java.util.Map<String, String> beforeAction = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final String UNAVAILABLE_BASELINE = "<baseline unavailable>";
     /** GLFW key codes, as CC: Tweaked 1.120.2 on Minecraft 1.20.1 reports them in key events. */
     static final int KEY_ENTER = 257;
     static final int DEFAULT_TRACE_LIMIT = 50;
@@ -277,7 +278,7 @@ final class LiveTools {
                 allowOnly(a, "game_dir", "computer", "source", "after");
                 var query = new ArrayList<String>();
                 addString(query, a, "source");
-                addInteger(query, a, "after");
+                addLong(query, a, "after");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/status" + join(query)));
             }
             case WAIT -> wait(a);
@@ -287,7 +288,7 @@ final class LiveTools {
                 addString(query, a, "source");
                 if (bool(a, "colors", false)) query.add("colors=1");
                 if (bool(a, "regions", false)) query.add("regions=1");
-                addInteger(query, a, "tick");
+                addLong(query, a, "tick");
                 yield result(get(endpoint(a), "computers/" + computer(a) + "/screen" + join(query)));
             }
             case CLICK -> {
@@ -382,7 +383,7 @@ final class LiveTools {
                 // Screen records are the bulk of a GUI program's trace: leave them out unless asked for.
                 if (exclude.isEmpty() && kinds.isEmpty()) exclude = List.of("screen");
                 if (!exclude.isEmpty()) query.add("exclude=" + encode(String.join(",", exclude)));
-                addInteger(query, a, "after");
+                addLong(query, a, "after");
                 addInteger(query, a, "offset");
                 var limit = integer(a, "limit");
                 query.add("limit=" + (limit == null ? DEFAULT_TRACE_LIMIT : limit));
@@ -472,11 +473,12 @@ final class LiveTools {
         var id = computer(a);
         var source = string(a, "source");
         // Text left on the screen from before the last action (a prompt, the previous boot's banner) must not count.
-        var baseline = bool(a, "unchanged", false) ? null : beforeAction.get(id + "/" + (source == null ? "term" : source));
+        var baseline = bool(a, "unchanged", false) ? null : beforeAction.getOrDefault(id + "/" + (source == null ? "term" : source), beforeAction.get(id + "/?"));
+        var unavailableBaseline = UNAVAILABLE_BASELINE.equals(baseline);
         var changed = baseline == null;
         var textOnOldScreen = false;
 
-        Long after = integer(a, "after") == null ? null : (long) integer(a, "after");
+        Long after = longInteger(a, "after");
         if (after == null && !kinds.isEmpty()) {
             // Records count from where the wait starts: without this the first status would match an old record.
             var first = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
@@ -517,7 +519,8 @@ final class LiveTools {
             now = System.nanoTime();
             var hash = screenHash(status);
             // A status without screen_hash (an older cct-live, or a monitor that is gone) must not crash the wait.
-            if (!changed && hash != null && !hash.equals(baseline)) changed = true;
+            if (!changed && !unavailableBaseline && hash != null && !hash.equals(baseline)) changed = true;
+            if (unavailableBaseline) status.addProperty("baseline_warning", "screen before the last action could not be read; pass unchanged: true to accept existing text");
             String met = null;
             if (status.has("match")) met = "kind";
             if (met == null && text != null && screenContains(status, text)) {
@@ -538,7 +541,7 @@ final class LiveTools {
                 Thread.sleep(POLL_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new McpTools.ToolError("cancelled");
+                throw new McpTools.ToolError(McpTools.ToolError.Kind.CANCELLED, "cancelled");
             }
         }
     }
@@ -562,7 +565,7 @@ final class LiveTools {
     }
 
     private static boolean isUnanswered(McpTools.ToolError e) {
-        return e.getMessage() != null && e.getMessage().contains("did not answer in time");
+        return e.kind() == McpTools.ToolError.Kind.TIMEOUT;
     }
 
     /** What cct_live_wait returns when the endpoint stops answering before any condition could be checked. */
@@ -576,18 +579,23 @@ final class LiveTools {
 
     /** Remembers each screen's hash before an input action, for cct_live_wait (best effort: errors are ignored). */
     private void rememberScreens(Endpoint endpoint, int id) {
+        beforeAction.put(id + "/?", UNAVAILABLE_BASELINE);
+        beforeAction.keySet().stream().filter(k -> k.startsWith(id + "/")).forEach(k -> beforeAction.put(k, UNAVAILABLE_BASELINE));
+        beforeAction.put(id + "/term", UNAVAILABLE_BASELINE);
         try {
             var status = JsonParser.parseString(get(endpoint, "computers/" + id + "/status")).getAsJsonObject();
             beforeAction.put(id + "/term", status.get("screen_hash").getAsString());
             if (status.has("monitors")) {
                 for (var monitor : status.getAsJsonArray("monitors")) {
                     var side = monitor.getAsString();
+                    beforeAction.put(id + "/" + side, UNAVAILABLE_BASELINE);
                     var m = JsonParser.parseString(get(endpoint, "computers/" + id + "/status?source=" + encode(side))).getAsJsonObject();
                     beforeAction.put(id + "/" + side, m.get("screen_hash").getAsString());
                 }
             }
+            beforeAction.remove(id + "/?");
         } catch (McpTools.ToolError | RuntimeException e) {
-            beforeAction.keySet().removeIf(k -> k.startsWith(id + "/"));
+            beforeAction.keySet().stream().filter(k -> k.startsWith(id + "/")).forEach(k -> beforeAction.put(k, UNAVAILABLE_BASELINE));
         }
     }
 
@@ -646,7 +654,7 @@ final class LiveTools {
                 Thread.sleep(POLL_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new McpTools.ToolError("cancelled");
+                throw new McpTools.ToolError(McpTools.ToolError.Kind.CANCELLED, "cancelled");
             }
             var stat = JsonParser.parseString(get(endpoint, "computers/" + id + "/files?op=stat&path=" + encode(output))).getAsJsonObject();
             if (!stat.get("exists").getAsBoolean() || stat.get("size").getAsLong() == 0) continue;
@@ -827,6 +835,7 @@ final class LiveTools {
     }
 
     private String send(Endpoint endpoint, HttpRequest.Builder request, Duration timeout) throws McpTools.ToolError {
+        if (Thread.currentThread().isInterrupted()) throw new McpTools.ToolError(McpTools.ToolError.Kind.CANCELLED, "cancelled");
         HttpResponse<String> response;
         try {
             response = client.send(request.header("Authorization", "Bearer " + endpoint.token()).timeout(timeout).build(),
@@ -834,12 +843,12 @@ final class LiveTools {
         } catch (ConnectException e) {
             throw new McpTools.ToolError("cannot connect to cct-live at " + endpoint.base() + ". Is the world still open? (endpoint.json may be left over from a game that did not close cleanly.)");
         } catch (HttpTimeoutException e) {
-            throw new McpTools.ToolError("cct-live at " + endpoint.base() + " did not answer in time (is the game paused or frozen?)");
+            throw new McpTools.ToolError(McpTools.ToolError.Kind.TIMEOUT, "cct-live at " + endpoint.base() + " did not answer in time (is the game paused or frozen?)");
         } catch (IOException e) {
             throw new McpTools.ToolError("request to cct-live failed: " + e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new McpTools.ToolError("cancelled");
+            throw new McpTools.ToolError(McpTools.ToolError.Kind.CANCELLED, "cancelled");
         }
         if (response.statusCode() == 200) return response.body();
         var message = response.body();
@@ -875,6 +884,21 @@ final class LiveTools {
         for (var key : a.keySet()) {
             if (!allowed.contains(key)) throw new McpTools.ToolError("unknown argument '" + key + "'; expected one of " + allowed);
         }
+    }
+
+    private static Long longInteger(JsonObject a, String key) throws McpTools.ToolError {
+        var value = a.get(key);
+        if (value == null || value.isJsonNull()) return null;
+        try {
+            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) throw new NumberFormatException();
+            long result = value.getAsBigDecimal().longValueExact();
+            if (result < 0) throw new NumberFormatException();
+            return result;
+        } catch (ArithmeticException | NumberFormatException e) { throw new McpTools.ToolError("'" + key + "' must be a nonnegative 64-bit integer"); }
+    }
+    private static void addLong(List<String> query, JsonObject a, String key) throws McpTools.ToolError {
+        var value = longInteger(a, key);
+        if (value != null) query.add(key + "=" + value);
     }
 
     private static int computer(JsonObject a) throws McpTools.ToolError {

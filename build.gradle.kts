@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 
+val toolVersions = Regex("public static final String TOOL = \"([^\"]+)\"")
+    .findAll(file("engine/src/main/java/cctrun/engine/Versions.java").readText()).toList()
+require(toolVersions.size == 1) { "Expected exactly one Versions.TOOL definition" }
+val toolVersion = toolVersions.single().groupValues[1]
+
 allprojects {
     group = "cctrun"
-    version = "0.2.3"
+    version = toolVersion
 }
 
 // Shared configuration for the loader-independent subprojects (engine, cli).
@@ -32,11 +37,15 @@ subprojects {
 // One invocation builds every mod variant: build/mods/cct-live-1.20.1-<version>.jar and cct-live-1.21.1-<version>.jar.
 tasks.register<Copy>("assembleMods") {
     dependsOn(":mod-forge:build", ":mod-neoforge:build")
-    from(project(":mod-forge").layout.buildDirectory.dir("libs")) {
-        include("*.jar")
-    }
-    from(project(":mod-neoforge").layout.buildDirectory.dir("libs")) {
-        include("*.jar")
-    }
+    from(project(":mod-forge").layout.buildDirectory.file("libs/cct-live-1.20.1-$toolVersion.jar"))
+    from(project(":mod-neoforge").layout.buildDirectory.file("libs/cct-live-1.21.1-$toolVersion.jar"))
     into(layout.buildDirectory.dir("mods"))
+}
+
+tasks.register("printVersion") { doLast { println(toolVersion) } }
+tasks.register("verifyReleaseVersion") {
+    doLast {
+        val tag = providers.environmentVariable("RELEASE_TAG").orElse(providers.environmentVariable("GITHUB_REF_NAME")).orNull
+        require(tag == "v$toolVersion") { "Release tag '$tag' does not match build/runtime version v$toolVersion" }
+    }
 }

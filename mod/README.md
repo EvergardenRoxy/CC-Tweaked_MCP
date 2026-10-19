@@ -19,6 +19,8 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 ## 版本
 
+当前源码版本 **0.2.4**，建议与 cct-run 一起升级；变更与兼容性见 [0.2.4 发行说明](../docs/release-notes-0.2.4.md)。已发布下载以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。
+
 支持两个组合，逻辑代码是同一份，只有加载器入口和元数据不同：
 
 | 游戏 | 加载器 | CC: Tweaked | 产物 |
@@ -28,7 +30,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 这个 mod 用到了 CC: Tweaked 的内部类，所以两个版本的元数据都把 CC: Tweaked 锁定在 1.120.2，版本不对时加载器会拒绝加载。CC: Tweaked 在 1.21.1 没有单独的 `-neoforge` 产物：官方的 `cc-tweaked-1.21.1-forge` 就是一个 NeoForge mod（jar 里是 `META-INF/neoforge.mods.toml`，要求 NeoForge `[21.1.9,21.2)`）。
 
-两个版本共用 `mod/src/common/` 里的 18 个 Java 类和资源，只有加载器相关的两个类（`CctLive.java`、`LiveConfig.java`）和元数据分别放在 `mod/forge/`、`mod/neoforge/`。
+两个版本共用 `mod/src/common/` 里的 Java 类和资源，只有加载器相关的两个类（`CctLive.java`、`LiveConfig.java`）和元数据分别放在 `mod/forge/`、`mod/neoforge/`。
 
 ## 构建
 
@@ -40,7 +42,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 ./gradlew assembleMods          # 构建两个版本，并把两个 jar 复制到 build/mods/
 ```
 
-上面的命令都在仓库根目录执行（Windows 用 `gradlew.bat`）。测试：`./gradlew :mod-forge:test :mod-neoforge:test`，两个变体跑同一套纯 JUnit 测试（各 9 个，不加载 Minecraft 类）。
+上面的命令都在仓库根目录执行（Windows 用 `gradlew.bat`）。测试：`./gradlew :mod-forge:test :mod-neoforge:test`，两个变体分别执行共享 JUnit 测试；实际执行数由 `python3 scripts/test_summary.py` 汇总，不用历史测试数代表当前构建。
 
 `mod/` 是根 Gradle 构建的一部分（`:mod-forge`、`:mod-neoforge` 两个子项目），但根目录的 `./gradlew build`（cct-run 本体）不会构建它们，也不会下载 Minecraft。
 
@@ -92,7 +94,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 ## 通过 MCP 让 AI 使用
 
-`cct-run mcp` 提供 15 个 `cct_live_*` 工具。每次工具返回的内容都会留在 AI 的上下文里，所以工具默认只返回很少的数据：日常检查用 `status`，等待用 `wait`，需要细节时再查 trace 或屏幕。
+`cct-run mcp` 提供 16 个 `cct_live_*` 工具。每次工具返回的内容都会留在 AI 的上下文里，所以工具默认只返回很少的数据：日常检查用 `status`，等待用 `wait`，需要细节时再查 trace 或屏幕。
 
 | 工具 | 作用 | 需要先接管 |
 |---|---|---|

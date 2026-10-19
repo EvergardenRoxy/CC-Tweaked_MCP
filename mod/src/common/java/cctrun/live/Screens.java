@@ -28,7 +28,7 @@ final class Screens {
                 if (line.isBlank() || !line.contains("\"kind\":\"screen\"")) continue;
                 JsonObject record;
                 try {
-                    record = JsonParser.parseString(line).getAsJsonObject();
+                    record = TraceRecords.parse(line);
                 } catch (RuntimeException e) {
                     continue; // partial line from a concurrent write: not part of the screen history
                 }
@@ -69,7 +69,11 @@ final class Screens {
         if (rows == null) return;
         for (var entry : rows.entrySet()) {
             var row = Integer.parseInt(entry.getKey()) - 1;
-            if (row >= 0 && row < target.length) target[row] = entry.getValue().getAsString();
+            if (row >= 0 && row < target.length) {
+                var value = entry.getValue().getAsString();
+                int width = target[row].length();
+                target[row] = value.length() >= width ? value.substring(0, width) : value + " ".repeat(width - value.length());
+            }
         }
     }
 

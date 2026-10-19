@@ -1,0 +1,50 @@
+{
+  "variant": "forge",
+  "checks": [
+    {
+      "name": "auth-host-permissions-dormant",
+      "passed": true,
+      "seconds": 0.033
+    },
+    {
+      "name": "files-snapshot-roundtrip-and-path-regressions",
+      "passed": true,
+      "seconds": 0.092
+    },
+    {
+      "name": "http-413-and-slow-body-recovery",
+      "passed": true,
+      "seconds": 5.017
+    },
+    {
+      "name": "peripheral-reflection-monitors-and-call-ids-across-reboot",
+      "passed": true,
+      "seconds": 0.019
+    },
+    {
+      "name": "rotation-bounded-files-replay-and-recording-handover",
+      "passed": true,
+      "seconds": 11.407
+    },
+    {
+      "name": "chunk-unload-is-unavailable-without-automatic-control",
+      "passed": true,
+      "seconds": 1.109
+    },
+    {
+      "name": "lease-expiry",
+      "passed": true,
+      "seconds": 31.003
+    }
+  ],
+  "capabilities": {
+    "monitors": [
+      "right"
+    ],
+    "files_write": true
+  },
+  "peripheral_calls": 2,
+  "rotations_first_seq": 518,
+  "retained_sequence_events": 151,
+  "endpoint_cleanup": true
+}

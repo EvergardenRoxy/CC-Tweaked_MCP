@@ -29,6 +29,7 @@ final class RecordingMachine implements ILuaMachine {
     static final class Holder {
         final AtomicReference<ILuaMachine> current = new AtomicReference<>();
         final AtomicInteger created = new AtomicInteger();
+        final VmFailures failures = new VmFailures();
 
         String executionState() {
             var machine = current.get();
@@ -42,7 +43,9 @@ final class RecordingMachine implements ILuaMachine {
     static ILuaMachine.Factory factory(Trace trace, Holder holder, Map<String, Object> injectedSettings) {
         return (environment, bios) -> {
             // Each boot applies the settings again, so each VM gets its own copy to match against.
-            var machine = new RecordingMachine(new CobaltLuaMachine(environment, bios), trace, new HashMap<>(injectedSettings));
+            var inner = new CobaltLuaMachine(environment, bios);
+            holder.failures.install(inner);
+            var machine = new RecordingMachine(inner, trace, new HashMap<>(injectedSettings), holder.failures);
             holder.created.incrementAndGet();
             holder.current.set(machine);
             return machine;
@@ -52,16 +55,24 @@ final class RecordingMachine implements ILuaMachine {
     private final ILuaMachine inner;
     private final Trace trace;
     private final Map<String, Object> pendingSettings;
+    private final VmFailures failures;
 
-    private RecordingMachine(ILuaMachine inner, Trace trace, Map<String, Object> pendingSettings) {
+    private RecordingMachine(ILuaMachine inner, Trace trace, Map<String, Object> pendingSettings, VmFailures failures) {
         this.inner = inner;
         this.trace = trace;
         this.pendingSettings = pendingSettings;
+        this.failures = failures;
     }
 
     @Override
     public MachineResult handleEvent(String eventName, Object[] arguments) {
-        var result = inner.handleEvent(eventName, arguments);
+        final MachineResult result;
+        try { result = inner.handleEvent(eventName, arguments); }
+        catch (OutOfMemoryError e) {
+            failures.observe(e);
+            failures.machineError = "VM ran out of memory outside a protected Lua call";
+            return MachineResult.GENERIC_ERROR;
+        }
         // The first resume (eventName == null) boots the BIOS; it is not an event.
         if (eventName != null) {
             var data = new JsonObject();
@@ -74,6 +85,8 @@ final class RecordingMachine implements ILuaMachine {
             trace.record("event", data);
         }
         if (result.isError()) {
+            failures.machineError = result.getMessage();
+            failures.machineTimeout = result == MachineResult.TIMEOUT;
             var data = new JsonObject();
             data.addProperty("message", result.getMessage());
             data.addProperty("timeout", result == MachineResult.TIMEOUT);

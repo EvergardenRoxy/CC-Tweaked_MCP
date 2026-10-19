@@ -141,7 +141,7 @@ final class Attachment {
         if (screens) {
             var full = trace.rotations() != rotationsSeen;
             rotationsSeen = trace.rotations();
-            pollScreen("term", Terminals.snapshot(computer), full);
+            if (Terminals.available()) pollScreen("term", Terminals.snapshot(computer), full);
             var monitors = Terminals.monitors(computer);
             for (var entry : monitors.entrySet()) pollScreen(entry.getKey(), Terminals.snapshot(entry.getValue()), full);
             for (var it = this.screens.keySet().iterator(); it.hasNext(); ) {

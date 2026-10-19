@@ -174,7 +174,8 @@ final class TracingMethods implements MethodSupplier<LuaMethod> {
         }
     }
 
-    /** Full length of a string-like value (the record keeps only the first characters), or -1. */
+    /** Full Lua byte length, not the UTF-8 size of the JSON transport. CC strings carry one byte per Java char;
+     * HTTP readAll strings use ISO-8859-1 to preserve those bytes. Applying UTF-8 here would overcount. */
     private static long dataLength(Object value) {
         if (value instanceof java.nio.ByteBuffer b) return b.remaining();
         if (value instanceof byte[] b) return b.length;

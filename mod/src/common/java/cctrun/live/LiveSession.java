@@ -43,7 +43,8 @@ final class LiveSession {
 
     static LiveSession start(MinecraftServer server, Path home) throws IOException {
         stop();
-        var dir = home.resolve("sessions").resolve(LocalDateTime.now().format(DIR_NAME));
+        LocalFiles.removeDeadEndpoint(home.resolve("endpoint.json"));
+        var dir = LocalFiles.sessionPath(home.resolve("sessions"));
         JsonValues.MAX_STRING = LiveConfig.TRACE_MAX_STRING.get();
         var session = new LiveSession(server, home, dir);
         current = session;
@@ -60,6 +61,9 @@ final class LiveSession {
     private final MinecraftServer server;
     private final Path home;
     private final Path dir;
+    private boolean directoryCreated;
+    private final java.util.concurrent.atomic.AtomicLong callIds = new java.util.concurrent.atomic.AtomicLong();
+    long nextCallId() { return callIds.incrementAndGet(); }
     private final long startNanos = System.nanoTime();
     private final boolean recording = LiveConfig.RECORDER_ENABLED.get();
     private final int ringSize = LiveConfig.RECORDER_SIZE.get();
@@ -162,11 +166,14 @@ final class LiveSession {
         var id = computer.getID();
         var trace = traces.get(computer.getMetrics());
         if (trace == null) {
-            Files.createDirectories(dir);
+            if (!directoryCreated) {
+                LocalFiles.reserveSession(dir); // exclusive, and only on the first attachment
+                directoryCreated = true;
+            }
             var file = dir.resolve("computer-" + id + ".jsonl");
             // Two computers with the same ID (a copied computer) get separate files.
             for (var n = 2; Files.exists(file); n++) file = dir.resolve("computer-" + id + "-" + n + ".jsonl");
-            trace = new ComputerTrace(this, file, LiveConfig.TRACE_MAX_MB.get() * 1024L * 1024L);
+            trace = new ComputerTrace(this::tickCount, this::millis, file, LiveConfig.TRACE_MAX_MB.get() * 1024L * 1024L);
             traces.put(computer.getMetrics(), trace);
         }
         var attachment = new Attachment(computer, trace, leaseSeconds != null ? leaseSeconds * 1000L : leaseMillis);
@@ -174,30 +181,27 @@ final class LiveSession {
         var start = new JsonObject();
         start.addProperty("lease_seconds", attachment.leaseSeconds());
         start.addProperty("recording_mode", recording);
-        Ring.Entry[] history = new Ring.Entry[0];
-        long[] dropped = {0};
-        if (recording) {
-            Ring ring;
-            synchronized (rings) {
-                ring = rings.get(computer.getMetrics());
+        var historyRing = recording ? ring(computer.getMetrics()) : new Ring(1);
+        // Recorder.record uses the same ring monitor before selecting ring vs attachment, including writers
+        // already in flight. Lock order is ring -> trace everywhere.
+        synchronized (historyRing) {
+            var dropped = new long[1];
+            var history = recording ? historyRing.drain(dropped) : java.util.List.<Ring.Entry>of();
+            if (recording) {
+                start.addProperty("history", history.size());
+                start.addProperty("history_dropped", dropped[0]);
             }
-            if (ring != null) history = ring.drain(dropped).toArray(Ring.Entry[]::new);
-            start.addProperty("history", history.length);
-            start.addProperty("history_dropped", dropped[0]);
-        }
-        // Holding the trace's lock: records from the computer thread that arrive once the attachment is visible wait
-        // until the history is written, so the file stays in order.
-        synchronized (trace) {
-            attached.put(computer.getMetrics(), attachment);
-            anyAttached = true;
-            trace.record("attach", start);
-            // Recording-mode history first, marked as such, with the ticks it happened at.
-            for (var entry : history) {
-                var data = entry.data().deepCopy();
-                data.addProperty("history", true);
-                trace.recordAt(entry.tick(), entry.ms(), entry.kind(), data);
+            synchronized (trace) {
+                attached.put(computer.getMetrics(), attachment);
+                anyAttached = true;
+                trace.record("attach", start);
+                for (var entry : history) {
+                    var data = entry.data().deepCopy();
+                    data.addProperty("history", true);
+                    trace.recordAt(entry.tick(), entry.ms(), entry.kind(), data);
+                }
+                trace.record("computer_seen", Attachment.describe(computer));
             }
-            trace.record("computer_seen", Attachment.describe(computer));
         }
         traceById.put(id, trace);
         CctLive.announce(server, "cctlive.attached", "[cct-live] AI 已接管 %s 号电脑（租约 %s 秒，输入 /cctlive detach %s 可收回）", id, attachment.leaseSeconds(), id);
@@ -213,6 +217,7 @@ final class LiveSession {
         var id = computer.getID();
         switch (reason) {
             case "expired" -> CctLive.announce(server, "cctlive.expired", "[cct-live] AI 对 %s 号电脑的租约已到期，已自动释放", id);
+            case "unavailable" -> CctLive.announce(server, "cctlive.unavailable", "[cct-live] %s 号电脑当前未加载或不可用，接管结束", id);
             case "removed" -> CctLive.announce(server, "cctlive.removed", "[cct-live] %s 号电脑已被移除，接管结束", id);
             case "revoked" -> CctLive.announce(server, "cctlive.revoked", "[cct-live] 已收回 AI 对 %s 号电脑的控制", id);
             case "closed" -> {
@@ -232,7 +237,7 @@ final class LiveSession {
         for (var attachment : attachments()) {
             var computer = attachment.computer();
             if (registry.get(computer.getInstanceUUID()) != computer) {
-                detach(computer, "removed");
+                detach(computer, "unavailable");
             } else if (attachment.expired(now)) {
                 detach(computer, "expired");
             } else {
@@ -249,6 +254,7 @@ final class LiveSession {
     // --- endpoint ----------------------------------------------------------------------------------------------------
 
     void startHttp(int port) throws IOException {
+        LocalFiles.removeDeadEndpoint(endpointFile());
         http = new LiveHttp(this, port, token());
         http.start();
         // How `cct-run mcp --live <game dir>` finds this endpoint; removed again when the world closes.
@@ -257,7 +263,7 @@ final class LiveSession {
         endpoint.addProperty("url", "http://127.0.0.1:" + http.port() + "/");
         endpoint.addProperty("pid", ProcessHandle.current().pid());
         endpoint.addProperty("session", dir.toString());
-        Files.writeString(endpointFile(), ComputerTrace.GSON.toJson(endpoint) + "\n", StandardCharsets.UTF_8);
+        LocalFiles.writeEndpoint(endpointFile(), ComputerTrace.GSON.toJson(endpoint));
     }
 
     private Path endpointFile() {
@@ -265,18 +271,21 @@ final class LiveSession {
     }
 
     /** The access token for the HTTP endpoint: cct-live/token.txt, created once. */
-    private String token() throws IOException {
-        Files.createDirectories(home);
-        var file = home.resolve("token.txt");
-        if (Files.exists(file)) {
-            var token = Files.readString(file, StandardCharsets.UTF_8).trim();
-            if (!token.isEmpty()) return token;
+    private String token() throws IOException { return LocalFiles.token(home); }
+
+    /** The recorder and attach share the ring monitor; selecting a destination cannot race with draining it. */
+    void record(MetricsObserver metrics, String kind, JsonObject data) {
+        if (recording) {
+            var ring = ring(metrics);
+            synchronized (ring) {
+                var attachment = attachedTo(metrics);
+                if (attachment != null) attachment.trace().record(kind, data);
+                else ring.add(tickCount(), millis(), kind, data);
+            }
+        } else {
+            var attachment = attachedTo(metrics);
+            if (attachment != null) attachment.trace().record(kind, data);
         }
-        var bytes = new byte[24];
-        new SecureRandom().nextBytes(bytes);
-        var token = HexFormat.of().formatHex(bytes);
-        Files.writeString(file, token + "\n", StandardCharsets.UTF_8);
-        return token;
     }
 
     private void close() {
@@ -284,7 +293,7 @@ final class LiveSession {
         // Remove endpoint.json even if the HTTP server was off or failed to bind: a leftover file would point
         // cct-run mcp at a URL nobody listens on.
         try {
-            Files.deleteIfExists(endpointFile());
+            LocalFiles.removeOwnedEndpoint(endpointFile(), dir.toString());
         } catch (IOException e) {
             CctLive.LOG.warn("cct-live: could not remove {}", endpointFile(), e);
         }

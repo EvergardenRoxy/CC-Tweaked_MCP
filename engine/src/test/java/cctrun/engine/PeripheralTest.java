@@ -18,6 +18,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Fake peripherals: behaviour and error messages as in CC: Tweaked 1.120.2, and their trace records. */
 class PeripheralTest {
+    @Test
+    void fractionalInventorySlotUsesTheUpstreamIntegerConversion() throws Exception {
+        var result=RunHelper.run(out,
+            "local p=peripheral.wrap('left') print(p.getItemDetail(1.5).name)",
+            "{\"peripherals\":{\"left\":{\"type\":\"inventory\",\"items\":{\"1\":{\"name\":\"minecraft:stone\"}}}}}",10);
+        assertEquals("ok",result.status());
+        assertEquals("minecraft:stone",RunHelper.screen(result).get(0));
+    }
     @TempDir
     Path out;
 

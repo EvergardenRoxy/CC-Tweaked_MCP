@@ -8,6 +8,8 @@ package cctrun.engine.peripheral;
  * Moving items follows Forge's behaviour (CC: Tweaked's forge InventoryMethods with
  * ItemHandlerHelper.insertItem): without a target slot, the target is filled in slot order, merging
  * with matching stacks and filling empty slots as they come. Fabric fills existing stacks first.
+ * Mutable state is confined to the Runner/main-thread scheduler, including timeline updates;
+ * ItemStack fields must not be read from an asynchronous Lua worker.
  */
 public final class Inventory {
     private final ItemStack[] slots;

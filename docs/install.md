@@ -38,7 +38,7 @@ cct-run\
 # Windows（PowerShell 或 cmd）
 bin\cct-run.bat version
 
-# macOS / Linux
+# Linux；macOS 命令相同，但尚未实测
 bin/cct-run version
 ```
 
@@ -54,7 +54,7 @@ bin/cct-run version
 claude mcp add --scope user cct-run -- cmd /c C:\cct-run\bin\cct-run.bat mcp
 ```
 
-macOS / Linux：
+Linux（macOS 命令相同，但尚未实测）：
 
 ```bash
 claude mcp add --scope user cct-run -- /opt/cct-run/bin/cct-run mcp

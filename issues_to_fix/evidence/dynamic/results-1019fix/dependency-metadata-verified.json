@@ -1,0 +1,64 @@
+{
+  "verified_at": "2026-10-19T07:23:13.321904+00:00",
+  "canonical_repository": "https://repo.maven.apache.org/maven2/",
+  "ci_repository": "https://maven.neoforged.net/releases/",
+  "artifacts": [
+    {
+      "path": "org/jetbrains/kotlin/kotlin-bom/2.3.21/kotlin-bom-2.3.21.pom",
+      "sha256": "950704bad04c5143656cfca1d2c574f25fcad9cac33905ab22a57e9fdf7bfd88",
+      "published_sha256_match": false,
+      "bytes": 9400,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.7.1/junit-bom-5.7.1.module",
+      "sha256": "9854e3894d64b2485207e0046bca07b3d42d169e782f4fa8c9ce229a78faee04",
+      "published_sha256_match": true,
+      "bytes": 5937,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.7.2/junit-bom-5.7.2.module",
+      "sha256": "f3bceb1c59dd4f6993f4304dffa580172b8df65a76cd36fa4fd92c0578d28ad8",
+      "published_sha256_match": true,
+      "bytes": 5937,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.9.0/junit-bom-5.9.0.module",
+      "sha256": "a054eaf5016b58bbcde86660444a7c0dd3e2caf84d2a1ad5fc4cb525979c19b9",
+      "published_sha256_match": true,
+      "bytes": 6956,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.9.3/junit-bom-5.9.3.module",
+      "sha256": "b401fd25901e582a524aa5343c4b39e28bc56e24961c1069bf2b4bbfcee46b93",
+      "published_sha256_match": true,
+      "bytes": 6956,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.10.0/junit-bom-5.10.0.module",
+      "sha256": "eb3ee6127608010694a898056e7407d117296003aba5f5db801df430b9887fcf",
+      "published_sha256_match": true,
+      "bytes": 6995,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.10.1/junit-bom-5.10.1.module",
+      "sha256": "21b0afcfffe2ecb3770f5eb00ae7a19feaee94e771fa3918173850dae78067b7",
+      "published_sha256_match": true,
+      "bytes": 6995,
+      "mirror_byte_identical": true
+    },
+    {
+      "path": "org/junit/junit-bom/5.11.4/junit-bom-5.11.4.pom",
+      "sha256": "19d4b747b204805325b6334553296f986562277a4ac1cb5e593a5e4c4f5e4115",
+      "published_sha256_match": true,
+      "mirror_byte_identical": true,
+      "bytes": 5649
+    }
+  ],
+  "note": "Eight metadata artifacts absent from the initial warm-cache verification manifest. Exact versions retained; strict verification remains enabled. Kotlin BOM has no published SHA-256, so its canonical SHA-1 and an independently fetched byte-identical mirror were checked before recording SHA-256."
+}

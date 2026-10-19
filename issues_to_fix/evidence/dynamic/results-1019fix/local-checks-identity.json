@@ -1,0 +1,20 @@
+{
+  "verified_at": "2026-10-19T07:37:47.747141+00:00",
+  "source_commit": "6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8",
+  "checks": {
+    "strict_refresh_dependencies_build": true,
+    "junit_modules_passed": true,
+    "packaged_smoke_21_passed_zero_skipped": true,
+    "zip_verification_and_docs_match": true,
+    "ascii_and_lf_executable_scripts": true,
+    "current_game_source_hashes_unchanged": true,
+    "actual_java17_packaged_run": true,
+    "release_prepare_only_checksums_match": true,
+    "every_new_author_and_committer_matches_requested_identity": true
+  },
+  "limits": [
+    "Windows/macOS not rerun",
+    "Production deployment not run",
+    "GitHub tag publication not run"
+  ]
+}

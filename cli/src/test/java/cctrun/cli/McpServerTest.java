@@ -95,6 +95,37 @@ class McpServerTest {
     }
 
     @Test
+    void deeplyNestedAndBooleanIdsAreRejectedWithoutStoppingService() throws Exception {
+        var nested = "[".repeat(20_000) + "0" + "]".repeat(20_000);
+        var r = session("{\"jsonrpc\":\"2.0\",\"id\":" + nested + ",\"method\":\"ping\"}",
+            "{\"jsonrpc\":\"2.0\",\"id\":true,\"method\":\"ping\"}",
+            "{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"ping\"}");
+        assertEquals(-32600, r.get("null").getAsJsonObject("error").get("code").getAsInt());
+        assertTrue(r.get("42").has("result"));
+    }
+    @Test void rejectedSubmissionDoesNotLeaveActiveCalls() throws Exception {
+        var input=new ByteArrayInputStream((call(1,"cct_guide","{}")+"\n").getBytes(StandardCharsets.UTF_8));
+        var output=new ByteArrayOutputStream();var server=new McpServer(input,output,dir.resolve("runs"),dir);
+        var poolField=McpServer.class.getDeclaredField("pool");poolField.setAccessible(true);
+        ((java.util.concurrent.ExecutorService)poolField.get(server)).shutdown();
+        server.serve();
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("-32603"));
+        var activeField=McpServer.class.getDeclaredField("active");activeField.setAccessible(true);
+        assertTrue(((Map<?,?>)activeField.get(server)).isEmpty());
+    }
+    @Test void framingOomNeverWritesRunSummaryIntoMcpStream() throws Exception {
+        var input=Files.writeString(dir.resolve("large-line"),"x".repeat(16*1024*1024)+"\n");
+        var stdout=dir.resolve("oom-out");var stderr=dir.resolve("oom-err");
+        String exe=System.getProperty("os.name").toLowerCase().startsWith("windows")?"java.exe":"java";
+        var process=new ProcessBuilder(Path.of(System.getProperty("java.home"),"bin",exe).toString(),"-Xmx16m","-cp",System.getProperty("java.class.path"),Main.class.getName(),"mcp")
+            .redirectInput(input.toFile()).redirectOutput(stdout.toFile()).redirectError(stderr.toFile()).start();
+        if(!process.waitFor(20,java.util.concurrent.TimeUnit.SECONDS)){process.destroyForcibly();org.junit.jupiter.api.Assertions.fail("OOM child did not exit");}
+        assertEquals(4,process.exitValue(),Files.readString(stderr));
+        assertFalse(Files.readString(stdout).contains("cct-run/summary"));
+        for(var line:Files.readAllLines(stdout))if(!line.isBlank())assertTrue(JsonParser.parseString(line).getAsJsonObject().has("jsonrpc"));
+    }
+
+    @Test
     void runsCodeAndFilesInChildProcesses() throws Exception {
         var program = dir.resolve("my prog.lua");
         Files.writeString(program, "print('from file', ...)");
@@ -202,6 +233,14 @@ class McpServerTest {
         assertFalse(server.isAlive(), "server finished after the cancelled run");
         assertTrue(System.nanoTime() - start < 30_000_000_000L, "the child was stopped long before its 60 s timeout");
         assertEquals("", output.toString(StandardCharsets.US_ASCII), "no response for a cancelled request");
+        try (var runs = Files.list(dir.resolve("runs"))) {
+            var paths = runs.toList();
+            assertEquals(1, paths.size());
+            var state = JsonParser.parseString(Files.readString(paths.get(0).resolve("state.json"))).getAsJsonObject();
+            assertEquals("failed", state.get("state").getAsString());
+            assertEquals("cancelled", state.get("reason").getAsString());
+            if (state.has("pid")) assertFalse(ProcessHandle.of(state.get("pid").getAsLong()).map(ProcessHandle::isAlive).orElse(false));
+        }
     }
 
     /** A11: an interrupt while waiting (server shutdown) stops the child and answers "cancelled", not "internal error". */

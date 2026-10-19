@@ -1,0 +1,31 @@
+cct-run smoke report
+date: 2026-10-19T03:30:25Z
+os: Linux 629fe4cf825d 6.18.55 #1 SMP Wed Oct 14 19:45:18 UTC 2026 x86_64 GNU/Linux
+locale: LANG=C.UTF-8 LC_ALL=C.UTF-8
+JAVA_HOME: 
+cct-run: /tmp/cct-final-zip-p0p5iuq6/cct-run-0.2.3/bin/cct-run
+
+PASS version                          exit=0     0s
+PASS args-with-space-and-separator    exit=0     1s
+PASS runtime-error                    exit=1     0s
+PASS syntax-error                     exit=1     1s
+PASS fixture-wired-network-monitor    exit=0     0s
+PASS trace-latest                     exit=0     0s
+PASS screen-latest-monitor            exit=0     1s
+PASS redstone-timeline-terminate      exit=1     2s
+PASS scrolled-output                  exit=0     1s
+PASS timeout                          exit=2     2s
+PASS tick-rate                        exit=2     3s
+PASS too-long-without-yielding        exit=1     8s
+PASS path-with-space-and-cjk          exit=0     1s
+PASS utf8-stdout                      exit=0     0s
+PASS usage-error                      exit=64    0s
+PASS missing-program                  exit=65    0s
+PASS startup-time                     exit=0     1s
+PASS guide                            exit=0     0s
+PASS memory-limit                     exit=4     1s
+PASS old-java-switch                  (from /workspace/.tools/jdk8)
+PASS mcp-stdio                        exit=0     1s
+
+21 passed, 0 failed, 0 skipped. Report: /workspace/CC-Tweaked_MCP/issues_to_fix/evidence/dynamic/results-1019fix/smoke-linux.txt
+work dir: /tmp/cct-run-smoke.PPDczj

@@ -1,0 +1,9 @@
+{
+  "source_commit": "6999b2bea7e7cd65b4b80c3d41328a0350c6fcc8",
+  "run_id": 39216813473,
+  "job_id": 117942491881,
+  "passed": 21,
+  "failed": 0,
+  "skipped": 0,
+  "evidence": "Parsed from the actual GitHub tests job log after unpacking and smoking its distribution ZIP."
+}
