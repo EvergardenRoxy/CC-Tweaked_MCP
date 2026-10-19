@@ -104,13 +104,20 @@ final class LiveHttp {
         // Not try-with-resources: the catch blocks below still need to send a response.
         try {
             if (!hostAllowed(exchange)) {
+                HttpPolicy.discard(exchange, 5000, readDeadlines);
                 send(exchange, 403, error("Host header must be 127.0.0.1:" + port + ", localhost:" + port + " or [::1]:" + port));
                 return;
             }
             if (!authorised(exchange)) {
+                HttpPolicy.discard(exchange, 5000, readDeadlines);
                 send(exchange, 401, error("missing or wrong token (Authorization: Bearer <cct-live/token.txt>)"));
                 return;
             }
+            // Consume once before ANY response, including GET, detach, unknown paths and other errors.
+            // Otherwise HttpExchange.close() may block while draining an ignored request body.
+            final byte[] bodyBytes;
+            try { bodyBytes = HttpPolicy.read(exchange, ComputerFiles.MAX_READ, 5000, readDeadlines); }
+            catch (HttpPolicy.TooLarge e) { throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes"); }
             var path = exchange.getRequestURI().getPath();
             var parts = path.replaceAll("^/+|/+$", "").split("/");
             var method = exchange.getRequestMethod();
@@ -132,7 +139,7 @@ final class LiveHttp {
                     var query = query(exchange);
                     send(exchange, 200, onServer(() -> files(id, query)));
                 } else if (action.equals("files") && method.equals("POST")) {
-                    var body = body(exchange);
+                    var body = body(bodyBytes);
                     send(exchange, 200, onServer(() -> writeFile(id, body)));
                 } else if (action.equals("body") && method.equals("GET")) {
                     send(exchange, 200, body(id, query(exchange)));
@@ -142,19 +149,19 @@ final class LiveHttp {
                 } else if (action.equals("trace") && method.equals("GET")) {
                     send(exchange, 200, trace(id, query(exchange)));
                 } else if (action.equals("event") && method.equals("POST")) {
-                    var body = body(exchange);
+                    var body = body(bodyBytes);
                     send(exchange, 200, onServer(() -> queueEvent(id, body)));
                 } else if (action.equals("power") && method.equals("POST")) {
-                    var body = body(exchange);
+                    var body = body(bodyBytes);
                     send(exchange, 200, onServer(() -> power(id, body)));
                 } else if (action.equals("attach") && method.equals("POST")) {
-                    var body = body(exchange);
+                    var body = body(bodyBytes);
                     send(exchange, 200, onServer(() -> attach(id, body)));
                 } else if (action.equals("snapshot") && method.equals("POST")) {
-                    var body = body(exchange);
+                    var body = body(bodyBytes);
                     send(exchange, 200, onServer(() -> snapshot(id, body)));
                 } else if (action.equals("peripheral") && method.equals("POST")) {
-                    var body = body(exchange);
+                    var body = body(bodyBytes);
                     send(exchange, 200, onServer(() -> peripheral(id, body)));
                 } else if (action.equals("detach") && method.equals("POST")) {
                     send(exchange, 200, onServer(() -> detach(id)));
@@ -739,10 +746,7 @@ final class LiveHttp {
     private boolean hostAllowed(HttpExchange exchange) { return HttpPolicy.hostAllowed(exchange.getRequestHeaders().getFirst("Host"), port()); }
     private boolean authorised(HttpExchange exchange) { return HttpPolicy.authorised(exchange.getRequestHeaders().getFirst("Authorization"), token); }
 
-    private JsonObject body(HttpExchange exchange) throws IOException {
-        final byte[] bytes;
-        try { bytes = HttpPolicy.read(exchange, ComputerFiles.MAX_READ, 5000, readDeadlines); }
-        catch (HttpPolicy.TooLarge e) { throw new BadRequest(413, "body larger than " + ComputerFiles.MAX_READ + " bytes"); }
+    private JsonObject body(byte[] bytes) {
         var text = new String(bytes, StandardCharsets.UTF_8);
         try {
             var parsed = JsonParser.parseString(text.isBlank() ? "{}" : text);

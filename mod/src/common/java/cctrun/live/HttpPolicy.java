@@ -20,6 +20,12 @@ final class HttpPolicy {
     static final class TooLarge extends IOException {}
     static final class ReadTimeout extends IOException {}
 
+    /** Even an error response must not leave a slow body for HttpExchange.close() to drain indefinitely. */
+    static void discard(HttpExchange exchange, long timeoutMillis, ScheduledExecutorService deadlines) throws IOException {
+        try { read(exchange, 0, timeoutMillis, deadlines); }
+        catch (TooLarge ignored) { /* drained without retaining any bytes */ }
+    }
+
     /** Close before response headers exist: JDK HttpServer closes the connection and unblocks a slow body read.
      * No global sun.net.httpserver properties are changed. */
     static byte[] read(HttpExchange exchange, int limit, long timeoutMillis, ScheduledExecutorService deadlines) throws IOException {
