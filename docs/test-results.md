@@ -4,6 +4,8 @@
 
 ## 当前验证结果
 
+当前源码版本为 **0.2.4**。发行改动与平台验证边界见 [0.2.4 发行说明](release-notes-0.2.4.md)，正式发行步骤见 [发行流程](releasing.md)。下方 0.2.3 版本号均属于历史记录。
+
 当前数量与状态由 `python3 scripts/test_summary.py` 从四模块 JUnit XML 生成至 `build/reports/verification.json`，不手工同步数字。CI 与发布附带机器可读结果；报告中的 commit、dirty 和时间必须与待验证构建对应。打包前生成的结果进入 zip 的 `validation/`，最终四模块汇总另作发布资产。
 
 2026-10-19 分支 `1019fix` 的修复、命令、Linux zip 冒烟与 Forge/NeoForge 开发服务器检查见[本轮验证记录](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/evidence/dynamic/results-1019fix/README.md)。本轮未重跑 Windows 客户端、macOS 或生产服务器，也未触发正式标签发布。下文中的测试数、未解决列表及平台结果均为原日期的历史快照；当前 issue 状态以 [INDEX](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/blob/1019fix/issues_to_fix/INDEX.md) 为准。

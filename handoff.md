@@ -7,7 +7,7 @@ repo: EvergardenRoxy/CC-Tweaked_MCP
 branch: claude/zealous-ramanujan-rrt0qh
 base: main (default branch; PR #1 and PR #2 merged, 233883b); this branch = main + mod/ prototype (cct-live, D34-D45, V14-V20) + cct_live_* MCP tools
 date: 2026-10-16
-tool_version: 0.2.3 (engine/src/main/java/cctrun/engine/Versions.java)
+tool_version: 0.2.4 (engine/src/main/java/cctrun/engine/Versions.java)
 review_fixes: D50-D57, V25-V31 (2026-10-18, on main; security and crash fixes plus the low-risk A batch from the code review, V28 = in-game check of pass 1, V29 = pass 2 tests, V30 = in-game check of pass 2, V31 = pass-2 CLI/engine checked end to end through the installed MCP server)
 multi_version: D58, V32 (2026-10-19, branch multi-version-build, lineage main cdf45e2 (0.2.3) -> neoforge-1.21.1 93024ac -> multi-version-build; one Gradle build produces the cct-live mod for Forge 1.20.1 and for NeoForge 1.21.1 from the same shared sources; both dev servers verified; the 1.21.1 jar then ran in a real NeoForge client, V33)
 ci: D59, V34 (2026-10-18, branch multi-version-build; GitHub Actions builds and tests engine/cli and both mod variants on ubuntu-latest/JDK 21, and creates a GitHub release when a v* tag is pushed)
@@ -15,12 +15,12 @@ target: CC: Tweaked 1.120.2 for Minecraft 1.20.1 (upstream tag v1.20.1-1.120.2)
 status_2026-10-16: CLI implemented; MCP server (`cct-run mcp`, stdio) implemented, test version (V11); Windows smoke 22/22 and one MCP client session confirmed (V13); 41/41 tests (engine 28, cli 13); 1 GB heap limit with out_of_memory status (D33); Linux end to end (Java 17/21/25); release zip + licenses + maintainer test kit; Windows smoke test 17/17 with W1-W3 confirmed (V8); N1 (agent guide) and N3 (Java 8-safe launcher) done and verified on Linux (V9), N3 confirmed on Windows (V10); macOS untested; mod/ (cct-live, Forge 1.20.1 mod observing real in-game computers) prototype verified on Linux dev and production Forge servers and in Windows single player (V14); http/fs tracing and cct_live_* MCP tools (D38, D39, V15); on demand with recording mode and attach/lease/chat control handover, overhead measured (D40-D42, V16)
 # Appended 2026-10-18 (review verification round); the fields above are kept as history.
 status_2026-10-18: "81/81 static @Test (engine 42, cli 30, mod 9), verified by static count (V36); the 41/41 value above is the 2026-10-16/17 snapshot and is stale. 95 open issues recorded in issues_to_fix/ (D61)."
-date_updated: 2026-10-19 (A/T repair D64-D70, V40-V46)
+date_updated: 2026-10-19 (A/T repair D64-D70, V40-V46; release preparation D71)
 branch_2026-10-18: "main at bf68ac4 = origin/main after PR #13 merged multi-version-build; tag v0.2.3 = f31082f is 9 commits behind HEAD"
-tool_version_note: "runtime self-report = engine/src/main/java/cctrun/engine/Versions.java:8; packaging = build.gradle.kts:5 (zip name, mod jar, mods.toml ${version}). The release job compares neither with the other nor with the tag (D60, BLD-02/BLD-14)."
+tool_version_note: "Versions.TOOL is the sole version source; Gradle derives all project/asset/mod metadata versions. verifyReleaseVersion requires tag v<TOOL> (D69); D60/V37 describe the previous mismatch risk."
 review_2026-10-18: "D60-D63, V35-V38, N17-N19; verification table and evidence under issues_to_fix/{verification,evidence}; open issues indexed in issues_to_fix/INDEX.md."
 current_status: "2026-10-19 A/T repair on 1019fix: issues_to_fix/INDEX.md and issues_to_fix/evidence/dynamic/results-1019fix/README.md. Current test counts come only from scripts/test_summary.py -> build/reports/verification.json; status/count fields above are dated historical snapshots."
-current_branch: "1019fix; user authorized autonomous A/T implementation, validation and push; no tag, release or merge requested."
+current_branch: "1019fix; A/T repair delivered. Latest user request authorizes 0.2.4 notes, version synchronization, validated distribution delivery and preparation for main merge/new release. See D71 and docs/releasing.md for publication steps."
 readme: README.md (user-facing, Chinese); this file is the machine-oriented record
 ```
 
@@ -107,6 +107,7 @@ Source `user` = decided by the repo owner in conversation; `impl` = implementati
 | D68 | Live trace keeps two byte-bounded segments and a retained-window kind index, commits seq/index only after complete writes, truncates failed partial writes, exposes trace_health and retries I/O with backoff. Immutable disk reader snapshots avoid heap copies and Windows open-file rename assumptions. Ordinary pages stop after one-record lookahead and label matched lower bounds; summaries count exactly. Recording destination selection and attach handover share the ring monitor. Session call ids survive VM reboot. | impl |
 | D69 | Snapshot replacement stages/validates copies then switches through a recoverable backup; list recovers interrupted switches and skips corrupt entries. Missing optional reflected terminal/wired fields disable capabilities with diagnostics, not class-init failure; exact CC:T metadata pin remains. HTTP requires Host/auth and a per-exchange body deadline without global JVM settings. Versions.TOOL is the version source; release validates tags and reuses tested assets with SHA256SUMS/no clobber; JUnit XML generates one verification JSON. User limits: docs/limitations.md. | impl |
 | D70 | Publish only with the identity explicitly approved for this task. Check both author and committer of every new commit BEFORE pushing. Global Git configuration changed across commands during this repair; pin repository-local identity and explicitly set commit identity, then verify. Keep old-to-new identity rewrite maps private and remap fixed_in/evidence references to the corrected history. | user + impl |
+| D71 | Deliver 0.2.4 from the completed A/T repair: bump only Versions.TOOL, update current-version documentation and add release notes; preserve historical versions/evidence and all remaining D/K/O/S issues. Validate the actual new ZIP and both jars, push 1019fix and prepare a new main PR (closed PR #16 stays closed). User explicitly confirmed merge main and publish v0.2.4 after validation. Set/check approved identity on the local merge commit and annotated tag as well. A v* push automatically publishes after CI, so never use it as a dry run. Release procedure: docs/releasing.md. | user + impl |
 
 ## LAYOUT
 
