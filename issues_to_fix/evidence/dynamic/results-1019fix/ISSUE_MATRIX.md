@@ -1,6 +1,6 @@
 # A/T 修复矩阵
 
-日期：2026-10-19。仅列已授权 A/T 63 项；每个提交均真实存在且是 1019fix 的祖先。`fixed_in` 是包含完整修复的提交，不表示该提交只修改一个 issue。原始证据保留在模块 issue 文件；当前验证边界见 [README](README.md)。测试执行数只取 [verification.json](verification.json)，真实服务器记录取两个 `*-live-final.json`，包冒烟取 [smoke-linux.txt](smoke-linux.txt)。CI 实际运行结果另记。
+日期：2026-10-19。仅列已授权 A/T 63 项；每个提交均真实存在且是 1019fix 的祖先。`fixed_in` 是包含完整修复的提交，不表示该提交只修改一个 issue。原始证据保留在模块 issue 文件；当前验证边界见 [README](README.md)。测试执行数只取 [verification-verified.json](verification-verified.json)，真实服务器记录取两个 `*-live-verified.json`，包冒烟取 [smoke-linux-verified.txt](smoke-linux-verified.txt)。CI 实际运行结果另记。
 
 | ID | 批次 | fixed_in | 修复与验证 |
 |---|---|---|---|
