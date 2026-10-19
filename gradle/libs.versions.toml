@@ -2,7 +2,7 @@
 # Pinned to the cc-tweaked tag v1.20.1-1.120.2 (Minecraft 1.20.1).
 cctweaked = "1.120.2"
 cobalt = "0.9.9"
-gson = "2.11.0"
+gson = "2.14.0"
 junit = "5.11.4"
 slf4j = "2.0.16"
 
