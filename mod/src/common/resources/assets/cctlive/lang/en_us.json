@@ -7,5 +7,14 @@
   "cctlive.list.none": "[cct-live] No computer is controlled by an AI",
   "cctlive.list.entry": "[cct-live] Computer %s: controlled by an AI, lease ends in %s s",
   "cctlive.detach.none": "[cct-live] Computer %s is not controlled by an AI",
-  "cctlive.unavailable": "[cct-live] Computer %s is no longer loaded or available; the AI control ended"
+  "cctlive.unavailable": "[cct-live] Computer %s is no longer loaded or available; the AI control ended",
+  "cctlive.network.allow_button": "Allow AI viewing",
+  "cctlive.network.revoke_button": "Revoke AI viewing",
+  "cctlive.network.not_ready": "[cct-live] Network bridge is not ready. Reconnect to the server.",
+  "cctlive.network.denied": "[cct-live] Only operators may grant access. The server owner can enable network.allow_player_grants.",
+  "cctlive.network.limit": "[cct-live] Too many grants. Revoke unused grants first.",
+  "cctlive.network.allowed": "[cct-live] Your local AI may view computer %s for 30 minutes. /cctlive network revoke %s revokes access.",
+  "cctlive.network.revoked": "[cct-live] Revoked your local AI viewing access to computer %s.",
+  "cctlive.network.none": "[cct-live] No network viewing grants. Open a computer and click Allow AI viewing.",
+  "cctlive.network.entry": "[cct-live] Computer %s: viewing allowed, %s seconds remaining."
 }

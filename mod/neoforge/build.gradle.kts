@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // NeoForge 21.1 / Minecraft 1.21.1 variant. Shared sources live in mod/src/common; this project only holds the
-// loader shell (CctLive, LiveConfig) and the NeoForge mod metadata.
+// loader shell (entry, config, network transport and client events) and the NeoForge mod metadata.
 plugins {
     id("net.neoforged.moddev") version "2.0.148"
 }

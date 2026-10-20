@@ -8,6 +8,8 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 final class LiveConfig {
     static final ModConfigSpec SPEC;
     static final ModConfigSpec.BooleanValue HTTP_ENABLED;
+    static final ModConfigSpec.BooleanValue NETWORK_ENABLED;
+    static final ModConfigSpec.BooleanValue NETWORK_PLAYER_GRANTS;
     static final ModConfigSpec.IntValue HTTP_PORT;
     static final ModConfigSpec.BooleanValue TRACE_SCREENS;
     static final ModConfigSpec.IntValue TRACE_MAX_MB;
@@ -20,6 +22,16 @@ final class LiveConfig {
 
     static {
         var b = new ModConfigSpec.Builder();
+        b.push("network");
+        NETWORK_ENABLED = b.comment("Allow the read-only Minecraft player connection bridge. No additional server port is opened.")
+            .define("enabled", true);
+        NETWORK_PLAYER_GRANTS = b.comment(
+                "Allow non-OP players to grant their local AI observation access from an open, usable CC computer menu.",
+                "Off by default: only permission-level 2 operators can grant. Menu access is not computer ownership;",
+                "enable only if the server's existing menu/claim access rules are suitable. Grants expire after 30 minutes or disconnect.")
+            .define("allow_player_grants", false);
+        b.pop();
+
         b.push("http");
         HTTP_ENABLED = b.comment("Serve the local HTTP endpoint (always bound to 127.0.0.1; requests need the token in cct-live/token.txt).")
             .define("enabled", true);

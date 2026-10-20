@@ -27,8 +27,8 @@ import java.util.Set;
 
 /**
  * MCP tools for computers in a running Minecraft game with the cct-live mod (mod/README.md). They call the mod's
- * local HTTP endpoint: its address is in {@code <game dir>/cct-live/endpoint.json} (written while a world is open)
- * and its token in {@code <game dir>/cct-live/token.txt}. The game directory comes from the tool's
+ * local HTTP endpoint: client bridges use {@code <game dir>/cct-live/client/endpoint.json} and their own token;
+ * legacy local servers use {@code <game dir>/cct-live/endpoint.json} and {@code token.txt}. The game directory comes from the tool's
  * {@code game_dir}, else {@code cct-run mcp --live DIR}, else the CCT_LIVE_DIR environment variable.
  */
 final class LiveTools {
@@ -801,9 +801,12 @@ final class LiveTools {
             throw new McpTools.ToolError("No Minecraft game directory is configured. Pass game_dir (the folder that contains mods/ and cct-live/), or start the server as `cct-run mcp --live <game dir>`, or set CCT_LIVE_DIR.");
         }
         var home = gameDir.resolve("cct-live");
+        // Once a client bridge has been used, never silently fall back to the unrestricted integrated-server
+        // endpoint after disconnect/revoke. Its token and discovery have a separate local-only home.
+        if (Files.isDirectory(home.resolve("client"))) home = home.resolve("client");
         var endpointFile = home.resolve("endpoint.json");
         if (!Files.isRegularFile(endpointFile)) {
-            throw new McpTools.ToolError("cct-live is not running in " + gameDir + " (no cct-live/endpoint.json). Start Minecraft with the cct-live mod and open a world; the file exists only while a world is open.");
+            throw new McpTools.ToolError("cct-live is not running in " + gameDir + " (no active endpoint.json). Start Minecraft with the cct-live mod and join a world/server; client bridge discovery exists only while connected.");
         }
         try {
             var endpoint = JsonParser.parseString(Files.readString(endpointFile, StandardCharsets.UTF_8)).getAsJsonObject();

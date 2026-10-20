@@ -7,5 +7,14 @@
   "cctlive.list.none": "[cct-live] 当前没有被 AI 接管的电脑",
   "cctlive.list.entry": "[cct-live] %s 号电脑：AI 接管中，租约剩余 %s 秒",
   "cctlive.detach.none": "[cct-live] %s 号电脑没有被 AI 接管",
-  "cctlive.unavailable": "[cct-live] %s 号电脑当前未加载或不可用，接管结束"
+  "cctlive.unavailable": "[cct-live] %s 号电脑当前未加载或不可用，接管结束",
+  "cctlive.network.allow_button": "允许 AI 查看",
+  "cctlive.network.revoke_button": "撤销 AI 查看",
+  "cctlive.network.not_ready": "[cct-live] 网络桥未就绪，请重新连接服务器。",
+  "cctlive.network.denied": "[cct-live] 服务器仅允许管理员授权。服主可设置 network.allow_player_grants = true。",
+  "cctlive.network.limit": "[cct-live] 授权已达上限，请先撤销不需要的授权。",
+  "cctlive.network.allowed": "[cct-live] 已允许本机 AI 查看 %s 号电脑，30 分钟后失效。输入 /cctlive network revoke %s 可撤销。",
+  "cctlive.network.revoked": "[cct-live] 已撤销本机 AI 对 %s 号电脑的查看权限。",
+  "cctlive.network.none": "[cct-live] 当前没有网络查看授权。请打开电脑界面，点击允许 AI 查看。",
+  "cctlive.network.entry": "[cct-live] %s 号电脑：允许查看，剩余 %s 秒。"
 }

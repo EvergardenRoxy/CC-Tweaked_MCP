@@ -95,6 +95,24 @@ class LiveToolsTest {
     }
 
     @Test
+    void clientBridgeDiscoveryUsesItsOwnTokenAndNeverFallsBackAfterDisconnect() throws Exception {
+        var game = game();
+        var home = game.resolve("cct-live");
+        Files.createDirectories(home.resolve("client"));
+        Files.copy(home.resolve("endpoint.json"), home.resolve("client/endpoint.json"));
+        Files.copy(home.resolve("token.txt"), home.resolve("client/token.txt"));
+        Files.writeString(home.resolve("token.txt"), "server-admin-token-must-not-be-used");
+        var live = new LiveTools(game, dir);
+        var result = live.call(LiveTools.COMPUTERS, new JsonObject());
+        assertFalse(result.has("isError") && result.get("isError").getAsBoolean());
+        Files.delete(home.resolve("client/endpoint.json"));
+        var error = org.junit.jupiter.api.Assertions.assertThrows(McpTools.ToolError.class,
+            () -> live.call(LiveTools.COMPUTERS, new JsonObject()));
+        assertTrue(error.getMessage().contains("no active endpoint.json"));
+        assertEquals(1, requests.size());
+    }
+
+    @Test
     void unavailableActionBaselineNeverAcceptsStaleText() throws Exception {
         var game = game();
         var live = new LiveTools(game, dir);
@@ -337,7 +355,7 @@ class LiveToolsTest {
         assertTrue(text(r.get("1")).contains("--live"), text(r.get("1")));
 
         r = session(dir.resolve("nowhere"), "cct_live_computers {}");
-        assertTrue(text(r.get("1")).contains("no cct-live/endpoint.json"), text(r.get("1")));
+        assertTrue(text(r.get("1")).contains("no active endpoint.json"), text(r.get("1")));
 
         r = session(game,
             "cct_live_screen {\"computer\": 9}",

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Forge 1.20.1 variant. Shared sources live in mod/src/common; this project only holds the loader shell
-// (CctLive, LiveConfig) and the Forge mod metadata.
+// (entry, config, network transport and client events) and the Forge mod metadata.
 plugins {
     id("net.neoforged.moddev.legacyforge") version "2.0.148"
 }

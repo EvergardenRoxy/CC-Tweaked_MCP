@@ -78,6 +78,9 @@ final class LiveSession {
     private final Map<MetricsObserver, ComputerTrace> traces = new HashMap<>();
     private final Map<Integer, ComputerTrace> traceById = new ConcurrentHashMap<>();
     private LiveHttp http;
+    private final NetworkServer network = new NetworkServer(this);
+
+    NetworkServer network() { return network; }
 
     private LiveSession(MinecraftServer server, Path home, Path dir) {
         this.server = server;
@@ -230,6 +233,7 @@ final class LiveSession {
     /** End of every server tick: only attached computers are touched. */
     void tick() {
         tick++;
+        if (tick % 20 == 0) network.prune();
         if (!anyAttached) return;
         var registry = ServerContext.get(server).registry();
         var now = System.currentTimeMillis();
