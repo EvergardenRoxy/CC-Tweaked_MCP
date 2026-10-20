@@ -12,6 +12,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.google.gson.Strictness;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -44,6 +45,7 @@ import java.util.concurrent.TimeUnit;
  * for calls in progress, then exits.
  */
 final class McpServer {
+    private static final Gson PROTOCOL_JSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
     static final List<String> PROTOCOL_VERSIONS = List.of("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05");
     /** Extra wall time a child run gets on top of its game-time timeout (JVM start, boot, writing the trace). */
     private static final long CHILD_GRACE_SECONDS = 120;
@@ -112,12 +114,12 @@ final class McpServer {
             if (line.isEmpty()) continue;
             JsonElement message;
             try {
-                message = JsonParser.parseString(line);
+                message = PROTOCOL_JSON.fromJson(line, JsonElement.class);
             } catch (JsonParseException e) {
                 send(error(JsonNull.INSTANCE, -32700, "Parse error"));
                 continue;
             }
-            if (!message.isJsonObject()) {
+            if (message == null || !message.isJsonObject()) {
                 send(error(JsonNull.INSTANCE, -32600, "Invalid Request: expected a JSON object"));
                 continue;
             }

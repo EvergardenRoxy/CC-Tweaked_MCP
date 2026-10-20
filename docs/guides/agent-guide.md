@@ -61,7 +61,8 @@ Platform notes:
 | `error.traceback` | stack frames, innermost first. Frames in `exception.lua` / `bios.lua` belong to CraftOS; the first `/<file>.lua` frame is where to look |
 | `screen.lines` | final screen of the computer, trailing blanks removed. Lines that scrolled away are in the trace (`output`) |
 | `monitors` | final screen of each monitor, by peripheral name |
-| `notes` | the first noteworthy records: peripheral errors, the failed program end, VM errors, tick lag |
+| `notes` | the first 10 noteworthy records: peripheral errors, the failed program end, VM errors, tick lag |
+| `notes_dropped` | number of noteworthy records omitted from `notes`; present only when nonzero. They are still recorded in trace.jsonl; query the trace for the remaining diagnostics |
 | `trace_counts` | number of trace records per kind |
 | `duration` | `ticks`, `seconds` (ticks/20), `wall_ms`; `tick_rate` (about 20; only for runs of at least 2 s) |
 | `memory` | `heap_limit_mb` (about 1000) and `heap_peak_mb`: the most heap used, cct-run itself included (about 40 MB for a small program). A peak near the limit means the program keeps too much data, even if it did not fail |
@@ -74,6 +75,8 @@ Screen text is CC: Tweaked's own character set. Characters `\u0080`-`\u00ff` are
 Each run directory has atomic `state.json` updates (`starting`, `running`, `finished`, `failed`). A leftover running state after external SIGKILL or power loss is the last known state, not proof of liveness: check `pid` and `pid_started_at`. A summary is not guaranteed after external termination. MCP cancellation and wall-clock kills update the exact reserved run directory.
 
 Input limits: 16 MiB per MCP line or fixture file, 128 nested JSON containers, 100,000 nodes, timeout 1-3600 seconds. Oversized MCP lines are drained with bounded memory. JSON-RPC ids must be strings, numbers or null. A tools/call notification without id is ignored with a stderr diagnostic; ordinary EOF drains submitted work. Explicit cancellation interrupts live tools and kills run children. Protocol stdout contains only JSON-RPC responses; fatal framing OOM exits with stderr and code 4.
+
+MCP input must be strict JSON: quote object keys and strings with double quotes; comments and trailing content are rejected with parse error -32700. The next valid line can still be processed.
 
 OOM classification uses observed Java errors, not message matching, including an OOM caught by Lua. The harness captures its reporting helpers before the program runs and accepts completion once. This is hardening, not a sandbox against a program with full debug access.
 

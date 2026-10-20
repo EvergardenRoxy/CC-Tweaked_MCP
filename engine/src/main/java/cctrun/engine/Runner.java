@@ -207,6 +207,7 @@ public final class Runner {
         var bootTick = 0;
         var boots = 0;
         var lastStartPending = -1;
+        var rebootProbe = new RebootProbe(START_REQUESTED);
         var actions = fixture.timeline.iterator();
         Fixture.TimelineAction nextAction = actions.hasNext() ? actions.next() : null;
         var outside = fixture.timeline.stream().filter(a -> a.tick() >= maxTicks).count();
@@ -280,7 +281,7 @@ public final class Runner {
             }
             // os.reboot() also turns the computer off, then starts it again once START_DELAY has passed. After the
             // start is handed to the computer thread there is a short gap before it is on, hence the grace ticks.
-            if (rebootPending(computer, tick, bootTick)) lastStartPending = tick;
+            if (rebootProbe.pending(computer, tick, bootTick, trace)) lastStartPending = tick;
             if (everOn && !computer.isOn() && tick - lastStartPending > START_GRACE_TICKS) return "shutdown";
 
             try {
@@ -301,15 +302,30 @@ public final class Runner {
         }
     }
 
-    private static boolean rebootPending(Computer computer, int tick, int bootTick) {
-        if (START_REQUESTED != null) {
-            try {
-                return START_REQUESTED.getBoolean(computer);
-            } catch (IllegalAccessException ignored) {
-                // Fall through to the timing rule.
+    /** Per-run diagnostic state: a missing optional field still uses the existing timing rule. */
+    static final class RebootProbe {
+        private final java.lang.reflect.Field field;
+        private boolean reported;
+
+        RebootProbe(java.lang.reflect.Field field) { this.field = field; }
+
+        boolean pending(Computer computer, int tick, int bootTick, Trace trace) {
+            if (field != null) {
+                try {
+                    return field.getBoolean(computer);
+                } catch (IllegalAccessException ignored) {
+                    // Fall through to the timing rule without changing reboot semantics.
+                }
             }
+            if (!reported) {
+                reported = true;
+                var data = new JsonObject();
+                data.addProperty("reason", field == null ? "startRequested field unavailable" : "startRequested field inaccessible");
+                data.addProperty("message", "reboot detection is using the timing fallback for this run");
+                trace.note("reboot_detection_fallback", data);
+            }
+            return tick - bootTick <= START_DELAY + 5;
         }
-        return tick - bootTick <= START_DELAY + 5;
     }
 
     private static java.lang.reflect.Field startRequestedField() {

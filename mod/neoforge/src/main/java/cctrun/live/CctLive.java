@@ -56,9 +56,18 @@ public final class CctLive {
         try {
             var session = LiveSession.start(event.getServer(), home);
             LOG.info("cct-live CC:T capabilities: terminal={}, wired_query={}", Terminals.available(), PeripheralQuery.available());
-            if (LiveConfig.HTTP_ENABLED.get()) session.startHttp(LiveConfig.HTTP_PORT.get());
+            if (LiveConfig.HTTP_ENABLED.get()) {
+                int port = LiveConfig.HTTP_PORT.get();
+                try {
+                    session.startHttp(port);
+                } catch (java.net.BindException e) {
+                    LOG.error("cct-live session started, but HTTP could not bind to 127.0.0.1:{}. AI attachment is unavailable; close the other instance or change http.port, then restart the world.", port, e);
+                } catch (IOException e) {
+                    LOG.error("cct-live session started, but HTTP startup on 127.0.0.1:{} failed. AI attachment is unavailable; check the endpoint files and restart the world.", port, e);
+                }
+            }
         } catch (IOException e) {
-            LOG.error("cct-live could not start; computers cannot be attached", e);
+            LOG.error("cct-live session creation failed; AI attachment is unavailable", e);
         }
     }
 

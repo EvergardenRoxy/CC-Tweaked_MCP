@@ -58,6 +58,8 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 ## 接管、解约和租约
 
+如果工具找不到接口，先查看游戏日志：会话创建失败与 HTTP 启动失败会分别报告；端口绑定失败会给出 `127.0.0.1:<端口>`。端口被另一个实例占用时，关闭冲突实例，或修改 `http.port` 后重新进入世界。会话已创建不代表 HTTP 接口已可用。
+
 | | 怎么发生 | 聊天栏提示 |
 |---|---|---|
 | **接管** | AI 调用 `cct_live_attach`（HTTP：`POST /computers/{id}/attach`） | `[cct-live] AI 已接管 0 号电脑（租约 1800 秒，输入 /cctlive detach 0 可收回）` |
