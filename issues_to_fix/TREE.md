@@ -8,6 +8,7 @@ issues_to_fix/
 ├── INDEX.md                         全量索引（97 行）
 ├── REPAIR_PLAN.md                   自主修复执行计划（原 95 项批次；附本轮两项新增登记边界）
 ├── open-triage-2026-10-20.md         执行前 33 个 open 分类与六项实际交付结果
+├── network-interaction-security.md  network-test 完整交互与数据安全待办（NET-01～NET-18，独立于原 97 项）
 ├── engine.md                        ENG-RT-* / ENG-FX-*（27 条）
 ├── cli.md                           CLI-*（18 条）
 ├── mod.md                           MOD-*（24 条）
