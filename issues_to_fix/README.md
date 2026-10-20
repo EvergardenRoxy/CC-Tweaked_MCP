@@ -4,10 +4,10 @@
 
 ## 当前入口（2026-10-20）
 
-- 原 95 个问题来自 `bf68ac4` / 0.2.3；当前登记 **97 项：fixed 64 / open 33**。本轮新增 ENG-RT-18 / CLI-18；同步 DOC-03 的原有修复，PROJ-02 仍 open，仅跟踪私密报告入口验证。
+- 原 95 个问题来自 `bf68ac4` / 0.2.3；当前登记 **97 项：fixed 66 / open 31**。登记轮新增 ENG-RT-18 / CLI-18，并同步 DOC-03 的原有修复。后续六项范围交付完成 CLI-18 / ENG-FX-07，四个组合条目只记已完成子项；PROJ-02 仍 open，仅跟踪私密报告入口验证。
 - [当前 main 复核表](verification/review-2026-10-19-main.md)：上传的 2026-10-19 报告（`3808530` / 0.2.2）对 main `25a3921` / 0.2.4 的 19 条核对，不能与旧报告混算。
 - [原报告](evidence/reports/review-2026-10-19-0.2.2.md)与[来源 hash](evidence/reports/review-2026-10-19-0.2.2-source.json)；[本轮动态观察](evidence/dynamic/results-2026-10-20-review/README.md)。
-- [33 个 open 的修复难度与建议顺序](open-triage-2026-10-20.md)：第一批六个局部范围、全部 open 的分类及已有决策约束，不改变问题状态。
+- [执行前 33 个 open 的评估及六项执行结果](open-triage-2026-10-20.md)：保留原分类快照，顶部标明实际完成范围；[本轮修复证据](evidence/dynamic/results-2026-10-20-six-scoped/README.md)。
 - 已修问题不重开；未验证的第三方竞态不登记成已复现缺陷；不从“没有游戏内二次批准”推导违反 D42/用户授权约定。
 - 仅本轮覆盖条目追加带日期和 main 基线的核对说明；其余旧问题未重新全面验证。历史行号、路径及证据属于原基线，不改写成当前源码。
 
@@ -15,7 +15,7 @@
 |---|---:|---:|---:|
 | high | 2 | 2 | 0 |
 | medium | 23 | 16 | 7 |
-| low | 67 | 45 | 22 |
+| low | 67 | 47 | 20 |
 | info | 5 | 1 | 4 |
 
 ## 文件
@@ -26,7 +26,7 @@
 | `TREE.md` | 目录结构总览 |
 | `INDEX.md` | 全量索引（一行一个 issue） |
 | `REPAIR_PLAN.md` | 2026-10-19 自主修复计划：95 条分派、执行批次、依赖与验收标准（不替代 issue 状态） |
-| `open-triage-2026-10-20.md` | 当前 33 个 open 的修复难度、优先顺序和最小安全范围 |
+| `open-triage-2026-10-20.md` | 执行前 33 个 open 的评估快照及六项范围的实际结果 |
 | `engine.md` | ENG-RT-*（engine 运行时）/ ENG-FX-*（fixture/外设） |
 | `cli.md` | CLI-*（cct-run 命令 + stdio MCP 服务器） |
 | `mod.md` | MOD-*（cct-live mod） |

@@ -1,0 +1,92 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.8.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :mod-forge:createMinecraftArtifacts UP-TO-DATE
+> Task :mod-forge:compileJava
+> Task :mod-forge:processResources UP-TO-DATE
+> Task :mod-forge:classes
+> Task :mod-forge:jarJar NO-SOURCE
+> Task :mod-forge:jar
+> Task :mod-forge:reobfJar
+> Task :mod-forge:assemble
+> Task :mod-forge:compileTestJava UP-TO-DATE
+> Task :mod-forge:processTestResources NO-SOURCE
+> Task :mod-forge:testClasses UP-TO-DATE
+> Task :mod-forge:test
+> Task :mod-forge:check
+> Task :mod-forge:build
+> Task :mod-neoforge:createMinecraftArtifacts
+Loaded 131 artifacts from /workspace/CC-Tweaked_MCP/mod/neoforge/build/tmp/createMinecraftArtifacts/nfrt_artifact_manifest.properties
+*** Started working on downloadJson
+  ↓ https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+  ↓ https://piston-meta.mojang.com/v1/packages/499680d659b7a0ccb2fa9a809c345c5baf2ace7d/1.21.1.json
+ ✓ Completed downloadJson in 4.00s
+*** Started working on downloadClientMappings
+*** Started working on downloadServer
+*** Started working on downloadClient
+  ↓ https://piston-data.mojang.com/v1/objects/2244b6f072256667bcd9a73df124d6c58de77992/client.txt
+  ↓ https://piston-data.mojang.com/v1/objects/30c73b1c5da787909b2f73340419fdf13b9def88/client.jar
+  ↓ https://piston-data.mojang.com/v1/objects/59353fb40c36d304f2035d51e7d6e6baa98dc05c/server.jar
+ ✓ Completed downloadClientMappings in 4.72s
+*** Started working on mergeMappings
+ ↳ Running external tool net.neoforged.installertools:installertools:2.1.2:fatjar
+ ✓ Completed mergeMappings in 2.32s
+ ✓ Completed downloadClient in 13.06s
+*** Started working on stripClient
+ ✓ Completed stripClient in 1.97s
+ ✓ Completed downloadServer in 20.83s
+*** Started working on extractServer
+ ↳ Running external tool net.neoforged.installertools:installertools:2.1.2:fatjar
+ ✓ Completed extractServer in 0.29s
+*** Started working on stripServer
+ ✓ Completed stripServer in 1.09s
+*** Started working on merge
+ ↳ Running external tool net.neoforged:mergetool:2.0.3:fatjar
+ ✓ Completed merge in 2.92s
+*** Started working on rename
+ ↳ Running external tool net.neoforged:AutoRenamingTool:2.0.3:all
+ ✓ Completed rename in 7.35s
+*** Started working on decompile
+ ↳ Running external tool org.vineflower:vineflower:1.10.1
+ ✓ Completed decompile in 62.83s
+*** Started working on inject
+ ✓ Completed inject in 1.12s
+*** Started working on patch
+ ↳ Running external tool io.codechicken:DiffPatch:2.0.0.36:all
+ ✓ Completed patch in 1.61s
+*** Started working on applyNeoforgePatches
+ ↳ Running external tool io.codechicken:DiffPatch:2.0.0.36:all
+ ✓ Completed applyNeoforgePatches in 1.68s
+*** Started working on transformSources
+ ↳ Running external tool net.neoforged.jst:jst-cli-bundle:2.0.11
+ ✓ Completed transformSources in 10.39s
+*** Started working on recompile
+ 96 items on the compile classpath
+ 0 items on the sourcepath
+*** Started working on sourcesWithNeoForge
+ Compiling 5364 source files
+ ✓ Completed sourcesWithNeoForge in 3.65s
+Copied 0 resource files
+ ✓ Completed recompile in 33.29s
+*** Started working on compiledWithNeoForge
+ ✓ Completed compiledWithNeoForge in 4.98s
+*** Started working on sourcesAndCompiledWithNeoForge
+ ✓ Completed sourcesAndCompiledWithNeoForge in 2.17s
+Total runtime: 155.42s
+
+
+> Task :mod-neoforge:compileJava
+> Task :mod-neoforge:processResources
+> Task :mod-neoforge:classes
+> Task :mod-neoforge:jarJar NO-SOURCE
+> Task :mod-neoforge:jar
+> Task :mod-neoforge:assemble
+> Task :mod-neoforge:compileTestJava
+> Task :mod-neoforge:processTestResources NO-SOURCE
+> Task :mod-neoforge:testClasses
+> Task :mod-neoforge:test
+> Task :mod-neoforge:check
+> Task :mod-neoforge:build
+
+BUILD SUCCESSFUL in 4m 26s
+13 actionable tasks: 10 executed, 3 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.1/userguide/configuration_cache_enabling.html

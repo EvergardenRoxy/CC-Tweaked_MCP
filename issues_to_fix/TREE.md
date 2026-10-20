@@ -7,7 +7,7 @@ issues_to_fix/
 ├── README.md                        目录说明、issue schema、状态机、统计（当前 97 条；初始 95 条）
 ├── INDEX.md                         全量索引（97 行）
 ├── REPAIR_PLAN.md                   自主修复执行计划（原 95 项批次；附本轮两项新增登记边界）
-├── open-triage-2026-10-20.md         当前 33 个 open 的分类与六个优先局部范围
+├── open-triage-2026-10-20.md         执行前 33 个 open 分类与六项实际交付结果
 ├── engine.md                        ENG-RT-* / ENG-FX-*（27 条）
 ├── cli.md                           CLI-*（18 条）
 ├── mod.md                           MOD-*（24 条）
@@ -40,6 +40,7 @@ issues_to_fix/
     │       └── E-build-docs.md
     └── dynamic/                     动态探针与运行记录
         ├── README.md                探针清单、命令、11 个 run 的观察、BOM 误差说明
+        ├── results-2026-10-20-six-scoped/ 六项修复的本轮证据
         ├── results-2026-10-20-review/ 本轮探针、Trace API helper、observations.json、README
         ├── results-1019fix/          原 A/T 修复证据（保留）
         ├── results-0.2.4/            原发行准备证据（保留）

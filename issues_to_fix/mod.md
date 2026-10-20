@@ -91,6 +91,9 @@ files:
 evidence: |
   端口 47823（1024..65535，0 被排除、无重试）；LiveHttp:79 同步抛 BindException；LiveSession:49-50 已建会话并打日志，
   CctLive:61 却报 "cct-live could not start; computers cannot be attached"；endpoint.json 仅成功后写、close 删。
+  2026-10-20 六项约定范围交付（c94928bceb451e9a9ce444f5faf0b51a64a0d389）：
+  两加载器分别记录 session 创建失败、HTTP BindException（含 127.0.0.1 与端口/处理办法）和其他 HTTP 启动失败；保持现有端口，无自动换端口/port=0。该范围完成；自动回退及工具可见状态仍待策略决定，整项保持 open。
+  本轮证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 impact: |
   双开/端口占用时第二实例 AI 接管整体失效；日志有 ERROR+堆栈但游戏内/工具侧无提示，易误判。
 fix: |

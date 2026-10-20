@@ -304,6 +304,9 @@ files:
 evidence: |
   McpTools.string 要求 JSON string（267-272）；LiveTools.string 接受任意 primitive 并 getAsString()（886-891）；
   审查引用的 McpTools.java:866-871 不存在（文件 322 行）；工具描述硬编码 "1.120.2/1.20.1" 仅 McpTools.java:33。
+  2026-10-20 六项约定范围交付（c94928bceb451e9a9ce444f5faf0b51a64a0d389）：
+  工具描述由 Versions.CC_TWEAKED/MINECRAFT 格式化；handshake/tools/list 回归验证描述与版本一致。参数校验去重和严格度统一未实施，保留现有转换行为，整项保持 open。
+  本轮证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 impact: |
   同一语义参数在不同工具上接受度不同；升级 CC:T 后描述静默过期。
 fix: |
@@ -494,7 +497,7 @@ resolution: |
 id: CLI-18
 title: "MCP 使用宽松 JsonParser，未加引号的键和单引号字符串也会被接受"
 severity: low
-status: open
+status: fixed
 confidence: confirmed
 module: cli
 origin: [REVIEW-20261019-P3-2]
@@ -514,4 +517,9 @@ fix: |
   不以升级 Gson 或捕获任意 Throwable 替代严格解析，不混入本轮文档核对。
 tests: |
   后续覆盖未加引号的键、单引号字符串、注释、尾随内容被拒绝后同一服务仍可接受合法 ping。
+fixed_in: c94928bceb451e9a9ce444f5faf0b51a64a0d389
+fixed_at: 2026-10-20
+resolution: |
+  MCP 输入使用 Gson Strictness.STRICT 并验证完整输入；非法键/单引号/注释/尾随逗号/尾随内容回 -32700 后可继续处理合法 ping，literal null 回 -32600。已有深层 id、输入界限与 live/child 回归通过；没有升级 Gson。
+  范围与本轮实测证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 ```

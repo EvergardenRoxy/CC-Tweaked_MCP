@@ -386,3 +386,12 @@ A1/A2/A3/T1/T6 先处理输入、可信结果、配额、取消和运行目录�
 - 新登记 ENG-RT-18（模拟器 trace 配额/清理）和 CLI-18（严格 JSON），状态均 open。未擅自归入原 A/T 批次，也未在本轮实现或改变兼容性/清理策略。
 - DOC-03 已由用户决策 D74 对应的 `88c3e7721d334426e01155abafa8e1cec335cb86` 完成，本轮只同步状态；保留其真实修复日期。PROJ-02 已有 SECURITY.md，剩余私密入口验证仍 open。
 - 模块 YAML 当前合计 97 项（fixed 64 / open 33）；不把原 63 项修复成果改写成新一轮修复，也不声称其余旧问题已全面重审。
+
+
+## 2026-10-20 六项约定范围执行
+
+用户基于 open 评估清单授权先完成六项，并明确只提交/推送到 `1020`、不建 PR、不合并；作者和提交者为 `EvergardenRoxy <fubukisanta@163.com>`。实现提交 `c94928bceb451e9a9ce444f5faf0b51a64a0d389`。
+
+CLI-18、ENG-FX-07 的完整登记范围已完成；MOD-03（失败诊断）、CLI-11（版本文案）、ENG-RT-13（fallback 诊断）、ENG-FX-05（notes 说明）仅完成约定子项，原组合条目保留 open。当前状态为 fixed 66 / open 31。保留 D/K 的端口、校验转换、错误传播与 flush 约定，没有扩大为自动清理、协议版本调整或平台重构。
+
+范围与实测记录见 [six-scoped](evidence/dynamic/results-2026-10-20-six-scoped/README.md)；原 95 项执行计划和前一轮核对证据不覆盖。

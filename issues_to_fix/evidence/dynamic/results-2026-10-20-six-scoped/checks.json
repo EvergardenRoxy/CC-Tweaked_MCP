@@ -1,0 +1,42 @@
+{
+  "schema": "cct-run/scoped-repair-checks@1",
+  "source_commit": "c94928bceb451e9a9ce444f5faf0b51a64a0d389",
+  "main_baseline": "25a392102b1ce47c32743564298df0622b04e9ca",
+  "runtime_build_sources_match_source_commit": true,
+  "worktree_note": "Documentation/evidence updates are uncommitted; test XML report timestamps are preserved, not claimed to run after the source commit was created.",
+  "protocol_responses": [
+    {
+      "jsonrpc": "2.0",
+      "id": null,
+      "error": {
+        "code": -32700,
+        "message": "Parse error"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {}
+    }
+  ],
+  "guide_ascii": true,
+  "packaged_guide_has_notes_limits": true,
+  "bytecode_major": {
+    "cctrun/engine/Runner.class": 61,
+    "cctrun/cli/Launcher.class": 52,
+    "cctrun/cli/JavaFinder.class": 52,
+    "cctrun/cli/Main.class": 61,
+    "forge": 61,
+    "neoforge": 65
+  },
+  "limitations": [
+    "No Windows execution",
+    "No game startup/occupied-port fault injection; loader diagnostics checked by diff review and both variant builds",
+    "No PR, merge, tag or release"
+  ],
+  "local_artifact_sha256": {
+    "cli/build/distributions/cct-run-0.2.4.zip": "dbf7ac9952701f1bdf0484c7440bbbccaf990674841b7cb54482d1b5b6331551",
+    "mod/forge/build/libs/cct-live-1.20.1-0.2.4.jar": "cdcafcbad7eb9c5b2ceeee456550cd2ef3acfa6193ef780dd78219fa36f8fda4",
+    "mod/neoforge/build/libs/cct-live-1.21.1-0.2.4.jar": "db72b04cdc8e27905c542de865c651e9eca1d89797210365aa64a826b93012c4"
+  }
+}

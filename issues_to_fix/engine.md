@@ -386,6 +386,9 @@ files:
 evidence: |
   run() 64-178、loop() 181-257；魔法数 START_DELAY+5(:267)、50/10/40/1000000(:49,52,53,58)；
   startRequestedField() 失败 return null（:276-278）无 note。
+  2026-10-20 六项约定范围交付（c94928bceb451e9a9ce444f5faf0b51a64a0d389）：
+  每个 run 使用独立 RebootProbe，startRequested 字段缺失/不可访问时保留原 timing fallback，并最多记录一条 reboot_detection_fallback。缺字段故障注入覆盖时序边界与诊断有界；正常 reboot/timeout 回归通过。巨型方法重构未实施，整项保持 open。
+  本轮证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 impact: |
   可维护性差；反射失败后 reboot 判定静默退化。
 fix: |
@@ -687,6 +690,9 @@ files:
 evidence: |
   catch RuntimeException → data.addProperty("error", "internal: " + e)，随 peripheral_return 进 trace；
   note 只保留前 10 条进 summary.notes，其余只计 droppedNotes，详细错误只在 trace.jsonl。
+  2026-10-20 六项约定范围交付（c94928bceb451e9a9ce444f5faf0b51a64a0d389）：
+  agent guide/limitations 说明 notes 仅首 10 条、notes_dropped 非零时给出省略数，剩余诊断查 trace，区分预览截断。未移除本地 RuntimeException 细节或改变错误传播；仅完成约定文档子项，整项保持 open。
+  本轮证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 impact: |
   泄漏限于异常类名+message（无堆栈）；大量失败时 summary.notes 不完整。
 fix: |
@@ -730,7 +736,7 @@ resolution: |
 id: ENG-FX-07
 title: "basicDetail/fullDetail 用 HashMap，trace 键序按 hash 而非插入序"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: engine-fixture
 origin: [REVIEW-F9]
@@ -745,6 +751,11 @@ fix: |
   改用 LinkedHashMap 固定字段顺序。
 tests: |
   PeripheralTest 仅断言字段值。
+fixed_in: c94928bceb451e9a9ce444f5faf0b51a64a0d389
+fixed_at: 2026-10-20
+resolution: |
+  ItemStack.basicDetail 使用 LinkedHashMap，fullDetail 沿用其顺序；直接 JsonValues 序列化的字段与可选 nbt/tags/damage 值有回归，现有物品操作回归通过。不承诺 Lua pairs 顺序。
+  范围与本轮实测证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 ```
 
 ## ENG-FX-08 — getInt 对小数静默截断（与游戏一致，缺测试）

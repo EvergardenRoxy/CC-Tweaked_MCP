@@ -1,8 +1,23 @@
 # 33 个 open 问题：当前修复难度与建议顺序
 
-基线：main `25a392102b1ce47c32743564298df0622b04e9ca`，0.2.4；叠加本轮已核对的登记状态：97 项、64 fixed、33 open。日期：2026-10-20。分类用于选择下一批工作，不等于修复授权，不修改 issue 的 status/severity，不覆盖原 [REPAIR_PLAN](REPAIR_PLAN.md) 的 D/K/O/S 决策。
+基线：main `25a392102b1ce47c32743564298df0622b04e9ca`，0.2.4；评估开始时的登记状态：97 项、64 fixed、33 open。日期：2026-10-20。分类用于选择下一批工作，不等于修复授权，不修改 issue 的 status/severity，不覆盖原 [REPAIR_PLAN](REPAIR_PLAN.md) 的 D/K/O/S 决策。
 
 核对方式：逐项读取 33 个 open 的 YAML、当前实现和 handoff/原计划约束；没有运行新一轮全量测试、接入游戏或实施修复。CLI-18 等动态依据沿用明确标注的[前一轮观察](evidence/dynamic/results-2026-10-20-review/README.md)，不冒充本次新执行。治理类涉及远端设置或历史事实，不能仅凭旧报告判断现状；本轮只读确认了 description/homepage/topics 仍为空。
+
+## 六项范围执行结果（2026-10-20）
+
+上文及下方“33 个 open”是执行前的评估快照，不作为当前 open 数量。用户随后授权完成约定范围，并要求仅推送 1020、不建 PR、不合并。实现提交为 `c94928bceb451e9a9ce444f5faf0b51a64a0d389`；[本轮验证](evidence/dynamic/results-2026-10-20-six-scoped/README.md)。
+
+| ID | 实际完成 | 当前状态 |
+|---|---|---|
+| CLI-18 | 严格 MCP JSON、拒绝尾随内容并在错误后继续服务 | fixed |
+| ENG-FX-07 | ItemStack 构建/直接序列化字段顺序明确，可选值保留 | fixed |
+| MOD-03 | 两加载器分别报告 session 创建失败、端口绑定失败和其他 HTTP 启动失败 | open，保留自动回退/工具状态等未完成范围 |
+| CLI-11 | 描述引用 Versions 常量，不改变参数转换行为 | open，保留参数校验去重/兼容范围 |
+| ENG-RT-13 | 反射不可用时每 run 最多一个 fallback 诊断，原时序规则保持 | open，保留大型方法整理范围 |
+| ENG-FX-05 | 文档说明首 10 条 notes、notes_dropped 和 trace 查询 | open，保留组合条目其余范围，不移除本地诊断 |
+
+当前登记总数仍 97，fixed 66 / open 31。不能把六个约定范围完成解释为六个组合 issue 全部关闭。
 
 ## 第一批：六个适合局部推进的范围
 

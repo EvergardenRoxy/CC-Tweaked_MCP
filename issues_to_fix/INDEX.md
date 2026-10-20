@@ -2,7 +2,9 @@
 
 字段：`id | severity | confidence | status | module | title | origin`。正文见对应模块文件。原核对基线 `bf68ac4`（v0.2.3）保留；本轮复核基线为 main `25a3921`（v0.2.4）。
 
-2026-10-20：[上传报告的 main 核对](verification/review-2026-10-19-main.md)。保留原 95 个 ID；新增 ENG-RT-18 / CLI-18；同步 DOC-03 原已完成修复，PROJ-02 仅保留入口验证；当前 97 项（fixed 64 / open 33）。未覆盖的旧项不视为本轮重审。
+2026-10-20：[上传报告的 main 核对](verification/review-2026-10-19-main.md)。保留原 95 个 ID；新增 ENG-RT-18 / CLI-18；同步 DOC-03 原已完成修复，PROJ-02 仅保留入口验证；登记时 97 项（fixed 64 / open 33）。未覆盖的旧项不视为本轮重审。
+
+2026-10-20 六项范围交付：CLI-18、ENG-FX-07 完成；MOD-03、CLI-11、ENG-RT-13、ENG-FX-05 完成约定子项、保留 open。当前 **97 项：fixed 66 / open 31**。证据见 [six-scoped](evidence/dynamic/results-2026-10-20-six-scoped/README.md)。
 
 2026-10-19：A/T 63 项已验证修复，32 项保留原状态；逐项提交与证据见 [本轮验证](evidence/dynamic/results-1019fix/README.md)。
 
@@ -32,7 +34,7 @@
 | ENG-FX-04 | low | partial | fixed | engine-fixture | timeline 不排序/全表扫描/过期静默 | REVIEW-F5/NEW-2 |
 | ENG-FX-05 | low | confirmed | open | engine-fixture | internal 错误入 trace；notes 配额 | REVIEW-F6/NEW-6 |
 | ENG-FX-06 | info | partial | fixed | engine-fixture | trace 数值类型有界化未文档化 | REVIEW-F8 |
-| ENG-FX-07 | low | partial | open | engine-fixture | HashMap 键序非插入序 | REVIEW-F9 |
+| ENG-FX-07 | low | partial | fixed | engine-fixture | HashMap 键序非插入序 | REVIEW-F9 |
 | ENG-FX-08 | low | partial | fixed | engine-fixture | getInt 小数截断（与游戏一致，缺测试） | REVIEW-F10 |
 | ENG-FX-09 | low | confirmed | fixed | engine-fixture | ItemStack.count 线程约束未文档化 | REVIEW-F7/NEW-5 |
 | CLI-01 | medium | confirmed | open | cli | endpoint.json URL 未校验即发 token | REVIEW-C1/LEGACY-A9 |
@@ -52,7 +54,7 @@
 | CLI-15 | low | confirmed | fixed | cli | 强杀后删 stderr，超时缺现场 | LEGACY-L-kill-files |
 | CLI-16 | low | confirmed | open | cli | pendingLua 无 TTL | LEGACY-L-pending |
 | CLI-17 | low | confirmed | fixed | cli | rememberScreens 失败清空基线 | LEGACY-L-remember |
-| CLI-18 | low | confirmed | open | cli | MCP 使用宽松 JsonParser，未加引号的键和单引号字符串也会被接受 | REVIEW-20261019-P3-2 |
+| CLI-18 | low | confirmed | fixed | cli | MCP 使用宽松 JsonParser，未加引号的键和单引号字符串也会被接受 | REVIEW-20261019-P3-2 |
 | MOD-01 | medium | partial | fixed | mod | kinds 索引无界增长、rotate 不裁剪 | REVIEW-M1/LEGACY-B3 |
 | MOD-02 | low | confirmed | open | mod | 平台层与构建脚本高度重复 | REVIEW-M2 |
 | MOD-03 | medium | partial | open | mod | 端口固定无回退、bind 失败文案矛盾 | REVIEW-M3 |
