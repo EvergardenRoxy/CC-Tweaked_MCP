@@ -1,14 +1,15 @@
 # 目录结构
 
 ```text
-issues_to_fix/ 目录结构（v0.2.3 核对，HEAD bf68ac4）
+issues_to_fix/ 当前目录（2026-10-20 复核 main 25a3921；原核对基线 bf68ac4 的证据保留）
 
 issues_to_fix/
-├── README.md                        目录说明、issue schema、状态机、统计（95 条）
-├── INDEX.md                         全量索引（95 行）
-├── REPAIR_PLAN.md                   自主修复执行计划（全部 ID 分派、批次、依赖与验收）
-├── engine.md                        ENG-RT-* / ENG-FX-*（26 条）
-├── cli.md                           CLI-*（17 条）
+├── README.md                        目录说明、issue schema、状态机、统计（当前 97 条；初始 95 条）
+├── INDEX.md                         全量索引（97 行）
+├── REPAIR_PLAN.md                   自主修复执行计划（原 95 项批次；附本轮两项新增登记边界）
+├── open-triage-2026-10-20.md         当前 33 个 open 的分类与六个优先局部范围
+├── engine.md                        ENG-RT-* / ENG-FX-*（27 条）
+├── cli.md                           CLI-*（18 条）
 ├── mod.md                           MOD-*（24 条）
 ├── build-ci.md                      BLD-*（15 条）
 ├── docs-project.md                  DOC-* / PROJ-*（13 条）
@@ -16,10 +17,14 @@ issues_to_fix/
 │
 ├── verification/                    核对侧（审查意见 → 结论 → 证据）
 │   ├── README.md                    基线、结论枚举、与 issue 的映射
+│   ├── review-2026-10-19-main.md      上传 0.2.2 报告对当前 main 的 19 条复核
 │   └── verification-table.md        全量核对表（高4/中19/低39/疑点3/正面6/文档5/项管12 + NEW + 偏差 + 动态记录）
 │
 └── evidence/                        原始证据
     ├── README.md                    证据分类、lane↔模块、基线、用法
+    ├── reports/                     上传报告原文与来源/hash
+    │   ├── review-2026-10-19-0.2.2.md
+    │   └── review-2026-10-19-0.2.2-source.json
     ├── lanes/                       A-F 六条核对 lane 完整报告
     │   ├── A-engine-runtime.md
     │   ├── B-engine-fixture.md
@@ -35,6 +40,10 @@ issues_to_fix/
     │       └── E-build-docs.md
     └── dynamic/                     动态探针与运行记录
         ├── README.md                探针清单、命令、11 个 run 的观察、BOM 误差说明
+        ├── results-2026-10-20-review/ 本轮探针、Trace API helper、observations.json、README
+        ├── results-1019fix/          原 A/T 修复证据（保留）
+        ├── results-0.2.4/            原发行准备证据（保留）
+        ├── results-joint-test5/      原应用测试证据（保留，不并入工程缺陷）
         ├── scripts/                 9 个探针（lua/ps1/java/class）
         ├── fixtures/                17 个 fixture（nest_*、event_deep_*、energy_inf、inventory 等）
         └── runs/                    11 个 run 目录（01-08 正常记录，09-11 为 SOE 崩溃记录）

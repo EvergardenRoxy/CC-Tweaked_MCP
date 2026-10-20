@@ -1,0 +1,13 @@
+{
+  "schema": "cct-run/review-source@1",
+  "original_file_name": "已粘贴的文本.txt",
+  "source": "user attachment in this chat",
+  "report_date": "2026-10-19",
+  "reported_commit": "3808530",
+  "reported_version": "0.2.2",
+  "original_bytes": 11455,
+  "original_sha256": "41dbf9280685061597dc08c82be7c9cbcfe5b2053690f197766266d9a1b4a577",
+  "archived_sha256": "66fc81268d85a639abc845a44ccee22438d8e391c145a35fdb64828e39692677",
+  "transformation": "CRLF normalized to LF for repository text policy; report text unchanged",
+  "notice": "Source claims are not current audit conclusions; see verification/review-2026-10-19-main.md"
+}

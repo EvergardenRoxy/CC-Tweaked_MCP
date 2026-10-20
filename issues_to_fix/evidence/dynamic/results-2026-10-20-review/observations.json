@@ -1,0 +1,94 @@
+{
+  "schema": "cct-run/review-observations@1",
+  "source_commit": "25a392102b1ce47c32743564298df0622b04e9ca",
+  "runtime_build_sources_match_baseline": true,
+  "worktree_status": [
+    "?? issues_to_fix/evidence/dynamic/results-2026-10-20-review/"
+  ],
+  "java": "openjdk version \"17.0.20.1\" 2026-08-18",
+  "observations": {
+    "non_strict_json": {
+      "input": "{jsonrpc:'2.0',id:1,method:'ping'}",
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {}
+        }
+      ]
+    },
+    "old_protocol_batch": {
+      "negotiated_protocol": "2025-03-26",
+      "batch_response": {
+        "jsonrpc": "2.0",
+        "id": null,
+        "error": {
+          "code": -32600,
+          "message": "Invalid Request: expected a JSON object"
+        }
+      }
+    },
+    "invalid_id_service_survives": {
+      "responses": [
+        {
+          "jsonrpc": "2.0",
+          "id": null,
+          "error": {
+            "code": -32600,
+            "message": "Invalid Request: id must be a string, number or null"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 3,
+          "result": {}
+        }
+      ]
+    },
+    "fixture_collision_not_silent": {
+      "status": "ok",
+      "note_kinds": [
+        "fixture_file_overwritten"
+      ]
+    },
+    "trace_writer_exceeds_1_mib": {
+      "bytes": 2129378,
+      "records_requested": 512,
+      "scope": "public Trace API; not a claim of unbounded dynamic testing"
+    }
+  },
+  "limitations": [
+    "No Minecraft or third-party peripheral access",
+    "No Windows race reproduction",
+    "Trace observation uses the public engine writer API"
+  ],
+  "distribution_jars": {
+    "cc-tweaked-1.20.1-core-1.120.2.jar": "723193fb4f414531176fbd72dbb02d08c9b77a213181c8786598f4967429f08a",
+    "cc-tweaked-1.20.1-core-api-1.120.2.jar": "3005a7cae07c0f6c152669aa402a3d9b5c6dd438466931804a7073e6af4a83ab",
+    "checker-qual-3.12.0.jar": "ff10785ac2a357ec5de9c293cb982a2cbb605c0309ea4cc1cb9b9bc6dbe7f3cb",
+    "cli-0.2.4.jar": "f1d034862808b958131f078af8f45e215024fe31f6016983bbbeea8095fda1b1",
+    "cobalt-0.9.9.jar": "aca9fe1a2cab3ea7e296a72a1a6f667e29ddfdbab7af7cee35420bc2cc6e6929",
+    "engine-0.2.4.jar": "17b590ddfe9e82db8833edf829f8b19103793fd0043eeb3f607e5e8c16e4167b",
+    "error_prone_annotations-2.27.0.jar": "24c923372c58e35d0b9f16a028929bb9aedc77521867c274f2bd0735df5ba1f5",
+    "failureaccess-1.0.1.jar": "a171ee4c734dd2da837e4b16be9df4661afab72a41adaf31eb84dfdaf936ca26",
+    "fastutil-8.5.9.jar": "9578bf2a1700cf20d21746a2ee89e57ba1abbd37fa9feda68ff5e9a28473a7f9",
+    "gson-2.11.0.jar": "57928d6e5a6edeb2abd3770a8f95ba44dce45f3b23b7a9dc2b309c581552a78b",
+    "guava-31.1-jre.jar": "a42edc9cab792e39fe39bb94f3fca655ed157ff87a8af78e1d6ba5b07c4a00ab",
+    "j2objc-annotations-1.3.jar": "21af30c92267bd6122c0e0b4d20cccb6641a37eaf956c6540ec471d584e64a7b",
+    "jsr305-3.0.2.jar": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+    "jzlib-1.1.3.jar": "89b1360f407381bf61fde411019d8cbd009ebb10cff715f3669017a031027560",
+    "listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar": "b372a037d4230aa57fbeffdef30fd6123f9c0c2db85d0aced00c91b974f33f99",
+    "netty-buffer-4.1.82.Final.jar": "a7ce7f6d8c1e82b044cd56765dab4338251596416de03b1f9a05d7402429c29d",
+    "netty-codec-4.1.82.Final.jar": "170c0ce091c2e1cc1d952d87a6a30deb773922507bbc609b962b539f03f53407",
+    "netty-codec-http-4.1.82.Final.jar": "1e94af48085ec503d69520b58913888f9546b4b4ed2efc8bcb33eb718333edb3",
+    "netty-codec-socks-4.1.82.Final.jar": "defd4672c4dbf3d0fef4307cedee39fe7766c3e7baf77adae5fa069b18f0c7b3",
+    "netty-common-4.1.82.Final.jar": "d5923db1cc68b26baf5368f1f76ec2c6100d12db8406c6de00eb6dbc08052550",
+    "netty-handler-4.1.82.Final.jar": "31015505983dc57eec491ad4873411ba51f0f3beb24d22d509336c72511019cb",
+    "netty-handler-proxy-4.1.82.Final.jar": "1776ada44536c021c31f18dc2915d48be84585bad9ca4dd7c7bff8205b318df7",
+    "netty-resolver-4.1.82.Final.jar": "4cfeba7ec535964a35722178aeecc87ec186dba0203d04389a850e8e62575383",
+    "netty-transport-4.1.82.Final.jar": "c210069be4ab4120f5ac7cb5e4a126d3a007e78a64fd44c9971220e013dbaef1",
+    "netty-transport-native-unix-common-4.1.82.Final.jar": "1096f16527a51dd5f44ced90636110a429cc7359a9a8a91db25000b747793429",
+    "slf4j-api-2.0.16.jar": "a12578dde1ba00bd9b816d388a0b879928d00bab3c83c240f7013bf4196c579a",
+    "slf4j-nop-2.0.16.jar": "deca6c04ed35515a0a911fa44c0e836bee92c0c59d2e8fa9bab8ffbc464a9ba7"
+  }
+}

@@ -445,6 +445,9 @@ fixed_at: 2026-10-19
 resolution: |
   RecordingMachine 观察保护调用外 OOM 与非正常 MachineResult，Runner 统一归因并保留原始错误通道；类型 OOM、语法/运行时/无 yield/关机重启回归通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P2-1：Runner 146-154 优先读取 VmFailures 的 typed OOM；RecordingMachine 69-94 观察原始 VM 故障。不是继续按错误文案推断；本轮未做耗尽错误渲染路径的故障注入。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## ENG-RT-16 — run_id 随机段仅 4 位十六进制
@@ -503,6 +506,37 @@ fixed_at: 2026-10-19
 resolution: |
   原子 state.json 和父子进程精确 reservation，记录 pid/start identity；取消确认子进程终止后补 failed/cancelled。RunStateTest 与 McpServerTest 通过。外部强杀可能残留最后已知 running，不保证 summary。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+```
+
+## ENG-RT-18 — 模拟器 trace 无容量上限与清理入口
+
+```yaml
+id: ENG-RT-18
+title: "模拟器 trace.jsonl 无总量上限，跨 run 记录缺少清理入口"
+severity: medium
+status: open
+confidence: confirmed
+module: engine-runtime
+origin: [REVIEW-20261019-P2-2]
+files:
+  - path: engine/src/main/java/cctrun/engine/Trace.java
+    lines: "31-80"
+  - path: README.md
+    lines: "178"
+evidence: |
+  2026-10-20 核对 main 25a392102b1ce47c32743564298df0622b04e9ca：Trace.record 逐条写入并 flush，
+  没有字节预算、截断策略或清理入口。README 路线图仍将模拟器 trace 上限与 cct-run clean 列为待做。
+  公开 Trace API 探针写入 512 条 4096 字符记录，文件超过 1 MiB；具体值和分发 jar hash 见
+  issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
+  该探针仅证明所测写入未被容量限制，不把有限测试当作数学上的无限增长证明；无配额结论同时依据源码。
+impact: |
+  高频或多次运行可积累宿主磁盘记录；不能把模拟器 1 MB 逻辑磁盘配额或 JVM 堆上限当成 trace 配额。
+  原报告的 86 MB/h 是特定负载估算，不是写入速率上限。与 MOD-18 的实机 body/session 保留问题不同。
+fix: |
+  按 handoff D17 已定原则实现超限截断而非采样，保留 D55 已完成行可读性；明确截断标记与查询行为。
+  清理入口需要限定运行目录、保留策略和用户数据边界；本轮仅登记，不实现清理或删除记录。
+tests: |
+  后续验证临界字节数、截断后合法 JSONL/summary、并发 run 隔离，以及清理时不误删其他运行或用户文件。
 ```
 
 ## ENG-FX-01 — 默认值在 validate/build 两阶段重复、靠异常字符串耦合

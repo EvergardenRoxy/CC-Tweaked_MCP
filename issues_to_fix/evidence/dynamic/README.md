@@ -62,3 +62,8 @@ java -cp "<cct-run>/lib/gson-2.11.0.jar;evidence\dynamic\scripts" GsonDepth 1000
 # MCP 探针
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File evidence\dynamic\scripts\mcp_probe2.ps1
 ```
+
+
+## 2026-10-20 独立复核
+
+上文是原 `bf68ac4` 的历史探针与运行记录，不替换其结论或文件。针对上传的 2026-10-19 报告，新增 [results-2026-10-20-review](results-2026-10-20-review/README.md)，记录 main `25a3921` 的 MCP 与公开 trace writer API 观察。当前核对结论见 [review-2026-10-19-main.md](../../verification/review-2026-10-19-main.md)。原修复/发行/联合测试证据目录也保持独立，不把不同基线的结果拼成一次测试。

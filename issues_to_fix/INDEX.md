@@ -1,8 +1,11 @@
-# INDEX — issues_to_fix（95 条）
+# INDEX — issues_to_fix（97 条）
 
-字段：`id | severity | confidence | status | module | title | origin`。正文见对应模块文件。基线 `bf68ac4`（v0.2.3）。
+字段：`id | severity | confidence | status | module | title | origin`。正文见对应模块文件。原核对基线 `bf68ac4`（v0.2.3）保留；本轮复核基线为 main `25a3921`（v0.2.4）。
+
+2026-10-20：[上传报告的 main 核对](verification/review-2026-10-19-main.md)。保留原 95 个 ID；新增 ENG-RT-18 / CLI-18；同步 DOC-03 原已完成修复，PROJ-02 仅保留入口验证；当前 97 项（fixed 64 / open 33）。未覆盖的旧项不视为本轮重审。
 
 2026-10-19：A/T 63 项已验证修复，32 项保留原状态；逐项提交与证据见 [本轮验证](evidence/dynamic/results-1019fix/README.md)。
+
 | id | severity | confidence | status | module | title | origin |
 |---|---|---|---|---|---|---|
 | ENG-RT-01 | high | confirmed | fixed | engine-runtime | fs 写入无容量限制可写爆堆；OOM 按文案归因 | REVIEW-H2/L-Oom |
@@ -22,6 +25,7 @@
 | ENG-RT-15 | low | confirmed | fixed | engine-runtime | 保护链外 OOM 不进入状态判定 | REVIEW-NEW-4 |
 | ENG-RT-16 | low | confirmed | fixed | engine-runtime | run_id 随机段仅 4 位 | LEGACY-L-runid |
 | ENG-RT-17 | medium | confirmed | fixed | engine-runtime | 被杀/超时 run 无 summary/标记 | LEGACY-B7 |
+| ENG-RT-18 | medium | confirmed | open | engine-runtime | 模拟器 trace.jsonl 无总量上限，跨 run 记录缺少清理入口 | REVIEW-20261019-P2-2 |
 | ENG-FX-01 | medium | confirmed | fixed | engine-fixture | 默认值两阶段重复、异常串耦合 | REVIEW-F2 |
 | ENG-FX-02 | medium | confirmed | fixed | engine-fixture | 深嵌套 event.args → SOE 无 summary | REVIEW-F4/NEW-1 |
 | ENG-FX-03 | low | confirmed | fixed | engine-fixture | longValue 只查下限、Infinity 饱和 | REVIEW-F3 |
@@ -48,6 +52,7 @@
 | CLI-15 | low | confirmed | fixed | cli | 强杀后删 stderr，超时缺现场 | LEGACY-L-kill-files |
 | CLI-16 | low | confirmed | open | cli | pendingLua 无 TTL | LEGACY-L-pending |
 | CLI-17 | low | confirmed | fixed | cli | rememberScreens 失败清空基线 | LEGACY-L-remember |
+| CLI-18 | low | confirmed | open | cli | MCP 使用宽松 JsonParser，未加引号的键和单引号字符串也会被接受 | REVIEW-20261019-P3-2 |
 | MOD-01 | medium | partial | fixed | mod | kinds 索引无界增长、rotate 不裁剪 | REVIEW-M1/LEGACY-B3 |
 | MOD-02 | low | confirmed | open | mod | 平台层与构建脚本高度重复 | REVIEW-M2 |
 | MOD-03 | medium | partial | open | mod | 端口固定无回退、bind 失败文案矛盾 | REVIEW-M3 |
@@ -89,11 +94,11 @@
 | BLD-15 | low | confirmed | fixed | build-ci | mod 构建缺 toolchain、cobalt 未用 | LEGACY-L-build |
 | DOC-01 | medium | confirmed | fixed | docs | 测试数字 54/81/41 三方漂移；过期记录随包 | REVIEW-DOC1/NEW-1/2 |
 | DOC-02 | low | confirmed | fixed | docs | handoff.md 被当作用户 LIMITATIONS 出处 | REVIEW-DOC2 |
-| DOC-03 | low | partial | open | docs | docs 受众混杂（5 份 joint-test 等） | REVIEW-DOC3 |
+| DOC-03 | low | partial | fixed | docs | docs 受众混杂（5 份 joint-test 等） | REVIEW-DOC3 |
 | DOC-04 | low | partial | fixed | docs | macOS 未测但安装节无提示 | REVIEW-DOC5 |
 | DOC-05 | low | confirmed | fixed | docs | 三处测试记录手工同步 | REVIEW-DOC4 |
 | PROJ-01 | low | confirmed | open | project | description/topics/homepage 全空 | REVIEW-PROJECT |
-| PROJ-02 | medium | confirmed | open | project | 无 SECURITY.md（已有安全修复史） | REVIEW-PROJECT |
+| PROJ-02 | medium | partial | open | project | SECURITY.md 已存在，私密安全报告入口是否启用尚未验证 | REVIEW-PROJECT |
 | PROJ-03 | low | confirmed | open | project | 缺 CONTRIBUTING/COC/CHANGELOG/模板 | REVIEW-PROJECT |
 | PROJ-04 | low | confirmed | open | project | issues 零使用、同名 PR 噪声 | REVIEW-PROJECT |
 | PROJ-05 | low | confirmed | open | project | release 命名混杂、0.2.1 跳号 | REVIEW-PROJECT |
