@@ -19,6 +19,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Program outcomes, screen and output capture, events, time. */
 class RunnerTest {
+    @Test
+    void missingRebootFieldKeepsTimingFallbackAndReportsOnlyOncePerRun() throws Exception {
+        var file = out.resolve("reboot-fallback.jsonl");
+        try (var trace = new Trace(file, new Clock())) {
+            var probe = new Runner.RebootProbe(null); // simulate an unavailable optional upstream field
+            assertTrue(probe.pending(null, 50, 0, trace));
+            assertTrue(probe.pending(null, 55, 0, trace));
+            assertFalse(probe.pending(null, 56, 0, trace));
+            assertFalse(probe.pending(null, 100, 0, trace));
+        }
+        try (var lines = java.nio.file.Files.lines(file)) {
+            assertEquals(1, lines.filter(line -> line.contains("\"kind\":\"reboot_detection_fallback\"")).count());
+        }
+    }
     @TempDir
     Path out;
 

@@ -41,6 +41,9 @@ fixed_at: 2026-10-19
 resolution: |
   scripts/test_summary.py 从实际四模块 XML 生成机器报告，README/handoff 指向该源，test-results 明确为历史，zip 携带 validation/verification.json。包内报告与源报告比对通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-9：handoff 41/41 已明确标注历史日期；当前测试数字由 scripts/test_summary.py 生成。README 17 与 mod/README 97 均写 16 个实机工具，不能重新用原报告旧数字作为当前缺陷。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## DOC-02 — 内部过程记录 handoff.md 被对外文档当作 LIMITATIONS 出处
@@ -81,7 +84,7 @@ resolution: |
 id: DOC-03
 title: "docs/ 混放用户文档与内部实测记录：5 份 joint-test*、live-test-mplayer、test-results 与 install/usage 同级"
 severity: low
-status: open
+status: fixed
 confidence: partial
 module: docs
 origin: [REVIEW-DOC3]
@@ -103,6 +106,12 @@ fix: |
   内部测试记录移入 docs/internal/ 或 handoff 附录，docs 只留用户向文档。
 tests: |
   none
+fixed_in: 88c3e7721d334426e01155abafa8e1cec335cb86
+fixed_at: 2026-10-19
+resolution: |
+  2026-10-20 独立状态同步：用户决策 D74 已在原提交完成 guides/development/testing/{plans,prompts,reports}/releases/assets 分层，docs/README.md 提供索引和旧路径映射。
+  当前 main 目录与文档链接核对支持关闭 DOC-03；不要求沿用原建议中的 docs/internal 目录名，不把本次核对计为新的代码修复。
+  见 issues_to_fix/verification/review-2026-10-19-main.md 的目录状态核对。
 ```
 
 ## DOC-04 — macOS 未测试，但安装节未就地提示
@@ -167,6 +176,9 @@ fixed_at: 2026-10-19
 resolution: |
   以实际 JUnit XML -> verification.json 为唯一当前计数源，记录 commit/dirty/report time/失败与跳过，缺模块明确 unverified；CI 汇总，其他文档不再手工同步数字。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-9：当前 XML 汇总机制已存在；本轮仅核对文档及来源，不手工追加一个新的“当前通过总数”。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## PROJ-01 — 仓库 description/topics/homepage 全空
@@ -192,27 +204,31 @@ tests: |
   none
 ```
 
-## PROJ-02 — 无 SECURITY.md（已有真实安全修复史）
+## PROJ-02 — SECURITY.md 已存在，私密安全报告入口尚未验证
 
 ```yaml
 id: PROJ-02
-title: "无 SECURITY.md / 安全披露渠道，而项目已有 0.2.3 路径逃逸修复史"
+title: "SECURITY.md 已存在，私密安全报告入口是否启用尚未验证"
 severity: medium
 status: open
-confidence: confirmed
+confidence: partial
 module: project
 origin: [REVIEW-PROJECT]
 files:
-  - path: (repo root)
-    lines: "缺少 SECURITY.md"
+  - path: SECURITY.md
+    lines: "10-28"
+  - path: (GitHub security settings)
+    lines: "私密报告入口，尚未验证"
 evidence: |
   根目录只有 .gitattributes/.gitignore/build.gradle.kts/gradlew(.bat)/handoff.md/LICENSE/README.md/settings.gradle.kts/THIRD-PARTY-NOTICES.md；无 SECURITY.md；release-notes-0.2.3.md:3 记录修复 cct-live 文件接口路径逃逸。
+  2026-10-20 状态核对：SECURITY.md 已在 dc57617 加入并随 PR #15 合入；REPAIR_PLAN 的 S 类已记录此事实。
+  当前 SECURITY.md 指向 GitHub 私密安全报告，但入口是否启用/可用未验证；保留 open，仅跟踪此剩余验证，不再声称缺少文件，也不重复新建安全政策。
 impact: |
-  发现者只能开公开 issue，等于公开 0day；常驻游戏进程的 HTTP 服务 + AI 执行环境对披露渠道尤其敏感。
+  私密入口若未启用，政策中声明的唯一渠道可能暂不可用；目前仅验证政策文件存在，不能据此确认渠道已启用，也不能断言报告者只能公开漏洞。
 fix: |
-  添加 SECURITY.md（邮箱/私有渠道）；对 0.2.3 的修复考虑补 GitHub Security Advisory；Modrinth 页面开启漏洞报告入口。
+  不重复添加现有 SECURITY.md。先核对 GitHub 私密安全报告入口是否可用，再按维护者决定处理剩余渠道；不从文件存在推导入口已启用。
 tests: |
-  none
+  后续只读检查当前仓库 Security 页的私密报告入口；本轮未执行，不能标为通过。
 ```
 
 ## PROJ-03 — 缺社区/治理文件

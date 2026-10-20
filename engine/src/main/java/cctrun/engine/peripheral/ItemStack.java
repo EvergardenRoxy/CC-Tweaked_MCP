@@ -2,7 +2,6 @@
 
 package cctrun.engine.peripheral;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +41,7 @@ public final class ItemStack {
 
     /** Shape of an entry in {@code inventory.list()}. */
     Map<String, Object> basicDetail() {
-        var out = new HashMap<String, Object>();
+        var out = new LinkedHashMap<String, Object>();
         out.put("name", name);
         out.put("count", count);
         if (nbt != null) out.put("nbt", nbt);

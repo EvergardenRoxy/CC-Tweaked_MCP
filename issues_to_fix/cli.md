@@ -59,6 +59,9 @@ fixed_at: 2026-10-19
 resolution: |
   ProtocolReader 按字节有界读行并排空超限行；深度/节点在递归使用前验证，致命 framing OOM 走独立 stderr/exit 4 边界。ProtocolReaderTest 和 McpServerTest 通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-1：ProtocolReader 按字节限制行，JsonLimits 有深度/节点限额；不重开旧无上限问题。本轮 boolean id 被拒绝后下一条 ping 仍成功，原始响应见 observations.json。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## CLI-03 — 深嵌套 JSON-RPC id 在 send() 序列化时 SOE 打死 MCP 服务
@@ -122,6 +125,9 @@ fixed_at: 2026-10-19
 resolution: |
   Call 在提交前绑定 Future，取消时 interrupt live 调用并杀 child，处理取消/启动交错；LiveToolsTest 的在途 wait 取消及 McpServerTest 子进程/状态测试通过。默认 EOF drain 保留。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P2-6：McpServer.Call 516-535 绑定 Future 并 cancel(true)，LiveToolsTest 114-134 有停止后续轮询且服务继续响应的回归。本轮确认实现与测试存在，不把旧测试报告冒充新执行。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## CLI-05 — JavaFinder 信任 release 文件并取最高版本
@@ -195,10 +201,13 @@ files:
     lines: "46, 113-115"
 evidence: |
   46 版本列表含 2025-03-26；113-115 任何 JSON 数组只回单个 -32600，无批量处理分支。2025-06-18+ 已移除批量，故对最新版正确。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P2-7：主分支 47/115-123/217 仍可协商 2025-03-26 后拒绝数组；本轮探针确认 -32600。该版本规范 basic/index.mdx 的 Batching 段明确 MUST receive batches，故仅补文档声明不支持不能满足所宣称版本；应移除不完整版本或实现其接收行为。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 impact: |
   协商 2025-03-26 的客户端发批量会收到 -32600。
 fix: |
-  声明不支持批量，或按协商版本实现批量。
+  移除无法完整实现的旧协议版本，或按协商版本实现其要求的批量接收；只在文档中声明“不支持批量”不足以满足 2025-03-26。
 tests: |
   none
 ```
@@ -295,6 +304,9 @@ files:
 evidence: |
   McpTools.string 要求 JSON string（267-272）；LiveTools.string 接受任意 primitive 并 getAsString()（886-891）；
   审查引用的 McpTools.java:866-871 不存在（文件 322 行）；工具描述硬编码 "1.120.2/1.20.1" 仅 McpTools.java:33。
+  2026-10-20 六项约定范围交付（c94928bceb451e9a9ce444f5faf0b51a64a0d389）：
+  工具描述由 Versions.CC_TWEAKED/MINECRAFT 格式化；handshake/tools/list 回归验证描述与版本一致。参数校验去重和严格度统一未实施，保留现有转换行为，整项保持 open。
+  本轮证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 impact: |
   同一语义参数在不同工具上接受度不同；升级 CC:T 后描述静默过期。
 fix: |
@@ -389,6 +401,9 @@ fixed_at: 2026-10-19
 resolution: |
   RejectedExecutionException 清理 active、取消任务并回 -32603；active 使用 putIfAbsent/remove(key,call) 避免请求交错误删。McpServerTest.rejectedSubmissionDoesNotLeaveActiveCalls 通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-3（相关生命周期核对，不混为原 issue）：McpServer 176-178 用 putIfAbsent 拒绝在途同 id，191/198 用 remove(key, call)；原报告的覆盖旧 Call 路径已处理，不新建重复待修项。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## CLI-15 — 强杀后临时 stderr 被删除，超时结果缺现场
@@ -417,6 +432,9 @@ fixed_at: 2026-10-19
 resolution: |
   墙钟强杀后保留并返回 stderr 最后最多 8 KiB，过滤 inline 临时路径，再清理重定向文件。代码核对通过；未人为卡死 JVM 等满 120 秒宽限，验证边界在本轮 README 明示。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P1-1：McpServer 294-349 有强杀后的有界等待、best-effort 删除与最终子进程退出检查；删除失败不会覆盖原超时错误。Windows 文件锁场景未重跑，不能保证完全无临时残留。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## CLI-16 — pendingLua 无 TTL
@@ -468,4 +486,40 @@ fixed_at: 2026-10-19
 resolution: |
   动作基线采集失败用不可用 sentinel 替代旧值，wait 给 baseline_warning，不把旧文字当新匹配；unchanged=true 可显式接受。LiveToolsTest 对应回归通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-4：基线不可用已有明确 sentinel/warning，LiveToolsTest.unavailableActionBaselineNeverAcceptsStaleText 有回归。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
+```
+
+## CLI-18 — MCP 接受非标准 JSON
+
+```yaml
+id: CLI-18
+title: "MCP 使用宽松 JsonParser，未加引号的键和单引号字符串也会被接受"
+severity: low
+status: fixed
+confidence: confirmed
+module: cli
+origin: [REVIEW-20261019-P3-2]
+files:
+  - path: cli/src/main/java/cctrun/cli/McpServer.java
+    lines: "113-119"
+evidence: |
+  2026-10-20 核对 main 25a392102b1ce47c32743564298df0622b04e9ca：serve 使用 JsonParser.parseString，
+  未启用严格 JSON 解析。本轮以该 main 构建的发行目录实测
+  {jsonrpc:'2.0',id:1,method:'ping'} 得到 id=1/result={}，而不是解析错误。
+  输入、响应与分发 jar hash 见 issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
+impact: |
+  非 JSON 文本被当作有效 JSON-RPC 请求，可能掩盖客户端格式错误；目前确认的是协议健壮性偏差，
+  没有据此证明权限绕过或高危漏洞。与 CLI-02 的行长限制、CLI-03 的 id 深度问题不同。
+fix: |
+  在现有 Gson 版本上显式使用严格 JSON 解析，非法 JSON 返回 -32700；保留输入字节/深度/节点限制。
+  不以升级 Gson 或捕获任意 Throwable 替代严格解析，不混入本轮文档核对。
+tests: |
+  后续覆盖未加引号的键、单引号字符串、注释、尾随内容被拒绝后同一服务仍可接受合法 ping。
+fixed_in: c94928bceb451e9a9ce444f5faf0b51a64a0d389
+fixed_at: 2026-10-20
+resolution: |
+  MCP 输入使用 Gson Strictness.STRICT 并验证完整输入；非法键/单引号/注释/尾随逗号/尾随内容回 -32700 后可继续处理合法 ping，literal null 回 -32600。已有深层 id、输入界限与 live/child 回归通过；没有升级 Gson。
+  范围与本轮实测证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 ```

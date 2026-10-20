@@ -91,6 +91,9 @@ files:
 evidence: |
   端口 47823（1024..65535，0 被排除、无重试）；LiveHttp:79 同步抛 BindException；LiveSession:49-50 已建会话并打日志，
   CctLive:61 却报 "cct-live could not start; computers cannot be attached"；endpoint.json 仅成功后写、close 删。
+  2026-10-20 六项约定范围交付（c94928bceb451e9a9ce444f5faf0b51a64a0d389）：
+  两加载器分别记录 session 创建失败、HTTP BindException（含 127.0.0.1 与端口/处理办法）和其他 HTTP 启动失败；保持现有端口，无自动换端口/port=0。该范围完成；自动回退及工具可见状态仍待策略决定，整项保持 open。
+  本轮证据：issues_to_fix/evidence/dynamic/results-2026-10-20-six-scoped/README.md。
 impact: |
   双开/端口占用时第二实例 AI 接管整体失效；日志有 ERROR+堆栈但游戏内/工具侧无提示，易误判。
 fix: |
@@ -192,6 +195,9 @@ fixed_at: 2026-10-19
 resolution: |
   HttpPolicy 对缺 Host 与非 loopback Host 拒绝，Bearer 常量时间比较；单测和两版真实 HTTP/1.0 缺 Host/401/403 通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-5：HttpPolicy.hostAllowed 13-14 要求非 null 的回环 Host；缺失 Host 不再放行。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## MOD-07 — token.txt 未设 POSIX 0600
@@ -220,6 +226,9 @@ fixed_at: 2026-10-19
 resolution: |
   POSIX token 创建即 0600，已有文件权限收紧；Windows 不调用 POSIX API。RecorderSafetyTest 与两版 Linux 真实权限检查通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-7：LocalFiles.token 13-30 创建/修正 POSIX rw-------，已有纯文件回归；该结论不覆盖 Windows ACL。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## MOD-08 — 2 线程执行器 + body 无读取超时
@@ -248,6 +257,9 @@ fixed_at: 2026-10-19
 resolution: |
   所有响应前执行 body 5 秒总期限，包含拒绝鉴权/Host、GET、未知路径与忽略 body 的端点；超限有界排空，慢 body 在发响应头前关闭连接，不设置全局 JVM HTTP 参数。已实测复现两条拒绝请求卡死两个 worker，单 worker 回归及两版新脚本验证回收。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-6：LiveHttp 81 仍为 2 线程，但 HttpPolicy.read 已有独立截止时间；2 线程本身是容量选择，不能由此单独推出功能缺陷。线程池容量没有新增实机压力结论，原无超时缺口不重开。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## MOD-09 — trace/回放端点全文件读取
@@ -278,6 +290,9 @@ fixed_at: 2026-10-19
 resolution: |
   recordAt 在锁内流式读避免整个 trace 深拷贝；分页只做一条 lookahead 即停止，matched_at_least 明示下界，summary 才精确计数。轮转/读取回归与游戏 trace/回放通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P3-6：记录读取已有窗口、分页与磁盘快照；逐文件读取成本并非全部消失。不把保留的重查询成本误判为旧问题未修。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## MOD-10 — 错误分类混乱、坏 manifest 拖垮 list
@@ -387,6 +402,9 @@ files:
     lines: "37, 107-109"
 evidence: |
   '正则 (get|is|has|can|list|size|tanks|count)([A-Z_0-9].*)? 会放行 getAndConsumeXxx 类名；Access 丢弃事件、mount 返回 null 等其余隔离闭环；无真实第三方外设实例可验。'
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P2-5：PeripheralQuery 100-120 仍按名字过滤并在服务器线程调用 target.apply；第三方 getter 的副作用和跨线程竞争均缺少实际外设验证。名称不是只读证明；未验证的竞争路径只记核对表，不作为另一个已确认缺陷。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 impact: |
   若第三方外设存在「名字像读但有副作用」的方法，AI 查询可绕过「查询不改世界」承诺。
 fix: |
@@ -410,6 +428,9 @@ files:
     lines: "695-713"
 evidence: |
   future.cancel(false)（:706）仅取消未开始任务；已开始任务继续在服务器线程跑完，而请求已回 503。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P2-3：LiveHttp 708-725 已有 future.cancel(false)，排队任务与已开始任务必须区分；已开始的服务器线程操作仍可能在 503 后生效。状态保持 open，不声称已复现游戏中的重复副作用。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 impact: |
   变更类请求（power/event/files/snapshot/attach）可能「报失败但生效」，破坏幂等预期。
 fix: |
@@ -501,6 +522,9 @@ fixed_at: 2026-10-19
 resolution: |
   锁内复制不可变磁盘读快照，读完清理；完整 write 后才提交 seq/index，失败截断、暴露 trace_health、退避重试并补 trace_error。注入部分写入/并发轮转单测和两版压力通过；Windows 未实测。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P1-2：ComputerTrace.lines 69-86 在写锁内复制读者快照，recordAt 108-132 有写失败退避恢复；RecorderSafetyTest 34-86 覆盖快照轮换与部分写失败。Windows 文件锁原场景未重跑。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## MOD-18 — body 文件与 sessions 目录从不清理
@@ -554,6 +578,9 @@ fixed_at: 2026-10-19
 resolution: |
   先复制并按实际复制内容生成 hash/校验 manifest，再 old->backup/stage->target 可恢复切换；失败保留旧副本，list 恢复中断切换。SnapshotStoreTest 与两版 mount save/diff/restore 通过。
   验证索引：issues_to_fix/evidence/dynamic/results-1019fix/ISSUE_MATRIX.md；本轮限制和实际报告见同目录 README.md。
+  2026-10-20 复核 main 25a392102b1ce47c32743564298df0622b04e9ca：
+  P2-4：ComputerSnapshots.save 95-131 调用 SnapshotStore.replace，后者写 stage/backup 并回滚/恢复。确认已有可恢复替换，不称为任何文件系统上的全事务原子性。
+  当前核对表：issues_to_fix/verification/review-2026-10-19-main.md；本次动态观察：issues_to_fix/evidence/dynamic/results-2026-10-20-review/observations.json。
 ```
 
 ## MOD-20 — 重复电脑 ID 时 trace/快照目录冲突

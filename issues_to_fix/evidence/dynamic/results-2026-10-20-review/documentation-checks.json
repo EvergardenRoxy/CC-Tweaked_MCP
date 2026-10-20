@@ -1,0 +1,59 @@
+{
+  "yaml_and_index": {
+    "issues": 97,
+    "statuses": {
+      "fixed": 64,
+      "open": 33
+    },
+    "severity": {
+      "high": {
+        "fixed": 2,
+        "open": 0
+      },
+      "medium": {
+        "fixed": 16,
+        "open": 7
+      },
+      "low": {
+        "fixed": 45,
+        "open": 22
+      },
+      "info": {
+        "fixed": 1,
+        "open": 4
+      }
+    },
+    "status_changes": {
+      "DOC-03": [
+        "open",
+        "fixed"
+      ]
+    },
+    "original_fixed_commits_preserved": true,
+    "all_fixed_commits_are_baseline_ancestors": true
+  },
+  "historical_evidence": {
+    "original_files": 122,
+    "byte_identical": 119,
+    "navigation_append_only": [
+      "issues_to_fix/evidence/README.md",
+      "issues_to_fix/evidence/dynamic/README.md",
+      "issues_to_fix/verification/README.md"
+    ]
+  },
+  "links": {
+    "changed_markdown_files": 15,
+    "existing_local_targets": 139
+  },
+  "source_report": {
+    "text_preserved_except_eol": true,
+    "hashes_verified": true
+  },
+  "scope": {
+    "report_findings": 19,
+    "runtime_build_changes": false,
+    "scope": "issues_to_fix only"
+  },
+  "diff_check": "passed",
+  "baseline": "25a392102b1ce47c32743564298df0622b04e9ca"
+}

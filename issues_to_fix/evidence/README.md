@@ -36,3 +36,13 @@ lane 报告内部结构：概览 → 逐条详细核对 → `## AI-ISSUES`（YAM
 ## 动态证据
 
 见 `dynamic/README.md`：11 个 run 目录 + 9 个探针脚本 + 29 个 fixture。
+
+## 2026-10-20 增量证据
+
+上文保留原核对基线与历史目录说明。本轮独立新增：
+
+- `reports/review-2026-10-19-0.2.2.md`：用户上传报告，文本不改写，只规范 LF；来源/hash 见同名 `-source.json`。原文主张不是当前审查结论。
+- [results-2026-10-20-review](dynamic/results-2026-10-20-review/README.md)：针对 main `25a3921` 的定向观察、可复现探针与响应，保留作用范围和平台边界。
+- [当前核对表](../verification/review-2026-10-19-main.md)：原条目到结论、当前证据及 issue 的映射。
+
+原 lane、旧核对表、旧动态结果和固定 Git revision 的历史 URL 保留。

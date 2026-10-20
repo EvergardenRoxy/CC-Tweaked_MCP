@@ -1,0 +1,23 @@
+{
+  "source_commit": "c94928bceb451e9a9ce444f5faf0b51a64a0d389",
+  "issues": 97,
+  "statuses": {
+    "fixed": 66,
+    "open": 31
+  },
+  "only_status_changes": {
+    "ENG-FX-07": [
+      "open",
+      "fixed"
+    ],
+    "CLI-18": [
+      "open",
+      "fixed"
+    ]
+  },
+  "four_partial_items_remain_open": true,
+  "previous_evidence_files_preserved": 130,
+  "local_link_targets_checked": 123,
+  "guide_ascii": true,
+  "diff_check": "passed"
+}

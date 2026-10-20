@@ -24,6 +24,26 @@ class McpServerTest {
     @TempDir
     Path dir;
 
+    @Test
+    void rejectsNonJsonSyntaxAndTrailingContentWithoutStoppingService() throws Exception {
+        for (var malformed : new String[]{
+            "{jsonrpc:'2.0',id:1,method:'ping'}",
+            "{'jsonrpc':'2.0','id':1,'method':'ping'}",
+            "{\"jsonrpc\":\"2.0\",/*comment*/\"id\":1,\"method\":\"ping\"}",
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\",}",
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"} garbage",
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"} {}"
+        }) {
+            var responses = session(malformed, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}");
+            assertEquals(-32700, responses.get("null").getAsJsonObject("error").get("code").getAsInt(), malformed);
+            assertTrue(responses.get("2").has("result"), malformed);
+            assertFalse(responses.containsKey("1"), malformed);
+        }
+        var nullRequest = session("null", "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}");
+        assertEquals(-32600, nullRequest.get("null").getAsJsonObject("error").get("code").getAsInt());
+        assertTrue(nullRequest.get("2").has("result"));
+    }
+
     /** Feeds the lines to a server, waits for it to finish (end of input), returns the responses by id. */
     private Map<String, JsonObject> session(String... lines) throws Exception {
         var input = new ByteArrayInputStream((String.join("\n", lines) + "\n").getBytes(StandardCharsets.UTF_8));
@@ -78,6 +98,9 @@ class McpServerTest {
 
         var tools = r.get("2").getAsJsonObject("result").getAsJsonArray("tools");
         assertEquals(20, tools.size());
+        var description = tools.get(0).getAsJsonObject().get("description").getAsString();
+        assertTrue(description.contains("CC: Tweaked " + cctrun.engine.Versions.CC_TWEAKED + " computer"));
+        assertTrue(description.contains("Minecraft " + cctrun.engine.Versions.MINECRAFT));
         for (var tool : tools) assertEquals("object", tool.getAsJsonObject().getAsJsonObject("inputSchema").get("type").getAsString());
 
         assertTrue(r.get("3").has("result"));

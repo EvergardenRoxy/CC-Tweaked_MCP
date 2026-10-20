@@ -51,3 +51,12 @@
 | 项目管理 | PROJ-01..08 |
 
 （完整映射见每条 issue 的 `origin` 字段。）
+
+## 2026-10-20 新增核对入口
+
+上文保留 2026-10-18 的基线与原编号。用户另上传了 2026-10-19、基线 `3808530` / 0.2.2 的工程报告：
+
+- [当前 main 逐项复核](review-2026-10-19-main.md)：固定 main `25a3921`，19 条发现及总体结论边界。
+- [原文](../evidence/reports/review-2026-10-19-0.2.2.md)、[来源/hash](../evidence/reports/review-2026-10-19-0.2.2-source.json)、[本轮观察](../evidence/dynamic/results-2026-10-20-review/README.md)。
+
+原表不覆盖，新来源使用 `REVIEW-20261019-Px-y`。新增问题、当前状态与统计仍以模块 YAML 和 [INDEX](../INDEX.md) 为准；核对表本身不冒充修复。
