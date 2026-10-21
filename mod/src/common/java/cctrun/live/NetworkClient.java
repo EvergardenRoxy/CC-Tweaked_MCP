@@ -17,6 +17,9 @@ final class NetworkClient implements AutoCloseable {
     private final Map<UUID, Pending> pending = new HashMap<>();
     private boolean closed;
     private boolean ready;
+    private boolean handshaking;
+    private boolean incompatible;
+    private int attempts;
     private String unavailable = "network handshake pending";
     private NetworkBridge bridge;
 
@@ -27,20 +30,44 @@ final class NetworkClient implements AutoCloseable {
     void start(Path home) throws java.io.IOException {
         bridge = new NetworkBridge(this, home);
         bridge.start();
-        var arguments = new JsonObject();
-        arguments.addProperty("version", NetworkProtocol.VERSION);
-        send("hello", arguments).thenAccept(response -> {
-            var reply = NetworkProtocol.negotiate(response);
-            synchronized (this) {
-                if (closed) return;
-                ready = reply.status() == 200;
-                unavailable = ready ? "" : reply.data().get("error").getAsString();
-            }
-        });
+        handshake();
     }
 
+    /**
+     * Sends hello unless one is in flight. A slow login, a lost reply or a temporarily disabled bridge is retried
+     * with backoff for the life of this connection; only an incompatible protocol (426) stops retrying.
+     */
+    private synchronized void handshake() {
+        if (closed || ready || incompatible || handshaking) return;
+        handshaking = true;
+        var arguments = new JsonObject();
+        arguments.addProperty("version", NetworkProtocol.VERSION);
+        send("hello", arguments).thenAccept(this::handshaken);
+    }
+
+    private synchronized void handshaken(NetworkProtocol.Reply response) {
+        handshaking = false;
+        if (closed) return;
+        var reply = NetworkProtocol.negotiate(response);
+        ready = reply.status() == 200;
+        if (ready) { unavailable = ""; attempts = 0; return; }
+        var error = reply.data().get("error");
+        unavailable = error != null && error.isJsonPrimitive() ? error.getAsString() : "network handshake failed";
+        if (reply.status() == 426) { incompatible = true; return; }
+        var delay = retryDelaySeconds(attempts++);
+        CompletableFuture.delayedExecutor(delay, TimeUnit.SECONDS).execute(this::handshake);
+    }
+
+    /** 1, 2, 4 ... seconds, capped at 30. */
+    static long retryDelaySeconds(int attempt) { return Math.min(30, 1L << Math.min(attempt, 5)); }
+
+    synchronized boolean ready() { return ready && !closed; }
+
     synchronized CompletableFuture<NetworkProtocol.Reply> call(String operation, JsonObject arguments) {
-        if (!ready || closed) return CompletableFuture.completedFuture(NetworkProtocol.Reply.error(503, unavailable));
+        if (!ready || closed) {
+            handshake(); // No-op while one is in flight, after close, or for an incompatible server.
+            return CompletableFuture.completedFuture(NetworkProtocol.Reply.error(503, unavailable));
+        }
         return send(operation, arguments);
     }
 

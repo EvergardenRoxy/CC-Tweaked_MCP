@@ -19,6 +19,59 @@ import static org.junit.jupiter.api.Assertions.*;
 class NetworkBridgeTest {
     @TempDir Path home;
 
+    private static final String CAPABILITIES = "{\"protocol\":2,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\"]}";
+
+    /** Answers hello from the given replies in order (the last one repeats), and every other request with 200. */
+    private static NetworkClient scripted(AtomicReference<NetworkClient> holder, List<String> operations, NetworkProtocol.Reply... hellos) {
+        var count = new java.util.concurrent.atomic.AtomicInteger();
+        return new NetworkClient(json -> {
+            var request = JsonParser.parseString(json).getAsJsonObject();
+            var operation = request.get("operation").getAsString();
+            operations.add(operation);
+            var reply = operation.equals("hello") ? hellos[Math.min(count.getAndIncrement(), hellos.length - 1)]
+                : new NetworkProtocol.Reply(200, JsonParser.parseString("{\"computers\":[]}").getAsJsonObject());
+            for (var frame : NetworkProtocol.frames(UUID.fromString(request.get("request_id").getAsString()),
+                UUID.fromString(request.get("epoch").getAsString()), reply)) holder.get().receive(frame);
+        });
+    }
+
+    @Test void transientHandshakeFailureIsRetriedOnTheSameConnection() throws Exception {
+        var holder = new AtomicReference<NetworkClient>();
+        var operations = Collections.synchronizedList(new ArrayList<String>());
+        try (var client = scripted(holder, operations, NetworkProtocol.Reply.error(504, "Minecraft request timed out"),
+            new NetworkProtocol.Reply(200, JsonParser.parseString(CAPABILITIES).getAsJsonObject()))) {
+            holder.set(client);
+            client.start(home);
+            assertFalse(client.ready());
+            assertEquals(503, client.call("computers", new JsonObject()).get(1, TimeUnit.SECONDS).status());
+            var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (!client.ready() && System.nanoTime() < deadline) Thread.sleep(20);
+            assertTrue(client.ready());
+            assertEquals(200, client.call("computers", new JsonObject()).get(1, TimeUnit.SECONDS).status());
+        }
+    }
+
+    @Test void incompatibleProtocolIsNotRetried() throws Exception {
+        var holder = new AtomicReference<NetworkClient>();
+        var operations = Collections.synchronizedList(new ArrayList<String>());
+        try (var client = scripted(holder, operations, NetworkProtocol.Reply.error(426, "incompatible cct-live protocol"))) {
+            holder.set(client);
+            client.start(home);
+            Thread.sleep(1500);
+            var reply = client.call("computers", new JsonObject()).get(1, TimeUnit.SECONDS);
+            assertEquals(503, reply.status());
+            assertTrue(reply.data().get("error").getAsString().contains("incompatible"));
+            assertEquals(List.of("hello"), operations);
+        }
+    }
+
+    @Test void handshakeRetryBackoffIsBounded() {
+        assertEquals(1, NetworkClient.retryDelaySeconds(0));
+        assertEquals(2, NetworkClient.retryDelaySeconds(1));
+        assertEquals(30, NetworkClient.retryDelaySeconds(5));
+        assertEquals(30, NetworkClient.retryDelaySeconds(Integer.MAX_VALUE));
+    }
+
     @Test void bridgeRequiresLocalTokenAndOnlyForwardsAllowedReads() throws Exception {
         var holder = new AtomicReference<NetworkClient>();
         var operations = Collections.synchronizedList(new ArrayList<String>());

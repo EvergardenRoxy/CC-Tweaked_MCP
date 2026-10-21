@@ -34,7 +34,7 @@ final class NetworkClientUi {
     static void receive(NetworkProtocol.Frame frame) { if (current != null) current.receive(frame); }
 
     static List<Button> buttons(Screen screen, BiConsumer<Integer, Boolean> permission) {
-        if (current == null || !(screen instanceof AbstractContainerScreen<?> container)
+        if (current == null || !current.ready() || !(screen instanceof AbstractContainerScreen<?> container)
             || !(container.getMenu() instanceof AbstractComputerMenu)) return List.of();
         int id = container.getMenu().containerId;
         int x = Math.max(2, screen.width - 210);

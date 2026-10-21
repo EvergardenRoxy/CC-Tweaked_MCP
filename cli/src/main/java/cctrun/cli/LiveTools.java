@@ -242,6 +242,8 @@ final class LiveTools implements AutoCloseable {
     /** The last game_dir that worked, used when a later call gives none and no default is configured. */
     private volatile Path rememberedGameDir;
     private final LiveNetworkSessions network = new LiveNetworkSessions(this::sendRaw);
+    /** Game directories whose client network bridge this MCP connection has used; they never fall back. */
+    private final Set<Path> networkDirs = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final HttpClient client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .proxy(HttpClient.Builder.NO_PROXY)
@@ -816,11 +818,15 @@ final class LiveTools implements AutoCloseable {
             throw new McpTools.ToolError("No Minecraft game directory is configured. Pass game_dir (the folder that contains mods/ and cct-live/), or start the server as `cct-run mcp --live <game dir>`, or set CCT_LIVE_DIR.");
         }
         var home = gameDir.resolve("cct-live");
-        // Once a client bridge has been used, never silently fall back to the unrestricted integrated-server
-        // endpoint after disconnect/revoke. Its token and discovery have a separate local-only home.
-        if (Files.isDirectory(home.resolve("client"))) home = home.resolve("client");
+        // An active client bridge (its token and discovery have a separate local-only home) wins. Once this MCP
+        // connection has used one, never silently fall back to the unrestricted local endpoint after
+        // disconnect/revoke. A leftover client/ directory alone must not hide a single-player world's endpoint.
+        var networkKey = gameDir.toAbsolutePath().normalize();
+        if (Files.isRegularFile(home.resolve("client/endpoint.json")) || networkDirs.contains(networkKey)) home = home.resolve("client");
         var endpointFile = home.resolve("endpoint.json");
         if (!Files.isRegularFile(endpointFile)) {
+            if (networkDirs.contains(networkKey))
+                throw new McpTools.ToolError("the Minecraft client network bridge in " + gameDir + " is no longer connected (no active endpoint.json). Rejoin the server; this MCP connection will not switch to the local administrator endpoint, restart the MCP server to use it.");
             throw new McpTools.ToolError("cct-live is not running in " + gameDir + " (no active endpoint.json). Start Minecraft with the cct-live mod and join a world/server; client bridge discovery exists only while connected.");
         }
         try {
@@ -832,8 +838,9 @@ final class LiveTools implements AutoCloseable {
             if (!"http".equals(base.getScheme()) || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null
                 || !"/".equals(base.getPath()) || !Set.of("127.0.0.1", "[::1]", "::1", "localhost").contains(base.getHost()))
                 throw new IllegalArgumentException("endpoint must be a local HTTP bridge root URL");
-            return new Endpoint(base, token, endpoint.has("transport") && endpoint.get("transport").getAsString().equals("minecraft-network"),
-                endpoint.has("session") ? endpoint.get("session").getAsString() : "");
+            var network = endpoint.has("transport") && endpoint.get("transport").getAsString().equals("minecraft-network");
+            if (network) networkDirs.add(networkKey);
+            return new Endpoint(base, token, network, endpoint.has("session") ? endpoint.get("session").getAsString() : "");
         } catch (IOException | RuntimeException e) {
             throw new McpTools.ToolError("cannot read " + home + " (endpoint.json / token.txt): " + e.getMessage());
         }

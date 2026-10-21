@@ -154,6 +154,12 @@ final class NetworkServer {
         }
         control.validate(owner, agent, id, grant.instance(), leaseId, leaseEpoch, true);
         var source = arguments.has("source") ? arguments.get("source").getAsString() : "term";
+        if (!source.equals("term")) {
+            var blocks = Terminals.monitorBlocks(computer, source);
+            if (blocks.isEmpty()) return NetworkProtocol.Reply.error(404, "no authorized screen on side " + source);
+            // A monitor denial is about that monitor only; it does not revoke the computer's grant.
+            NetworkAuthorization.checkBlocks(player, computer.getLevel(), blocks);
+        }
         var terminal = Terminals.source(computer, source);
         if (terminal == null) return NetworkProtocol.Reply.error(404, "no authorized screen on side " + source);
         var snapshot = Terminals.snapshot(terminal);
@@ -166,7 +172,8 @@ final class NetworkServer {
         if (operation.equals("status")) {
             out.addProperty("last_seq", 0);
             out.add("new_since_after", new JsonObject());
-            out.add("monitors", strings(Terminals.monitors(computer).keySet().toArray(String[]::new)));
+            out.add("monitors", strings(Terminals.monitors(computer).keySet().stream()
+                .filter(side -> monitorReadable(player, computer, side)).toArray(String[]::new)));
         } else {
             out.add("size", pair(snapshot.width(), snapshot.height()));
             out.add("cursor", pair(snapshot.cursorX(), snapshot.cursorY()));
@@ -178,6 +185,11 @@ final class NetworkServer {
             if (arguments.has("regions") && arguments.get("regions").getAsBoolean()) out.add("regions", Screens.regions(snapshot));
         }
         return new NetworkProtocol.Reply(200, out);
+    }
+
+    private static boolean monitorReadable(ServerPlayer player, ServerComputer computer, String side) {
+        try { NetworkAuthorization.checkBlocks(player, computer.getLevel(), Terminals.monitorBlocks(computer, side)); return true; }
+        catch (NetworkControl.Failure e) { return false; }
     }
 
     private JsonObject describe(Peer peer, NetworkGrants.Grant<ServerComputer> grant) {

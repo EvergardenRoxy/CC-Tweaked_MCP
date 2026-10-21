@@ -14,6 +14,9 @@ import net.minecraftforge.network.NetworkDirection;
 public final class LiveClient {
     @SubscribeEvent public static void login(ClientPlayerNetworkEvent.LoggingIn event) {
         LiveNetwork.receiver = NetworkClientUi::receive;
+        // The player's own integrated world (single player, or hosting it on LAN) keeps the local administrator
+        // endpoint; a client bridge there would hide it from cct-run behind the restricted network preview.
+        if (Minecraft.getInstance().hasSingleplayerServer()) { NetworkClientUi.disconnected(); return; }
         var connection = event.getConnection();
         NetworkClientUi.connected(FMLPaths.GAMEDIR.get(), json -> Minecraft.getInstance().execute(() -> {
             var listener = Minecraft.getInstance().getConnection();

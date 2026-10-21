@@ -30,7 +30,7 @@ Minecraft 服务端 cct-live → CC:T
 
 已移除旧 `network.allow_player_grants` 配置和 OP 门槛，旧配置文件中的此项不再决定授权。FTB 是可选依赖，不随 cct-live 打包，也不要求客户端安装。API 编译基线：Chunks Forge `2001.3.8` / Library `2001.2.9`，Chunks NeoForge `2101.1.22` / Library `2101.1.34`；FTB 自身还需要 Teams、Architectury，按其依赖安装。
 
-授权时、请求目标数据前重新检查 FTB；每秒清理失效授权及对应锁。团队/领地变更无需等 30 分钟授权自然到期。权限查询故障也会清除相应授权，恢复后需要重新主动授权。
+读取直接连接的显示器（`source` 为方向名）时，另按显示器整个多方块结构所在的每个区块检查 FTB 双许可；显示器伸入玩家无权的领地时返回 403，且 `status` 的 `monitors` 列表不列出该显示器。显示器被拒只影响该显示器，不撤销电脑授权。授权时、请求目标数据前重新检查 FTB；每秒清理失效授权及对应锁。团队/领地变更无需等 30 分钟授权自然到期。权限查询故障也会清除相应授权，恢复后需要重新主动授权。
 
 ## 使用
 
@@ -68,14 +68,14 @@ Minecraft 服务端 cct-live → CC:T
 
 ## 本机发现与协议
 
-客户端桥使用随机回环端口及独立发现目录：
+玩家自己的集成服务器（单人游戏或以单人世界开放局域网）不启动客户端桥，继续使用原有管理员本机 HTTP 端点；局域网中的其他玩家仍走网络桥。客户端桥使用随机回环端口及独立发现目录：
 
 ```text
 <客户端游戏目录>/cct-live/client/endpoint.json
 <客户端游戏目录>/cct-live/client/token.txt
 ```
 
-本机令牌不通过游戏连接传输。桥验证 Host、Bearer 和空请求体；仅允许数据 GET 及会话/锁的限定 POST 路由，没有 HTTP 授权入口。CLI 发现 URL 必须是本机 HTTP 根地址，不允许远程地址、用户信息、查询或 fragment。检测到 `client/` 目录后不回退到管理员本机接口，断线删除 endpoint；新桥标识变化时重新登记 MCP 会话。
+本机令牌不通过游戏连接传输。桥验证 Host、Bearer 和空请求体；仅允许数据 GET 及会话/锁的限定 POST 路由，没有 HTTP 授权入口。CLI 发现 URL 必须是本机 HTTP 根地址，不允许远程地址、用户信息、查询或 fragment。存在 `client/endpoint.json` 时优先使用客户端桥；某个 MCP 连接一旦用过客户端桥，断线后对该游戏目录不回退到管理员本机接口（需重启 MCP 服务才能改用），断线删除 endpoint；仅残留 `client/` 目录（无 endpoint）不会遮蔽单人世界的端点。新桥标识变化时重新登记 MCP 会话。
 
 | HTTP | 游戏 RPC |
 | --- | --- |
@@ -88,6 +88,8 @@ Minecraft 服务端 cct-live → CC:T
 | `GET /computers/{id}/status`、`screen` | status、screen |
 
 除 capabilities/open 外需 `X-CCT-Session`；status/screen/release 还需 `X-CCT-Lease`、`X-CCT-Lease-Epoch`。CLI 自动保管与附带这些凭据。它们用于 MCP 协作隔离，不提供同一操作系统用户下恶意进程隔离。
+
+握手（hello）在同一连接内遇到超时、丢包或暂时不可用时按 1、2、4…30 秒退避重试，工具调用也会触发一次重试；只有协议不兼容（426）不再重试。握手完成前游戏内不显示授权按钮。
 
 Forge 可选 SimpleChannel、NeoForge 可选 play payload 的封装编码维持 1，应用协议为 2；旧协议握手失败，不绕过会话锁。RPC 请求上限 4096 字符，响应 16 KiB 分块、总计 256 KiB，客户端最多 8 个待处理请求、10 秒超时，服务端每连接每秒 20 次请求/授权操作。主线程入队前限流和全服预算仍是待办。
 

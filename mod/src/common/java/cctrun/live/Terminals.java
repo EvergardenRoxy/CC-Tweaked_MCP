@@ -47,6 +47,25 @@ final class Terminals {
         return out;
     }
 
+    /**
+     * Every block of the monitor attached directly on {@code side} (the whole multiblock shares one terminal), or
+     * an empty list if there is no monitor there. Mirrors CC:T's MonitorBlockEntity.toWorldPos.
+     */
+    static java.util.List<net.minecraft.core.BlockPos> monitorBlocks(ServerComputer computer, String side) {
+        for (var candidate : dan200.computercraft.core.computer.ComputerSide.values()) {
+            if (!candidate.getName().equals(side)) continue;
+            if (!(computer.getPeripheral(candidate) instanceof dan200.computercraft.shared.peripheral.monitor.MonitorPeripheral peripheral)
+                || !(peripheral.getTarget() instanceof dan200.computercraft.shared.peripheral.monitor.MonitorBlockEntity monitor)) break;
+            var out = new java.util.ArrayList<net.minecraft.core.BlockPos>(monitor.getWidth() * monitor.getHeight());
+            for (var x = 0; x < monitor.getWidth(); x++)
+                for (var y = 0; y < monitor.getHeight(); y++)
+                    out.add(monitor.getBlockPos().relative(monitor.getRight(), x - monitor.getXIndex())
+                        .relative(monitor.getDown(), y - monitor.getYIndex()));
+            return out;
+        }
+        return java.util.List.of();
+    }
+
     /** "term" for the computer's own terminal, else a side with a monitor; null if there is none there. */
     static Terminal source(ServerComputer computer, String source) {
         if (source == null || source.equals("term")) return of(computer);

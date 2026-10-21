@@ -68,6 +68,9 @@ class LiveToolsTest {
             } else if (uri.getPath().endsWith("/files") && uri.getRawQuery() != null && uri.getRawQuery().startsWith("op=stat")) {
                 status = 200;
                 reply = "{\"exists\":false}";
+            } else if (uri.getPath().equals("/network/sessions/open")) {
+                status = 200;
+                reply = "{\"agent_session_id\":\"" + java.util.UUID.randomUUID() + "\"}";
             } else if (uri.getPath().equals("/computers/9/screen")) {
                 status = 404;
                 reply = "{\"error\":\"no computer with id 9 is loaded\"}";
@@ -99,7 +102,8 @@ class LiveToolsTest {
         var game = game();
         var home = game.resolve("cct-live");
         Files.createDirectories(home.resolve("client"));
-        Files.copy(home.resolve("endpoint.json"), home.resolve("client/endpoint.json"));
+        Files.writeString(home.resolve("client/endpoint.json"), Files.readString(home.resolve("endpoint.json"))
+            .replace("{", "{\"transport\":\"minecraft-network\",\"session\":\"client-1\","));
         Files.copy(home.resolve("token.txt"), home.resolve("client/token.txt"));
         Files.writeString(home.resolve("token.txt"), "server-admin-token-must-not-be-used");
         var live = new LiveTools(game, dir);
@@ -109,6 +113,19 @@ class LiveToolsTest {
         var error = org.junit.jupiter.api.Assertions.assertThrows(McpTools.ToolError.class,
             () -> live.call(LiveTools.COMPUTERS, new JsonObject()));
         assertTrue(error.getMessage().contains("no active endpoint.json"));
+        // Network bridge: session open + list. Nothing was sent to the local administrator endpoint afterwards.
+        assertEquals(List.of("POST /network/sessions/open", "GET /computers"), requests);
+    }
+
+    @Test
+    void leftoverClientDirectoryDoesNotHideSinglePlayerEndpoint() throws Exception {
+        var game = game();
+        // A previous multiplayer session left the client bridge home behind (token, no endpoint).
+        var client = Files.createDirectories(game.resolve("cct-live/client"));
+        Files.writeString(client.resolve("token.txt"), "old-client-token");
+        var live = new LiveTools(game, dir);
+        var result = live.call(LiveTools.COMPUTERS, new JsonObject());
+        assertFalse(result.has("isError") && result.get("isError").getAsBoolean());
         assertEquals(1, requests.size());
     }
 
