@@ -293,6 +293,7 @@ final class LiveSession {
     }
 
     private void close() {
+        network.close();
         if (http != null) http.stop();
         // Remove endpoint.json even if the HTTP server was off or failed to bind: a leftover file would point
         // cct-run mcp at a URL nobody listens on.

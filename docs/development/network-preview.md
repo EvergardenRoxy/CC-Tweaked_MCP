@@ -1,10 +1,10 @@
-# network-test：第一版 Minecraft 网络桥
+# 1021：Minecraft 网络桥、FTB 授权与 MCP 独占会话
 
-本分支顺序实现网络方案的第 1、2 步：客户端入口、双向通道、版本/能力握手，以及游戏内单台电脑的查看授权、授权列表、状态和当前屏幕。覆盖 Forge 47 / Minecraft 1.20.1 与 NeoForge 21.1 / Minecraft 1.21.1；两者都使用 CC:T 1.120.2。
+`1021` 从 `network-test` 的 `649b33b` 创建，在原有连接与只读数据通道上加入 FTB 授权和多个 MCP 会话之间的互斥。支持 Forge 47.4.10 / Minecraft 1.20.1、NeoForge 21.1.262 / Minecraft 1.21.1，均使用 CC:T 1.120.2。
 
 ```text
 AI / MCP 客户端
-  ↕ stdio
+  ↕ stdio（每个连接独立的 MCP 会话）
 玩家本机 cct-run mcp
   ↕ 带本机令牌的 127.0.0.1 HTTP
 玩家 Minecraft 客户端 cct-live
@@ -12,86 +12,94 @@ AI / MCP 客户端
 Minecraft 服务端 cct-live → CC:T
 ```
 
-远程服务器不需要额外开放 HTTP 或 MCP 端口。客户端和服务端都安装对应版本的 mod。Forge 与 NeoForge 是两个独立的游戏版本，网络实现各自适配加载器，不支持跨 Minecraft 版本互连。
+远程服务器不增加 HTTP/MCP 监听端口。客户端与服务端安装对应游戏版本的 mod；两种加载器不支持跨 Minecraft 版本互连。协议升级为 **2**，需同时更新 cct-run、客户端及服务端 mod。
 
-## 后续规则决定（2026-10-21）
+## 授权规则
 
-完整交互的玩家权限只分“有权限”和“无权限”。已认领区需同时满足 FTB Chunks/Teams 的方块交互与编辑有效许可；未安装领地组件或未认领时所有玩家可发起授权，未认领区即使启用 FTB `no_wilderness` 也按此规则允许。已完成两种版本的上游源码静态核对，依赖编译和游戏兼容验证尚未完成。
+玩家对目标电脑只有“有权限 / 无权限”；功能是否已经实现、目标是否被占用分别判断。
 
-互斥只覆盖多个 MCP 会话，不拦截原生 CC:T 界面操作，也不因打开界面自动收回 MCP 控制。推荐服务端独占会话租约；跨维度授权、其他 MCP 会话旁观读取、锁时长及交接细节仍待定。新确认规则、源码依据及锁状态草案见 [FTB 授权与 MCP 会话互斥方案](../../issues_to_fix/network-authorization-lock-design.md)。
+| 情况 | 授权规则 |
+| --- | --- |
+| 未安装 FTB Chunks（包括只安装 Teams） | 所有非旁观玩家都可主动授权实际可使用的电脑 |
+| 未认领 | 所有非旁观玩家可主动授权，即使 FTB 启用了 `no_wilderness` |
+| 已认领 | FTB 的有效方块交互和方块编辑检查均不阻止操作才允许 |
+| Chunks 已安装但 API 未就绪、查询失败或接口不兼容 | 返回服务不可用；不能降级为无 FTB 全员允许 |
+| 已认领、玩家与电脑在不同维度 | 首版拒绝，避免 FTB 通用接口按玩家维度查错领地 |
 
-这属于后续规则，不表示第一版代码已经完成 FTB 接入或操作互斥。下文记录的 OP 配置、查看授权与 `observe` 标记仍是当前原型行为。已确定规则、推荐方案及待讨论项统一见 [网络交互与数据安全待办](../../issues_to_fix/network-interaction-security.md#2026-10-21-已确定规则与讨论边界)。
+两个版本都调用 FTB `shouldPreventInteraction` 的 `INTERACT_BLOCK`、`EDIT_BLOCK` 保护入口，包含上游的团队隐私、成员/盟友、标签和显式绕过语义；不只比较是否同队，不添加单独的 OP 放行入口。无领地允许授权不表示自动导出全部电脑；仍需玩家在游戏内明确选择目标。
+
+已移除旧 `network.allow_player_grants` 配置和 OP 门槛，旧配置文件中的此项不再决定授权。FTB 是可选依赖，不随 cct-live 打包，也不要求客户端安装。API 编译基线：Chunks Forge `2001.3.8` / Library `2001.2.9`，Chunks NeoForge `2101.1.22` / Library `2101.1.34`；FTB 自身还需要 Teams、Architectury，按其依赖安装。
+
+授权时、请求目标数据前重新检查 FTB；每秒清理失效授权及对应锁。团队/领地变更无需等 30 分钟授权自然到期。权限查询故障也会清除相应授权，恢复后需要重新主动授权。
 
 ## 使用
 
-1. 构建并安装对应版本的 jar，客户端同时使用本分支构建的 `cct-run`。
-2. 服主在服务端 `config/cctlive-common.toml` 中确认 `[network] enabled = true`。默认只有权限等级 2 的 OP 能授予查看权限；允许普通玩家自己授权时，设置 `network.allow_player_grants = true` 并重启服务器。菜单访问不代表所有权；开启前应确认服务器现有电脑界面/领地访问规则符合需求。
-3. 玩家进入服务器，客户端自动握手并建立本机桥。打开目标 CC 电脑界面，点击右上角的“允许 AI 查看”。服务端验证当前菜单、菜单编号、`stillValid`、CC:T `checkUsable` 和玩家权限。聊天栏显示授权结果。
-4. 使用原来的 MCP 配置：`cct-run mcp --live <玩家客户端游戏目录>`，或设置 `CCT_LIVE_DIR`。无需填写服务器 HTTP 地址或复制服务端令牌。
-5. 调用 `cct_live_computers`：只列出当前玩家连接已授权的电脑。然后调用 `cct_live_status` 或 `cct_live_screen`。屏幕支持 `source`、`colors` 和 `regions`，包括直接连接的显示器。
-6. 在界面点击“撤销 AI 查看”，或执行 `/cctlive network revoke <电脑 ID>`。`/cctlive network list` 只列出自己的网络查看授权。
+1. 服务端 `config/cctlive-common.toml` 保持 `[network] enabled = true`。服务端 `[http] enabled = false` 时网络桥仍可用。
+2. 玩家打开目标电脑界面，点击“授权 AI”。也可在电脑旁执行 `/cctlive network authorize <ID>`：目标必须唯一、已加载、与玩家同维度、距离不超过 8 格且通过 CC:T 可使用检查。该命令解决 `no_wilderness` 阻止原生菜单打开时无法主动授权的问题，不改变原生界面保护。
+3. 本机启动 `cct-run mcp --live <客户端游戏目录>`，或设置 `CCT_LIVE_DIR`。
+4. 调用 `cct_live_computers` 查看当前玩家的授权目标；首次网络工具调用自动登记此 MCP 连接的独立会话。
+5. 调用 `cct_live_control {"computer":1,"op":"acquire"}`，然后使用 `cct_live_status`、`cct_live_screen` 或基于屏幕的 `cct_live_wait`。
+6. 用 `cct_live_control {"computer":1,"op":"status"}` 查询是否占用、是否由自己持有；`op:"release"` 释放。其他会话占用时获取失败，不抢占。
+7. 玩家点击“撤销 AI 授权”或执行 `/cctlive network revoke <ID>`，会撤销该玩家授权和关联锁。`/cctlive network list` 仅列本人授权；`/cctlive network policy` 可诊断当前集成策略与 FTB 管理器状态。
 
-授权固定持续 30 分钟，读取不续期，重新点击允许会重新计时。离开电脑界面后仍可查看。撤销、断线、服务器关闭、电脑实例移除/卸载后失效；重新连接或电脑重新加载都需要再次授权。每个连接最多 32 台授权电脑。
+授权固定 30 分钟，读取和 MCP 心跳不续授权；重新点击授权会重新计时。每个游戏连接最多 32 台授权电脑，断线、换连接 epoch、实例卸载/替换后失效。当前支持有实际方块实体的电脑目标；口袋电脑不开放。海龟位置会按实际方块重新校验，移动场景尚需游戏验收。
 
-本轮只授予 `observe`，不创建控制 attachment 或 trace。`attached: false` 表示没有网络控制 attachment，不影响已授权查看。状态包含当前屏幕和 `screen_hash`，并标注 `trace_available: false`；不会读取其他会话的历史 trace。`cct_live_wait` 可以基于当前屏幕的文本或静止时间等待，没有 trace 事件条件可用。
+## MCP 会话与锁
 
-文件、Lua、输入、开关机、快照、trace、HTTP body、外设查询和 HTTP attach/detach 都被网络桥拒绝，后续步骤另行实现。MCP 工具目录暂时保留这些已有工具；网络列表中的 `read_only` 和 `capabilities` 说明本轮可用范围。授权操作只能从游戏界面触发，HTTP 入口没有授权接口。
+同一玩家的不同 MCP 连接获得不同的服务端随机 `agent_session_id`。身份绑定真实玩家、游戏连接 epoch 和独立 MCP 会话，不能按玩家 UUID 共享控制权。每个游戏连接最多 8 个 MCP 会话。
 
-## 本机发现和兼容
+服务端在一次世界运行中按电脑数字 ID 互斥，同时校验实例 UUID；重复 ID 不能借不同实例并发操作同一存储。持锁会话的每个目标读取都携带 `lease_id` 和递增 `lease_epoch`，旧凭据在释放、重新获取后不能继续使用。授权列表与自己的锁查询不要求先持锁，屏幕与状态要求持锁；首版没有并行旁观模式。
 
-客户端桥使用动态回环端口，写入：
+| 参数 | 当前默认 | 配置 |
+| --- | --- | --- |
+| 会话/租约到期 | 60 秒 | `network.lease_seconds`，30～300 秒 |
+| MCP 心跳 | 15 秒 | 由 cct-run 会话发送，客户端 mod 不代为续期 |
+| 无目标读取后释放锁 | 300 秒 | `network.idle_seconds`，300～86400 秒 |
+
+这些是本轮可调整的实现默认值，非新增用户规则。心跳、锁查询及重复获取已有锁不重置业务空闲时间。正常 MCP 退出显式关闭会话；进程崩溃、心跳停止则由服务端到期释放。失权、撤销、卸载、断线及世界关闭同样使旧锁失效。暂停或连接故障超过期限后需要重新获取锁。
+
+不拦截原生 CC:T 界面，不因打开界面撤锁，不冻结电脑程序。本轮目标读取都在服务端线程同步完成，没有后台写任务；未来开放写入/执行前，仍须实现释放中状态、在途任务收束和提交点版本检查。
+
+## 当前功能边界
+
+数据接口仅开放列表、当前状态与屏幕，权限标记为 `allowed`，全局 `read_only: true`。`attached: false` 表示没有 trace attachment，`trace_available: false`；MCP 锁不代表已开始录制。屏幕支持直接连接显示器的 `source`、`colors`、`regions`；不支持历史屏幕和 trace 事件等待。
+
+文件、Lua、输入、开关机、快照、trace、HTTP body、外设查询和原有 HTTP attach/detach 仍被网络桥拒绝。后续开放写入所需的数据保护列在 [网络待办](../../issues_to_fix/network-interaction-security.md)，不能直接复用管理员本机 HTTP 绕过游戏授权和会话锁。
+
+## 本机发现与协议
+
+客户端桥使用随机回环端口及独立发现目录：
 
 ```text
 <客户端游戏目录>/cct-live/client/endpoint.json
 <客户端游戏目录>/cct-live/client/token.txt
 ```
 
-令牌只存在玩家本机，不通过游戏数据包发送；POSIX 系统使用仅文件所有者可读写的权限。桥验证 Host、Bearer 令牌和空请求体，拒绝所有非 GET 操作。额外的 `GET /network` 返回当前服务器协商的协议和能力。
+本机令牌不通过游戏连接传输。桥验证 Host、Bearer 和空请求体；仅允许数据 GET 及会话/锁的限定 POST 路由，没有 HTTP 授权入口。CLI 发现 URL 必须是本机 HTTP 根地址，不允许远程地址、用户信息、查询或 fragment。检测到 `client/` 目录后不回退到管理员本机接口，断线删除 endpoint；新桥标识变化时重新登记 MCP 会话。
 
-`LiveTools` 检测到 `cct-live/client/` 目录后始终使用客户端桥；断线删除 endpoint 后返回未连接，不会降级使用根目录的旧接口。旧的纯服务端/未启用过客户端桥的本机环境仍使用 `cct-live/endpoint.json`。单人世界也可以通过集成服务器上的同一套游戏通道查看。
+| HTTP | 游戏 RPC |
+| --- | --- |
+| `GET /network` | capabilities |
+| `POST /network/sessions/open` | session_open（`X-CCT-Open-Key`） |
+| `POST /network/sessions/heartbeat`、`close` | session_heartbeat、session_close |
+| `GET /computers` | computers |
+| `POST /computers/{id}/control/acquire`、`release` | control_acquire、control_release |
+| `GET /computers/{id}/control` | control_status |
+| `GET /computers/{id}/status`、`screen` | status、screen |
 
-原来的服务端管理员本机 HTTP 功能保留，可在服务端设置 `[http] enabled = false`；这不影响新的网络通道。网络模式不能访问它，也不会得到其地址或令牌。
+除 capabilities/open 外需 `X-CCT-Session`；status/screen/release 还需 `X-CCT-Lease`、`X-CCT-Lease-Epoch`。CLI 自动保管与附带这些凭据。它们用于 MCP 协作隔离，不提供同一操作系统用户下恶意进程隔离。
 
-## 协议与边界
+Forge 可选 SimpleChannel、NeoForge 可选 play payload 的封装编码维持 1，应用协议为 2；旧协议握手失败，不绕过会话锁。RPC 请求上限 4096 字符，响应 16 KiB 分块、总计 256 KiB，客户端最多 8 个待处理请求、10 秒超时，服务端每连接每秒 20 次请求/授权操作。主线程入队前限流和全服预算仍是待办。
 
-- Forge 使用可选的 `SimpleChannel`，NeoForge 使用可选的 play payload，允许对端未安装网络桥时正常游戏。客户端对未响应的握手设有超时，不开放可用的 RPC。
-- 传输封装版本为 `1`。应用握手包含协议版本 `1`，返回 `computers/status/screen` 能力；客户端同时校验版本和必需能力。未来若修改数据包编码，应修改封装版本和兼容策略。
-- 每个 RPC 带随机请求 UUID 与连接 epoch。服务端身份取自数据包上下文的玩家，授权绑定实际连接和电脑实例对象/UUID。重连、重新握手会清空旧授权；数字 ID 重复时拒绝按 ID 读取。
-- 请求上限 4096 个字符；响应以 16 KiB 分块，总计不超过 256 KiB，客户端严格顺序组装。超大结果返回 413，不传任意文件路径或任意 HTTP 目标。
-- 每个客户端最多 8 个待处理 RPC，单请求 10 秒超时。每个服务端玩家连接每秒最多处理 20 个网络请求/授权操作，超过部分丢弃。HTTP 使用有界工作队列和请求体截止时间。
-- 客户端发送调度到客户端线程；服务端处理调度到服务端线程。网络线程和客户端主线程不阻塞等待 RPC 返回。
-
-实现分布：共享的 `NetworkProtocol/NetworkClient/NetworkBridge/NetworkGrants/NetworkServer`，以及两个加载器各自的 `LiveNetwork/LiveClient`。`NetworkClientUi` 仅由物理客户端订阅器加载，专用服务器入口不引用客户端类。
-
-## 验证
-
-自动检查：
+## 构建与验收
 
 ```sh
-./gradlew :mod-forge:test :mod-neoforge:test :cli:test assembleMods
+./gradlew :mod-forge:test :mod-neoforge:test :cli:test assembleMods :cli:distZip
+# 可选集成开发运行，带入 Chunks 自身的 Teams / Library / Architectury 依赖
+./gradlew :mod-forge:runServer -PftbIntegration
+./gradlew :mod-neoforge:runServer -PftbIntegration
 ```
 
-新增检查覆盖授权隔离、撤销、固定到期、电脑 ID 复用、重复 ID、授权数量上限、分块 Unicode/边界、乱序/重复/旧会话响应、握手能力验证，以及真实回环 HTTP 的令牌、操作白名单、断线清理和 MCP 发现优先级。
+测试替身覆盖二元授权策略、无领地例外、会话/锁生命周期与旧凭据、真实回环 HTTP 转发、不同 MCP 实例隔离和退出清理。它们不能替代有实际玩家和 FTB 领地的联调。具体执行结果见 [1021 验证记录](../../issues_to_fix/verification/network-1021-2026-10-21.md)。
 
-本轮实际验证（2026-10-20）：
-
-| 项目 | 结果 |
-| --- | --- |
-| Forge 1.20.1 / 47.4.10 | 构建通过；33 个测试全部通过 |
-| NeoForge 1.21.1 / 21.1.262 | 构建通过；33 个测试全部通过 |
-| CLI | 40 个通过、1 个跳过；跳过的是需要额外 Java 8 安装的旧启动器检查 |
-| 两种专用开发服务器 | 均在 `http.enabled = false` 下启动完成，CC:T terminal/wired_query 能力可用，无客户端类加载失败；检查后通过终止信号触发保存与关闭 |
-| 真实客户端联调 | 当前环境没有图形客户端，未验证界面按钮与真实玩家连接的数据包往返；按下方清单验收 |
-
-专用服务器检查使用离线模式和回环地址，只验证启动与客户端类隔离。Java 单测里的回环 HTTP/RPC 使用内存游戏传输替身，不代表已完成真实游戏端到端测试。
-
-以下真实游戏验收应分别在 Forge 1.20.1 和 NeoForge 1.21.1 执行；单元测试不代替客户端/服务器联调：
-
-1. 专用服务器设置 `http.enabled = false`，两个客户端进入；两边握手后列表均为空。
-2. OP 打开电脑并允许查看，仅该玩家本机 MCP 能列出它；另一玩家仍看不到。
-3. 非 OP 在默认配置下授权被拒绝；服主允许普通玩家授权后，只有打开有效电脑菜单时才能授权。
-4. 电脑运行打印、变色、移动光标的 Lua 程序，比较 MCP status/screen 与游戏界面；验证直接连接显示器的 source/colors/regions。
-5. 打开界面撤销、命令撤销、断线重连、切服、卸载区块和授权到期后，列表及读取立即失效；同数字 ID 的替代电脑不继承授权。
-6. HTTP POST、文件/trace/body/历史屏幕访问被拒绝；停用服务端 HTTP 时三种读取仍可用。
-7. 客户端连接没有 cct-live 的服务器仍能游戏，MCP 返回未就绪/握手超时。没有客户端 mod 的玩家可正常进入启用 cct-live 的服务器。
-8. 客户端退出后确认 `client/endpoint.json` 删除，MCP 不会落回集成服务器旧接口。
+真实游戏还需在两版分别验收：不同团队与盟友设置、交互/编辑四种组合、OP 绕过、`no_wilderness` 下的命令授权、同玩家两个 MCP、不同玩家抢锁、权限动态变更、电脑卸载/移动、断线重连、原生界面并存及超时恢复。跨维度已认领目标适配、口袋电脑、管理员强制交接和后台写任务仍未实现。

@@ -1,0 +1,50 @@
+[
+  {
+    "loader": "forge",
+    "profile": "plain",
+    "ready": true,
+    "policy_selected": true,
+    "http_disabled": true,
+    "exit_code": 0,
+    "saved": true,
+    "policy_query": "[cct-live] no claims integration; all players may authorize\n",
+    "stop_command": true,
+    "log": "cct-1021-forge-plain.log"
+  },
+  {
+    "loader": "neoforge",
+    "profile": "plain",
+    "ready": true,
+    "policy_selected": true,
+    "http_disabled": true,
+    "exit_code": 0,
+    "saved": true,
+    "policy_query": "[cct-live] no claims integration; all players may authorize\n",
+    "stop_command": true,
+    "log": "cct-1021-neoforge-plain.log"
+  },
+  {
+    "loader": "forge",
+    "profile": "ftb",
+    "ready": true,
+    "policy_selected": true,
+    "http_disabled": true,
+    "exit_code": 0,
+    "saved": true,
+    "policy_query": "[cct-live] FTB Chunks ready; effective interact AND edit\n",
+    "stop_command": true,
+    "log": "cct-1021-forge-ftb.log"
+  },
+  {
+    "loader": "neoforge",
+    "profile": "ftb",
+    "ready": true,
+    "policy_selected": true,
+    "http_disabled": true,
+    "exit_code": 0,
+    "saved": true,
+    "policy_query": "[cct-live] FTB Chunks ready; effective interact AND edit\n",
+    "stop_command": true,
+    "log": "cct-1021-neoforge-ftb.log"
+  }
+]

@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dan200.computercraft.shared.computer.core.ServerComputer;
+import dan200.computercraft.shared.computer.blocks.AbstractComputerBlockEntity;
 import dan200.computercraft.shared.computer.core.ServerContext;
 import dan200.computercraft.shared.computer.menu.ComputerMenu;
 import net.minecraft.commands.CommandSourceStack;
@@ -20,6 +21,9 @@ import java.util.function.Consumer;
 final class NetworkServer {
     private final LiveSession session;
     private final Map<UUID, Peer> peers = new HashMap<>();
+    private final NetworkControl control = new NetworkControl(LiveConfig.NETWORK_LEASE_SECONDS.get(), LiveConfig.NETWORK_IDLE_SECONDS.get());
+
+    private NetworkControl.Owner owner(ServerPlayer player, Peer peer) { return new NetworkControl.Owner(player.getUUID(), peer.epoch); }
 
     private static final class Peer {
         final Object connection;
@@ -35,7 +39,12 @@ final class NetworkServer {
         }
     }
 
-    NetworkServer(LiveSession session) { this.session = session; }
+    NetworkServer(LiveSession session) {
+        this.session = session;
+        CctLive.LOG.info("cct-live network authorization: {}; MCP lease {}s / idle {}s",
+            NetworkPlatform.ftbLoaded() ? "FTB Chunks effective interact AND edit" : "no claims integration; all players may authorize",
+            LiveConfig.NETWORK_LEASE_SECONDS.get(), LiveConfig.NETWORK_IDLE_SECONDS.get());
+    }
 
     void handle(ServerPlayer player, String json, Consumer<NetworkProtocol.Frame> reply) {
         if (json.length() > NetworkProtocol.MAX_REQUEST_CHARS || !player.connection.isAcceptingMessages()) return;
@@ -54,10 +63,12 @@ final class NetworkServer {
             else {
                 var operation = request.get("operation").getAsString();
                 var arguments = request.getAsJsonObject("arguments");
-                if (operation.equals("hello")) result = hello(peer, epoch, arguments);
+                if (operation.equals("hello")) result = hello(player, peer, epoch, arguments);
                 else if (!epoch.equals(peer.epoch)) result = NetworkProtocol.Reply.error(409, "handshake required for this connection");
-                else result = execute(peer, operation, arguments);
+                else result = execute(player, peer, operation, arguments);
             }
+        } catch (NetworkControl.Failure e) {
+            result = NetworkProtocol.Reply.error(e.status, e.getMessage());
         } catch (CcInternals.MissingCapability e) {
             result = NetworkProtocol.Reply.error(503, e.getMessage());
         } catch (IllegalArgumentException | IllegalStateException | NullPointerException | ClassCastException | UnsupportedOperationException e) {
@@ -69,10 +80,13 @@ final class NetworkServer {
         for (var frame : NetworkProtocol.frames(id, epoch, result)) reply.accept(frame);
     }
 
-    private NetworkProtocol.Reply hello(Peer peer, UUID epoch, JsonObject arguments) {
+    private NetworkProtocol.Reply hello(ServerPlayer player, Peer peer, UUID epoch, JsonObject arguments) {
         if (!Integer.toString(NetworkProtocol.VERSION).equals(arguments.get("version").getAsString()))
             return NetworkProtocol.Reply.error(426, "incompatible cct-live protocol; server requires version " + NetworkProtocol.VERSION);
-        if (!epoch.equals(peer.epoch)) peer.grants.clear();
+        if (!epoch.equals(peer.epoch)) {
+            if (peer.epoch != null) control.remove(owner(player, peer));
+            peer.grants.clear();
+        }
         peer.epoch = epoch;
         return new NetworkProtocol.Reply(200, capabilities());
     }
@@ -83,15 +97,29 @@ final class NetworkServer {
         out.addProperty("transport", "minecraft-network");
         out.addProperty("read_only", true);
         out.addProperty("trace_available", false);
+        out.addProperty("exclusive_control", true);
         var operations = new JsonArray();
-        for (var name : List.of("computers", "status", "screen")) operations.add(name);
+        for (var name : List.of("computers", "status", "screen", "session_open", "session_heartbeat", "session_close", "control_acquire", "control_status", "control_release")) operations.add(name);
         out.add("capabilities", operations);
         return out;
     }
 
-    private NetworkProtocol.Reply execute(Peer peer, String operation, JsonObject arguments) {
+    private NetworkProtocol.Reply execute(ServerPlayer player, Peer peer, String operation, JsonObject arguments) {
         if (operation.equals("capabilities")) return new NetworkProtocol.Reply(200, capabilities());
+        var owner = owner(player, peer);
+        if (operation.equals("session_open")) {
+            var agent = control.open(owner, uuid(arguments, "open_key"));
+            var out = new JsonObject();
+            out.addProperty("agent_session_id", agent.id().toString());
+            out.addProperty("lease_seconds", LiveConfig.NETWORK_LEASE_SECONDS.get());
+            return new NetworkProtocol.Reply(200, out);
+        }
+        var agent = uuid(arguments, "agent_session_id");
+        control.require(owner, agent);
+        if (operation.equals("session_close")) { control.close(owner, agent); return ok(); }
+        if (operation.equals("session_heartbeat")) { control.heartbeat(owner, agent); return ok(); }
         if (operation.equals("computers")) {
+            refresh(player, peer);
             var out = capabilities();
             var computers = new JsonArray();
             for (var grant : peer.grants.live(this::available)) computers.add(describe(peer, grant));
@@ -100,8 +128,9 @@ final class NetworkServer {
             out.addProperty("recording_mode", false);
             return new NetworkProtocol.Reply(200, out);
         }
-        if (!Set.of("status", "screen").contains(operation))
+        if (!Set.of("status", "screen", "control_acquire", "control_status", "control_release").contains(operation))
             return NetworkProtocol.Reply.error(403, "operation unavailable in network preview");
+        if (operation.equals("control_acquire")) prune();
         var idValue = arguments.get("computer");
         int id = idValue.getAsInt();
         if (id < 0 || !Integer.toString(id).equals(idValue.getAsString())) throw new IllegalArgumentException("invalid computer ID");
@@ -109,6 +138,21 @@ final class NetworkServer {
         try { grant = peer.grants.require(id, this::available); }
         catch (IllegalArgumentException e) { return NetworkProtocol.Reply.error(403, e.getMessage()); }
         var computer = grant.target();
+        try { NetworkAuthorization.check(player, computer); }
+        catch (NetworkControl.Failure e) { revoke(player, peer, id); throw e; }
+        if (operation.equals("control_acquire")) {
+            return new NetworkProtocol.Reply(200, leaseData(control.acquire(owner, agent, id, grant.instance()), agent));
+        }
+        if (operation.equals("control_status")) return new NetworkProtocol.Reply(200, leaseData(control.state(owner, agent, id), agent));
+        var leaseId = uuid(arguments, "lease_id");
+        var epochValue = arguments.get("lease_epoch");
+        var leaseEpoch = epochValue.getAsLong();
+        if (leaseEpoch < 1 || !Long.toString(leaseEpoch).equals(epochValue.getAsString())) throw new IllegalArgumentException("invalid lease epoch");
+        if (operation.equals("control_release")) {
+            control.release(owner, agent, id, grant.instance(), leaseId, leaseEpoch);
+            return ok();
+        }
+        control.validate(owner, agent, id, grant.instance(), leaseId, leaseEpoch, true);
         var source = arguments.has("source") ? arguments.get("source").getAsString() : "term";
         var terminal = Terminals.source(computer, source);
         if (terminal == null) return NetworkProtocol.Reply.error(404, "no authorized screen on side " + source);
@@ -141,7 +185,7 @@ final class NetworkServer {
         out.addProperty("authorized", true);
         out.addProperty("attached", false); // Observation grants do not attach or expose another user's trace.
         out.addProperty("grant_seconds_left", peer.grants.secondsLeft(grant));
-        out.addProperty("permission", "observe");
+        out.addProperty("permission", "allowed");
         return out;
     }
 
@@ -157,9 +201,16 @@ final class NetworkServer {
         if (menu.containerId != containerId || !(menu instanceof ComputerMenu computerMenu) || !menu.stillValid(player) || player.isSpectator()) return;
         var computer = computerMenu.getComputer();
         if (computer == null || !available(computer) || !computer.checkUsable(player)) return;
-        if (allow && !LiveConfig.NETWORK_PLAYER_GRANTS.get() && !player.hasPermissions(2)) {
-            message(player, "cctlive.network.denied", "[cct-live] 服务器仅允许管理员授权。服主可设置 network.allow_player_grants = true。");
-            return;
+        setGrant(player, peer, computer, allow);
+    }
+
+    private void setGrant(ServerPlayer player, Peer peer, ServerComputer computer, boolean allow) {
+        if (allow) {
+            try { NetworkAuthorization.check(player, computer); }
+            catch (NetworkControl.Failure e) {
+                player.sendSystemMessage(Component.literal("[cct-live] " + e.getMessage()));
+                return;
+            }
         }
         if (allow) {
             try {
@@ -169,16 +220,17 @@ final class NetworkServer {
                 message(player, "cctlive.network.limit", "[cct-live] 授权已达上限，请先撤销不需要的授权。");
                 return;
             }
-            message(player, "cctlive.network.allowed", "[cct-live] 已允许本机 AI 查看 %s 号电脑，30 分钟后失效。输入 /cctlive network revoke %s 可撤销。", computer.getID(), computer.getID());
+            message(player, "cctlive.network.allowed", "[cct-live] 已授权本机 AI 访问 %s 号电脑，30 分钟后失效。输入 /cctlive network revoke %s 可撤销。", computer.getID(), computer.getID());
         } else {
-            peer.grants.revoke(computer.getID());
-            message(player, "cctlive.network.revoked", "[cct-live] 已撤销本机 AI 对 %s 号电脑的查看权限。", computer.getID());
+            revoke(player, peer, computer.getID());
+            message(player, "cctlive.network.revoked", "[cct-live] 已撤销本机 AI 对 %s 号电脑的访问授权。", computer.getID());
         }
     }
 
     private Peer peer(ServerPlayer player) {
         var peer = peers.get(player.getUUID());
         if (peer == null || peer.connection != player.connection) {
+            if (peer != null && peer.epoch != null) control.remove(owner(player, peer));
             peer = new Peer(player.connection);
             peers.put(player.getUUID(), peer);
         }
@@ -186,29 +238,115 @@ final class NetworkServer {
     }
 
     private boolean available(ServerComputer computer) {
-        return ServerContext.get(session.server()).registry().get(computer.getInstanceUUID()) == computer;
+        return ServerContext.get(session.server()).registry().get(computer.getInstanceUUID()) == computer
+            && computer.getLevel().hasChunkAt(computer.getPosition())
+            && computer.getLevel().getBlockEntity(computer.getPosition()) instanceof AbstractComputerBlockEntity block
+            && block.getServerComputer() == computer;
+    }
+
+    private int authorizeNearby(ServerPlayer player, int id) {
+        var peer = peers.get(player.getUUID());
+        if (peer == null || peer.connection != player.connection || peer.epoch == null || !LiveConfig.NETWORK_ENABLED.get()) {
+            message(player, "cctlive.network.not_ready", "[cct-live] 网络桥未就绪，请重新连接服务器。");
+            return 0;
+        }
+        if (!peer.permit() || player.isSpectator()) return 0;
+        var matches = session.computers().stream().filter(c -> c.getID() == id && available(c)).toList();
+        if (matches.size() != 1) { message(player, "cctlive.network.nearby", "[cct-live] 需要唯一、已加载且在身边可使用的方块电脑。"); return 0; }
+        var computer = matches.get(0);
+        var pos = computer.getPosition();
+        if (player.level() != computer.getLevel() || player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > 64
+            || !(computer.getLevel().getBlockEntity(pos) instanceof AbstractComputerBlockEntity block) || !block.isUsable(player) || !computer.checkUsable(player)) {
+            message(player, "cctlive.network.nearby", "[cct-live] 需要唯一、已加载且在身边可使用的方块电脑。");
+            return 0;
+        }
+        setGrant(player, peer, computer, true);
+        return 1;
     }
 
     void disconnected(ServerPlayer player) {
         var peer = peers.get(player.getUUID());
-        if (peer != null && peer.connection == player.connection) peers.remove(player.getUUID());
+        if (peer != null && peer.connection == player.connection) {
+            if (peer.epoch != null) control.remove(owner(player, peer));
+            peers.remove(player.getUUID());
+        }
     }
 
     void prune() {
-        for (var peer : peers.values()) peer.grants.live(this::available);
+        if (!LiveConfig.NETWORK_ENABLED.get()) {
+            control.clear();
+            for (var peer : peers.values()) peer.grants.clear();
+            return;
+        }
+        for (var entry : peers.entrySet()) {
+            var player = session.server().getPlayerList().getPlayer(entry.getKey());
+            if (player != null && player.connection == entry.getValue().connection) refresh(player, entry.getValue());
+            else entry.getValue().grants.clear();
+        }
+        control.invalidate(lease -> {
+            var agent = control.agent(lease.agent());
+            var peer = peers.get(agent.owner().player());
+            if (peer == null || !agent.owner().connection().equals(peer.epoch)) return false;
+            return peer.grants.live(this::available).stream().anyMatch(g -> g.id() == lease.computer() && g.instance().equals(lease.instance()));
+        });
     }
+
+    private void refresh(ServerPlayer player, Peer peer) {
+        for (var grant : peer.grants.live(this::available)) {
+            try { NetworkAuthorization.check(player, grant.target()); }
+            catch (NetworkControl.Failure e) { revoke(player, peer, grant.id()); }
+        }
+    }
+
+    private void revoke(ServerPlayer player, Peer peer, int id) {
+        peer.grants.revoke(id);
+        if (peer.epoch == null) return;
+        var owner = owner(player, peer);
+        control.invalidate(lease -> {
+            var agent = control.agent(lease.agent());
+            return lease.computer() != id || !agent.owner().equals(owner);
+        });
+    }
+
+    void close() { control.clear(); peers.clear(); }
+
+    private JsonObject leaseData(NetworkControl.Lease lease, UUID agent) {
+        var out = new JsonObject();
+        out.addProperty("held", lease != null);
+        boolean mine = lease != null && lease.agent().equals(agent);
+        out.addProperty("owned", mine);
+        if (mine) {
+            out.addProperty("lease_id", lease.id().toString());
+            out.addProperty("lease_epoch", lease.epoch());
+            out.addProperty("lease_seconds_left", control.secondsLeft(lease));
+        }
+        return out;
+    }
+
+    private static UUID uuid(JsonObject arguments, String key) { return UUID.fromString(arguments.get(key).getAsString()); }
+    private static NetworkProtocol.Reply ok() { var out = new JsonObject(); out.addProperty("ok", true); return new NetworkProtocol.Reply(200, out); }
 
     static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("cctlive").then(Commands.literal("network")
+            .then(Commands.literal("policy").executes(context -> {
+                context.getSource().sendSuccess(() -> Component.literal("[cct-live] " + NetworkAuthorization.policy()), false);
+                return 1;
+            }))
+            .then(Commands.literal("authorize").then(Commands.argument("id", IntegerArgumentType.integer(0)).executes(context -> {
+                var session = LiveSession.current();
+                if (session == null) return 0;
+                return session.network().authorizeNearby(context.getSource().getPlayerOrException(), IntegerArgumentType.getInteger(context, "id"));
+            })))
             .then(Commands.literal("list").executes(context -> {
                 var player = context.getSource().getPlayerOrException();
                 var session = LiveSession.current();
                 if (session == null) return 0;
                 var peer = session.network().peers.get(player.getUUID());
                 if (peer == null || peer.connection != player.connection) return 0;
+                session.network().refresh(player, peer);
                 var grants = peer.grants.live(session.network()::available);
-                if (grants.isEmpty()) message(player, "cctlive.network.none", "[cct-live] 当前没有网络查看授权。请打开电脑界面，点击允许 AI 查看。");
-                for (var grant : grants) message(player, "cctlive.network.entry", "[cct-live] %s 号电脑：允许查看，剩余 %s 秒。", grant.id(), peer.grants.secondsLeft(grant));
+                if (grants.isEmpty()) message(player, "cctlive.network.none", "[cct-live] 当前没有网络授权。请打开电脑界面，点击授权 AI。");
+                for (var grant : grants) message(player, "cctlive.network.entry", "[cct-live] %s 号电脑：有权限，授权剩余 %s 秒。", grant.id(), peer.grants.secondsLeft(grant));
                 return grants.size();
             }))
             .then(Commands.literal("revoke").then(Commands.argument("id", IntegerArgumentType.integer(0)).executes(context -> {
@@ -217,8 +355,8 @@ final class NetworkServer {
                 var session = LiveSession.current();
                 if (session == null) return 0;
                 var peer = session.network().peers.get(player.getUUID());
-                if (peer != null && peer.connection == player.connection) peer.grants.revoke(id);
-                message(player, "cctlive.network.revoked", "[cct-live] 已撤销本机 AI 对 %s 号电脑的查看权限。", id);
+                if (peer != null && peer.connection == player.connection) session.network().revoke(player, peer, id);
+                message(player, "cctlive.network.revoked", "[cct-live] 已撤销本机 AI 对 %s 号电脑的访问授权。", id);
                 return 1;
             })))));
     }

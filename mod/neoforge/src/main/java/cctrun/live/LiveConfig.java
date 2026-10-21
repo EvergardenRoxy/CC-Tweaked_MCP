@@ -9,7 +9,8 @@ final class LiveConfig {
     static final ModConfigSpec SPEC;
     static final ModConfigSpec.BooleanValue HTTP_ENABLED;
     static final ModConfigSpec.BooleanValue NETWORK_ENABLED;
-    static final ModConfigSpec.BooleanValue NETWORK_PLAYER_GRANTS;
+    static final ModConfigSpec.IntValue NETWORK_LEASE_SECONDS;
+    static final ModConfigSpec.IntValue NETWORK_IDLE_SECONDS;
     static final ModConfigSpec.IntValue HTTP_PORT;
     static final ModConfigSpec.BooleanValue TRACE_SCREENS;
     static final ModConfigSpec.IntValue TRACE_MAX_MB;
@@ -25,11 +26,10 @@ final class LiveConfig {
         b.push("network");
         NETWORK_ENABLED = b.comment("Allow the read-only Minecraft player connection bridge. No additional server port is opened.")
             .define("enabled", true);
-        NETWORK_PLAYER_GRANTS = b.comment(
-                "Allow non-OP players to grant their local AI observation access from an open, usable CC computer menu.",
-                "Off by default: only permission-level 2 operators can grant. Menu access is not computer ownership;",
-                "enable only if the server's existing menu/claim access rules are suitable. Grants expire after 30 minutes or disconnect.")
-            .define("allow_player_grants", false);
+        NETWORK_LEASE_SECONDS = b.comment("MCP session and exclusive lease timeout. Each MCP process must heartbeat; native CC interfaces are unaffected.")
+            .defineInRange("lease_seconds", 60, 30, 300);
+        NETWORK_IDLE_SECONDS = b.comment("Release MCP control after this many seconds without target requests. Heartbeats do not count as activity.")
+            .defineInRange("idle_seconds", 300, 300, 86400);
         b.pop();
 
         b.push("http");

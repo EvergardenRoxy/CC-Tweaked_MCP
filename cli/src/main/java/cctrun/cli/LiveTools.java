@@ -31,13 +31,13 @@ import java.util.Set;
  * legacy local servers use {@code <game dir>/cct-live/endpoint.json} and {@code token.txt}. The game directory comes from the tool's
  * {@code game_dir}, else {@code cct-run mcp --live DIR}, else the CCT_LIVE_DIR environment variable.
  */
-final class LiveTools {
+final class LiveTools implements AutoCloseable {
     static final String COMPUTERS = "cct_live_computers", STATUS = "cct_live_status", WAIT = "cct_live_wait",
         SCREEN = "cct_live_screen", ATTACH = "cct_live_attach", DETACH = "cct_live_detach", TRACE = "cct_live_trace",
         EVENT = "cct_live_event", TYPE = "cct_live_type", CLICK = "cct_live_click", FILES = "cct_live_files",
         POWER = "cct_live_power", LUA = "cct_live_lua", BODY = "cct_live_body", SNAPSHOT = "cct_live_snapshot",
-        PERIPHERAL = "cct_live_peripheral";
-    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY, SNAPSHOT, PERIPHERAL);
+        PERIPHERAL = "cct_live_peripheral", CONTROL = "cct_live_control";
+    static final Set<String> NAMES = Set.of(COMPUTERS, STATUS, WAIT, SCREEN, ATTACH, DETACH, TRACE, EVENT, TYPE, CLICK, FILES, POWER, LUA, BODY, SNAPSHOT, PERIPHERAL, CONTROL);
     static final int DEFAULT_LUA_TIMEOUT = 15;
     private static final java.util.concurrent.atomic.AtomicInteger LUA_RUNS = new java.util.concurrent.atomic.AtomicInteger();
     /** cct_live_lua runs that timed out, by "<computer>/<name>": their output may still arrive and be collected. */
@@ -241,6 +241,7 @@ final class LiveTools {
     private final Path workDir;
     /** The last game_dir that worked, used when a later call gives none and no default is configured. */
     private volatile Path rememberedGameDir;
+    private final LiveNetworkSessions network = new LiveNetworkSessions(this::sendRaw);
     private final HttpClient client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .proxy(HttpClient.Builder.NO_PROXY)
@@ -253,12 +254,26 @@ final class LiveTools {
     }
 
     static JsonArray definitions() {
-        return JsonParser.parseString(DEFINITIONS).getAsJsonArray();
+        var definitions = JsonParser.parseString(DEFINITIONS).getAsJsonArray();
+        definitions.add(JsonParser.parseString("""
+            {"name":"cct_live_control","title":"MCP exclusive control session",
+             "description":"For the Minecraft network bridge: acquire an exclusive computer lease before status/screen reads, query it, or release it. Different MCP connections, including those of the same player, cannot share a lease. This does not block native CC interfaces or start recording. Writes remain unavailable in this preview. Heartbeat is automatic while this MCP connection lives.",
+             "inputSchema":{"type":"object","properties":{%s,%s,"op":{"type":"string","enum":["acquire","status","release"]}},"required":["computer","op"],"additionalProperties":false}}
+            """.formatted(GAME_DIR, COMPUTER)));
+        return definitions;
     }
 
     /** Runs one live tool; the result text is the endpoint's JSON. */
     JsonObject call(String name, JsonObject a) throws McpTools.ToolError {
         return switch (name) {
+            case CONTROL -> {
+                allowOnly(a, "game_dir", "computer", "op");
+                var op = string(a, "op");
+                if (op == null || !Set.of("acquire", "status", "release").contains(op)) throw new McpTools.ToolError("'op' must be acquire, status or release");
+                var endpoint = endpoint(a);
+                if (!endpoint.network()) throw new McpTools.ToolError("cct_live_control requires the Minecraft client network bridge");
+                yield result(network.control(endpoint, computer(a), op));
+            }
             case COMPUTERS -> {
                 allowOnly(a, "game_dir");
                 yield result(get(endpoint(a), "computers"));
@@ -786,7 +801,7 @@ final class LiveTools {
 
     // --- endpoint discovery and HTTP -----------------------------------------------------------------------------
 
-    record Endpoint(URI base, String token) {
+    record Endpoint(URI base, String token, boolean network, String generation) {
     }
 
     private Endpoint endpoint(JsonObject a) throws McpTools.ToolError {
@@ -813,7 +828,12 @@ final class LiveTools {
             var token = Files.readString(home.resolve("token.txt"), StandardCharsets.UTF_8).trim();
             var url = endpoint.get("url").getAsString();
             rememberedGameDir = gameDir;
-            return new Endpoint(URI.create(url.endsWith("/") ? url : url + "/"), token);
+            var base = URI.create(url.endsWith("/") ? url : url + "/");
+            if (!"http".equals(base.getScheme()) || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null
+                || !"/".equals(base.getPath()) || !Set.of("127.0.0.1", "[::1]", "::1", "localhost").contains(base.getHost()))
+                throw new IllegalArgumentException("endpoint must be a local HTTP bridge root URL");
+            return new Endpoint(base, token, endpoint.has("transport") && endpoint.get("transport").getAsString().equals("minecraft-network"),
+                endpoint.has("session") ? endpoint.get("session").getAsString() : "");
         } catch (IOException | RuntimeException e) {
             throw new McpTools.ToolError("cannot read " + home + " (endpoint.json / token.txt): " + e.getMessage());
         }
@@ -838,6 +858,11 @@ final class LiveTools {
     }
 
     private String send(Endpoint endpoint, HttpRequest.Builder request, Duration timeout) throws McpTools.ToolError {
+        if (endpoint.network()) network.decorate(endpoint, request);
+        return sendRaw(endpoint, request, timeout);
+    }
+
+    private String sendRaw(Endpoint endpoint, HttpRequest.Builder request, Duration timeout) throws McpTools.ToolError {
         if (Thread.currentThread().isInterrupted()) throw new McpTools.ToolError(McpTools.ToolError.Kind.CANCELLED, "cancelled");
         HttpResponse<String> response;
         try {
@@ -862,6 +887,8 @@ final class LiveTools {
         }
         throw new McpTools.ToolError("cct-live: " + message + " (HTTP " + response.statusCode() + ")");
     }
+
+    @Override public void close() { network.close(); }
 
     private static JsonObject result(String body) {
         return McpServer.toolResult(Main.ascii(body.strip()), false);

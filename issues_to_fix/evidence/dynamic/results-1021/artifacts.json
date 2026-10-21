@@ -1,0 +1,14 @@
+{
+  "build/mods/cct-live-1.20.1-0.2.4.jar": {
+    "bytes": 188641,
+    "sha256": "9c3a5d94526131bd61f2a5f18e5e1cffec6eec36c85e38513e378e334ef5599d"
+  },
+  "build/mods/cct-live-1.21.1-0.2.4.jar": {
+    "bytes": 188634,
+    "sha256": "c4f5ca9dc54d2b13994583656b7be3099dbdbde3f331c0def3db2ab4d8e2702d"
+  },
+  "cli/build/distributions/cct-run-0.2.4.zip": {
+    "bytes": 28467385,
+    "sha256": "3be522ca4446d3243c863b325923aa6ee7b27ff368dcabc3f7c8a303813db88b"
+  }
+}

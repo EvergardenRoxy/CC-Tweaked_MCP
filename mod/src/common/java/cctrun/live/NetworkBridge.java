@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
 
-/** Local read-only HTTP adapter. Never accepts a remote URL, path on disk, or arbitrary RPC operation. */
+/** Local read-only data and session/control HTTP adapter. Never accepts a remote URL, path on disk, or arbitrary RPC operation. */
 final class NetworkBridge implements AutoCloseable {
     private static final System.Logger LOG = System.getLogger("cct-live");
     private final NetworkClient client;
@@ -60,26 +60,38 @@ final class NetworkBridge implements AutoCloseable {
                 return;
             }
             HttpPolicy.read(exchange, 0, 2000, deadlines);
-            if (!"GET".equals(exchange.getRequestMethod())) {
-                send(exchange, NetworkProtocol.Reply.error(403, "network preview only supports list, status and screen; authorize in game"));
-                return;
-            }
             var args = new JsonObject();
             var path = exchange.getRequestURI().getPath();
+            var method = exchange.getRequestMethod();
             String operation;
-            if (path.equals("/network")) operation = "capabilities";
-            else if (path.equals("/computers")) operation = "computers";
+            if (path.equals("/network") && method.equals("GET")) operation = "capabilities";
+            else if (path.equals("/network/sessions/open") && method.equals("POST")) {
+                operation = "session_open";
+                args.addProperty("open_key", headerUuid(exchange, "X-CCT-Open-Key"));
+            } else if (path.equals("/network/sessions/heartbeat") && method.equals("POST")) operation = "session_heartbeat";
+            else if (path.equals("/network/sessions/close") && method.equals("POST")) operation = "session_close";
+            else if (path.equals("/computers") && method.equals("GET")) operation = "computers";
             else {
                 var parts = path.split("/");
-                if (parts.length != 4 || !parts[1].equals("computers") || !Set.of("status", "screen").contains(parts[3])) {
+                if (parts.length == 4 && parts[1].equals("computers") && method.equals("GET")
+                    && Set.of("status", "screen", "control").contains(parts[3])) {
+                    operation = parts[3].equals("control") ? "control_status" : parts[3];
+                } else if (parts.length == 5 && parts[1].equals("computers") && parts[3].equals("control")
+                    && method.equals("POST") && Set.of("acquire", "release").contains(parts[4])) operation = "control_" + parts[4];
+                else {
                     send(exchange, NetworkProtocol.Reply.error(403, "operation unavailable in network preview"));
                     return;
                 }
                 int id = Integer.parseInt(parts[2]);
                 if (id < 0) throw new IllegalArgumentException("computer id must be non-negative");
                 args.addProperty("computer", id);
-                operation = parts[3];
+                if (Set.of("status", "screen", "control_release").contains(operation)) {
+                    args.addProperty("lease_id", headerUuid(exchange, "X-CCT-Lease"));
+                    args.addProperty("lease_epoch", Long.parseLong(exchange.getRequestHeaders().getFirst("X-CCT-Lease-Epoch")));
+                }
             }
+            if (!Set.of("capabilities", "session_open").contains(operation))
+                args.addProperty("agent_session_id", headerUuid(exchange, "X-CCT-Session"));
             var query = exchange.getRequestURI().getRawQuery();
             if (query != null) {
                 if (query.length() > 1024) throw new IllegalArgumentException("query too large");
@@ -97,14 +109,20 @@ final class NetworkBridge implements AutoCloseable {
         } catch (HttpPolicy.ReadTimeout ignored) {
             // The body deadline has closed the socket.
         } catch (HttpPolicy.TooLarge e) {
-            send(exchange, NetworkProtocol.Reply.error(413, "GET requests must have an empty body"));
-        } catch (IllegalArgumentException e) {
+            send(exchange, NetworkProtocol.Reply.error(413, "network bridge requests must have an empty body"));
+        } catch (IllegalArgumentException | NullPointerException e) {
             send(exchange, NetworkProtocol.Reply.error(400, e.getMessage()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException | TimeoutException e) {
             send(exchange, NetworkProtocol.Reply.error(504, "Minecraft request timed out"));
         } finally { exchange.close(); }
+    }
+
+    private static String headerUuid(HttpExchange exchange, String name) {
+        var value = exchange.getRequestHeaders().getFirst(name);
+        if (value == null) throw new IllegalArgumentException("missing " + name);
+        return UUID.fromString(value).toString();
     }
 
     private static void send(HttpExchange exchange, NetworkProtocol.Reply reply) throws IOException {

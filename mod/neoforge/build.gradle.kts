@@ -33,6 +33,8 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 repositories {
+    maven("https://maven.architectury.dev") { content { includeGroup("dev.architectury") } }
+    maven("https://maven.ftb.dev/releases") { content { includeGroup("dev.ftb.mods") } }
     exclusiveContent {
         forRepository { maven("https://maven.squiddev.cc") }
         filter { includeGroup("cc.tweaked") }
@@ -60,6 +62,15 @@ neoForge {
 }
 
 dependencies {
+    // Reproducible optional-integration development run; production jars never bundle these mods.
+    if (providers.gradleProperty("ftbIntegration").isPresent) {
+        runtimeOnly("dev.ftb.mods:ftb-chunks-neoforge:2101.1.22")
+    }
+
+    // Optional, never bundled or required at runtime. Isolated behind NetworkPlatform.ftbLoaded().
+    compileOnly("dev.ftb.mods:ftb-chunks-neoforge:2101.1.22") { isTransitive = false }
+    compileOnly("dev.ftb.mods:ftb-library-neoforge:2101.1.34") { isTransitive = false }
+
     // The CC: Tweaked 1.21.1 "forge" artifact is a NeoForge mod (META-INF/neoforge.mods.toml, requires
     // neoforge [21.1.9,21.2)); it contains the core API and the shared classes this mod uses.
     implementation("cc.tweaked:cc-tweaked-$mcVersion-forge:$ccTweakedVersion")

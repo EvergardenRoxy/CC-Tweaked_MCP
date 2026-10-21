@@ -1,0 +1,20 @@
+{
+  "forge": {
+    "tests": 47,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "neoforge": {
+    "tests": 47,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "cli": {
+    "tests": 44,
+    "skipped": 1,
+    "failures": 0,
+    "errors": 0
+  }
+}

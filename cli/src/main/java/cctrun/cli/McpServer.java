@@ -142,6 +142,7 @@ final class McpServer {
         } finally {
             if (!readEnded) active.values().forEach(Call::cancel);
             pool.shutdown();
+            if (!readEnded) live.close();
         }
         try { pool.awaitTermination(2, TimeUnit.HOURS); }
         catch (InterruptedException e) {
@@ -150,6 +151,7 @@ final class McpServer {
             Thread.currentThread().interrupt();
             throw e;
         }
+        finally { live.close(); }
         return 0;
     }
 
@@ -236,7 +238,8 @@ final class McpServer {
             The cct_live_* tools work on real computers in a running Minecraft game with the cct-live mod (screen, \
             trace of events, peripheral calls, http and file access, printed errors, files, input, clicks, power); read \
             cct_guide with section 7 for them; attach a computer (cct_live_attach) before recording or controlling it, \
-            and detach it when done; %s"""
+            and detach it when done. On the Minecraft network bridge, use cct_live_control op=acquire before \
+            status/screen, and op=release when done; recording and writes are unavailable there. %s"""
             .formatted(Versions.CC_TWEAKED, Versions.MINECRAFT, outDir, workDir,
                 liveDir == null ? "no game directory is configured, so pass game_dir to them." : "the game directory is " + liveDir + "."));
         return result;
