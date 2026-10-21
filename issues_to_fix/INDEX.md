@@ -2,7 +2,7 @@
 
 字段：`id | severity | confidence | status | module | title | origin`。正文见对应模块文件。原核对基线 `bf68ac4`（v0.2.3）保留；本轮复核基线为 main `25a3921`（v0.2.4）。
 
-2026-10-21，`network-test` 专项工作清单另见 [network-interaction-security.md](network-interaction-security.md)（基线 `59dc4a3`，NET-01～NET-18）。该文档包含功能与规则设计、加固和待验证项，引用 CLI-01 / MOD-13 / MOD-14 / MOD-18 / MOD-20 等已有问题，不并入本表的 97 项统计。
+2026-10-21，`network-test` 专项工作清单另见 [network-interaction-security.md](network-interaction-security.md)（源码基线 `2705dad`，NET-01～NET-18）。最新规则为二元权限、优先研究 FTB 领地/团队及防止同时操作；授权来源继续讨论。该文档包含功能与规则设计、加固和待验证项，引用 CLI-01 / MOD-13 / MOD-14 / MOD-18 / MOD-20 等已有问题，不并入本表的 97 项统计。
 
 2026-10-20：[上传报告的 main 核对](verification/review-2026-10-19-main.md)。保留原 95 个 ID；新增 ENG-RT-18 / CLI-18；同步 DOC-03 原已完成修复，PROJ-02 仅保留入口验证；登记时 97 项（fixed 64 / open 33）。未覆盖的旧项不视为本轮重审。
 
