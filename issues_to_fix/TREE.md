@@ -9,6 +9,7 @@ issues_to_fix/
 ├── REPAIR_PLAN.md                   自主修复执行计划（原 95 项批次；附本轮两项新增登记边界）
 ├── open-triage-2026-10-20.md         执行前 33 个 open 分类与六项实际交付结果
 ├── network-interaction-security.md  network-test 完整交互与数据安全待办（NET-01～NET-18，独立于原 97 项）
+├── network-authorization-lock-design.md FTB 授权事实、已确定规则与 MCP 会话互斥设计（尚未实现）
 ├── engine.md                        ENG-RT-* / ENG-FX-*（27 条）
 ├── cli.md                           CLI-*（18 条）
 ├── mod.md                           MOD-*（24 条）

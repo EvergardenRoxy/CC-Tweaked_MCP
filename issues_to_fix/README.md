@@ -4,7 +4,7 @@
 
 ## 当前入口（2026-10-20）
 
-- 2026-10-21，`network-test` 专项：[完整客户端—服务端交互与数据安全待办](network-interaction-security.md)。源码基线 `2705dad`（原 `59dc4a3` 更正提交身份），独立 NET-01～NET-18 工作清单；已记录二元权限、FTB 领地/团队优先研究及操作互斥要求，授权来源与锁细节继续讨论。引用已有问题，不并入下方原 97 项统计。
+- 2026-10-21，`network-test` 专项：[完整客户端—服务端交互与数据安全待办](network-interaction-security.md)。源码基线 `2705dad`（原 `59dc4a3` 更正提交身份），独立 NET-01～NET-18 工作清单；已确认二元权限、FTB 双许可、无领地全员可授权和仅 MCP 会话互斥。具体流程、上游源码核对及锁设计见 [FTB 授权与 MCP 会话互斥方案](network-authorization-lock-design.md)，参数与跨维度适配仍待讨论。引用已有问题，不并入下方原 97 项统计。
 
 - 原 95 个问题来自 `bf68ac4` / 0.2.3；当前登记 **97 项：fixed 66 / open 31**。登记轮新增 ENG-RT-18 / CLI-18，并同步 DOC-03 的原有修复。后续六项范围交付完成 CLI-18 / ENG-FX-07，四个组合条目只记已完成子项；PROJ-02 仍 open，仅跟踪私密报告入口验证。
 - [当前 main 复核表](verification/review-2026-10-19-main.md)：上传的 2026-10-19 报告（`3808530` / 0.2.2）对 main `25a3921` / 0.2.4 的 19 条核对，不能与旧报告混算。
@@ -30,6 +30,7 @@
 | `REPAIR_PLAN.md` | 2026-10-19 自主修复计划：95 条分派、执行批次、依赖与验收标准（不替代 issue 状态） |
 | `open-triage-2026-10-20.md` | 执行前 33 个 open 的评估快照及六项范围的实际结果 |
 | `network-interaction-security.md` | network-test 基线的完整交互、安全规则及双版本验收待办（独立 NET-01～NET-18，不计入原 97 项） |
+| `network-authorization-lock-design.md` | 已确定授权规则、FTB 双版本源码核对、MCP 会话独占锁草案及剩余讨论项（尚未实现） |
 | `engine.md` | ENG-RT-*（engine 运行时）/ ENG-FX-*（fixture/外设） |
 | `cli.md` | CLI-*（cct-run 命令 + stdio MCP 服务器） |
 | `mod.md` | MOD-*（cct-live mod） |
