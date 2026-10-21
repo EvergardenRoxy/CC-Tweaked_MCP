@@ -12,7 +12,7 @@ AI / MCP 客户端
 Minecraft 服务端 cct-live → CC:T
 ```
 
-远程服务器不增加 HTTP/MCP 监听端口。客户端与服务端安装对应游戏版本的 mod；两种加载器不支持跨 Minecraft 版本互连。协议升级为 **2**，需同时更新 cct-run、客户端及服务端 mod。
+远程服务器不增加 HTTP/MCP 监听端口。客户端与服务端安装对应游戏版本的 mod；两种加载器不支持跨 Minecraft 版本互连。协议升级为 **3**，需同时更新 cct-run、客户端及服务端 mod。
 
 ## 授权规则
 
@@ -35,12 +35,12 @@ Minecraft 服务端 cct-live → CC:T
 ## 使用
 
 1. 服务端 `config/cctlive-common.toml` 保持 `[network] enabled = true`。服务端 `[http] enabled = false` 时网络桥仍可用。
-2. 玩家打开目标电脑界面，点击“授权 AI”。也可在电脑旁执行 `/cctlive network authorize <ID>`：目标必须唯一、已加载、与玩家同维度、距离不超过 8 格且通过 CC:T 可使用检查。该命令解决 `no_wilderness` 阻止原生菜单打开时无法主动授权的问题，不改变原生界面保护。
+2. 玩家打开目标电脑或海龟界面，点击界面左侧外、顶端与终端屏幕上缘齐平的 **AI** 图标按钮（白色=未授权，点击授权；绿色=已授权，点击撤销；灰色=查询中或不支持，悬停有说明）。窗口左侧放不下时，图标移到 CC 电源/终止按钮下方。手持平板电脑暂不支持，图标为灰色。也可在电脑旁执行 `/cctlive network authorize <ID>`：目标必须唯一、已加载、与玩家同维度、距离不超过 8 格且通过 CC:T 可使用检查。该命令解决 `no_wilderness` 阻止原生菜单打开时无法主动授权的问题，不改变原生界面保护。
 3. 本机启动 `cct-run mcp --live <客户端游戏目录>`，或设置 `CCT_LIVE_DIR`。
 4. 调用 `cct_live_computers` 查看当前玩家的授权目标；首次网络工具调用自动登记此 MCP 连接的独立会话。
 5. 调用 `cct_live_control {"computer":1,"op":"acquire"}`，然后使用 `cct_live_status`、`cct_live_screen` 或基于屏幕的 `cct_live_wait`。
 6. 用 `cct_live_control {"computer":1,"op":"status"}` 查询是否占用、是否由自己持有；`op:"release"` 释放。其他会话占用时获取失败，不抢占。
-7. 玩家点击“撤销 AI 授权”或执行 `/cctlive network revoke <ID>`，会撤销该玩家授权和关联锁。`/cctlive network list` 仅列本人授权；`/cctlive network policy` 可诊断当前集成策略与 FTB 管理器状态。
+7. 玩家点击绿色 AI 图标或执行 `/cctlive network revoke <ID>`，会撤销该玩家授权和关联锁；撤销不要求电脑仍可用或已加载。`/cctlive network list` 仅列本人授权；`/cctlive network policy` 可诊断当前集成策略与 FTB 管理器状态。
 
 授权固定 30 分钟，读取和 MCP 心跳不续授权；重新点击授权会重新计时。每个游戏连接最多 32 台授权电脑，断线、换连接 epoch、实例卸载/替换后失效。当前支持有实际方块实体的电脑目标；口袋电脑不开放。海龟位置会按实际方块重新校验，移动场景尚需游戏验收。
 
@@ -91,7 +91,7 @@ Minecraft 服务端 cct-live → CC:T
 
 握手（hello）在同一连接内遇到超时、丢包或暂时不可用时按 1、2、4…30 秒退避重试，工具调用也会触发一次重试；只有协议不兼容（426）不再重试。握手完成前游戏内不显示授权按钮。
 
-Forge 可选 SimpleChannel、NeoForge 可选 play payload 的封装编码维持 1，应用协议为 2；旧协议握手失败，不绕过会话锁。RPC 请求上限 4096 字符，响应 16 KiB 分块、总计 256 KiB，客户端最多 8 个待处理请求、10 秒超时，服务端每连接每秒 20 次请求/授权操作。主线程入队前限流和全服预算仍是待办。
+Forge 可选 SimpleChannel、NeoForge 可选 play payload 的封装编码维持 1，应用协议为 3（新增仅供游戏内图标查询本人当前界面授权状态的 `menu_grant`，本机 HTTP 桥没有对应路由）；旧协议握手失败，不绕过会话锁。RPC 请求上限 4096 字符，响应 16 KiB 分块、总计 256 KiB，客户端最多 8 个待处理请求、10 秒超时，服务端每连接每秒 20 次请求/授权操作，本秒第一次超限回复 429，其余丢弃。主线程入队前限流和全服预算仍是待办。
 
 ## 构建与验收
 

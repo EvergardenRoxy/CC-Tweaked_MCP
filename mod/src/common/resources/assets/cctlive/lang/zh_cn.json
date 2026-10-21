@@ -8,8 +8,6 @@
   "cctlive.list.entry": "[cct-live] %s 号电脑：AI 接管中，租约剩余 %s 秒",
   "cctlive.detach.none": "[cct-live] %s 号电脑没有被 AI 接管",
   "cctlive.unavailable": "[cct-live] %s 号电脑当前未加载或不可用，接管结束",
-  "cctlive.network.allow_button": "授权 AI",
-  "cctlive.network.revoke_button": "撤销 AI 授权",
   "cctlive.network.not_ready": "[cct-live] 网络桥未就绪，请重新连接服务器。",
   "cctlive.network.denied": "[cct-live] 需要同时具备 FTB 方块交互与编辑的有效许可。",
   "cctlive.network.limit": "[cct-live] 授权已达上限，请先撤销不需要的授权。",
@@ -17,5 +15,11 @@
   "cctlive.network.revoked": "[cct-live] 已撤销本机 AI 对 %s 号电脑的访问授权。",
   "cctlive.network.none": "[cct-live] 当前没有网络授权。打开电脑界面点击授权 AI，或在电脑旁输入 /cctlive network authorize <ID>。",
   "cctlive.network.entry": "[cct-live] %s 号电脑：有权限，授权剩余 %s 秒。",
-  "cctlive.network.nearby": "[cct-live] 需要唯一、已加载且在身边可使用的方块电脑。"
+  "cctlive.network.nearby": "[cct-live] 需要唯一、已加载且在身边可使用的方块电脑。",
+  "cctlive.network.icon.allow": "授权本机 AI 访问此电脑（30 分钟）",
+  "cctlive.network.icon.authorized": "已授权本机 AI，约剩 %s 分钟。点击撤销",
+  "cctlive.network.icon.unsupported": "平板电脑暂不支持网络授权",
+  "cctlive.network.icon.unknown": "正在查询 AI 授权状态…",
+  "cctlive.network.unsupported": "[cct-live] 平板电脑暂不支持网络授权，只能授权方块电脑和海龟。",
+  "cctlive.network.revoke_command": "[cct-live] 无法识别这台电脑，请输入 /cctlive network revoke <ID> 撤销。"
 }

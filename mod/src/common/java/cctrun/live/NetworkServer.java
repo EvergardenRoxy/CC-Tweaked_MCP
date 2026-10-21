@@ -29,14 +29,10 @@ final class NetworkServer {
         final Object connection;
         UUID epoch;
         final NetworkGrants<ServerComputer> grants = new NetworkGrants<>();
-        long window = System.nanoTime();
-        int requests;
+        final NetworkRateLimit rate = new NetworkRateLimit();
         Peer(Object connection) { this.connection = connection; }
-        boolean permit() {
-            var now = System.nanoTime();
-            if (now - window >= 1_000_000_000L) { window = now; requests = 0; }
-            return ++requests <= 20;
-        }
+        /** Clicks and commands send no RPC reply, so anything over the limit is simply ignored. */
+        boolean permit() { return rate.next() == NetworkRateLimit.Decision.ADMIT; }
     }
 
     NetworkServer(LiveSession session) {
@@ -49,7 +45,9 @@ final class NetworkServer {
     void handle(ServerPlayer player, String json, Consumer<NetworkProtocol.Frame> reply) {
         if (json.length() > NetworkProtocol.MAX_REQUEST_CHARS || !player.connection.isAcceptingMessages()) return;
         var peer = peer(player);
-        if (!peer.permit()) return; // Bound both server work and response amplification per connection.
+        // Bound both server work and response amplification per connection: at most one 429 per window.
+        var decision = peer.rate.next();
+        if (decision == NetworkRateLimit.Decision.DROP) return;
         UUID id, epoch;
         JsonObject request;
         try {
@@ -59,7 +57,9 @@ final class NetworkServer {
         } catch (RuntimeException e) { return; }
         NetworkProtocol.Reply result;
         try {
-            if (!LiveConfig.NETWORK_ENABLED.get()) result = NetworkProtocol.Reply.error(403, "network bridge disabled by server");
+            if (decision == NetworkRateLimit.Decision.LIMITED)
+                result = NetworkProtocol.Reply.error(429, "too many game requests on this connection; slow down");
+            else if (!LiveConfig.NETWORK_ENABLED.get()) result = NetworkProtocol.Reply.error(403, "network bridge disabled by server");
             else {
                 var operation = request.get("operation").getAsString();
                 var arguments = request.getAsJsonObject("arguments");
@@ -99,13 +99,14 @@ final class NetworkServer {
         out.addProperty("trace_available", false);
         out.addProperty("exclusive_control", true);
         var operations = new JsonArray();
-        for (var name : List.of("computers", "status", "screen", "session_open", "session_heartbeat", "session_close", "control_acquire", "control_status", "control_release")) operations.add(name);
+        for (var name : NetworkProtocol.CAPABILITIES) operations.add(name);
         out.add("capabilities", operations);
         return out;
     }
 
     private NetworkProtocol.Reply execute(ServerPlayer player, Peer peer, String operation, JsonObject arguments) {
         if (operation.equals("capabilities")) return new NetworkProtocol.Reply(200, capabilities());
+        if (operation.equals("menu_grant")) return menuGrant(player, peer, arguments);
         var owner = owner(player, peer);
         if (operation.equals("session_open")) {
             var agent = control.open(owner, uuid(arguments, "open_key"));
@@ -201,6 +202,24 @@ final class NetworkServer {
         return out;
     }
 
+    /**
+     * State of the player's own open computer menu, for the client's authorization icon. Only the in-game UI asks
+     * for it: the local HTTP bridge has no route to this operation, and it never changes a grant.
+     */
+    private NetworkProtocol.Reply menuGrant(ServerPlayer player, Peer peer, JsonObject arguments) {
+        var out = new JsonObject();
+        var menu = player.containerMenu;
+        var computer = menu.containerId == arguments.get("container").getAsInt() && menu instanceof ComputerMenu computerMenu
+            && !player.isSpectator() ? computerMenu.getComputer() : null;
+        out.addProperty("open", computer != null);
+        out.addProperty("supported", computer != null && available(computer));
+        var grant = computer == null ? null : peer.grants.live(this::available).stream()
+            .filter(g -> g.target() == computer).findFirst().orElse(null);
+        out.addProperty("authorized", grant != null);
+        if (grant != null) out.addProperty("grant_seconds_left", peer.grants.secondsLeft(grant));
+        return new NetworkProtocol.Reply(200, out);
+    }
+
     /** Separate packet for a deliberate click in the current computer menu. Not reachable through local HTTP/RPC. */
     void authorize(ServerPlayer player, int containerId, boolean allow) {
         var peer = peers.get(player.getUUID());
@@ -210,10 +229,23 @@ final class NetworkServer {
         }
         if (!peer.permit()) return;
         var menu = player.containerMenu;
-        if (menu.containerId != containerId || !(menu instanceof ComputerMenu computerMenu) || !menu.stillValid(player) || player.isSpectator()) return;
+        if (menu.containerId != containerId || !(menu instanceof ComputerMenu computerMenu) || player.isSpectator()) return;
         var computer = computerMenu.getComputer();
-        if (computer == null || !available(computer) || !computer.checkUsable(player)) return;
-        setGrant(player, peer, computer, allow);
+        if (!allow) {
+            // Revoking only removes access, so it must work even when the computer is no longer usable or loaded.
+            if (computer == null) {
+                message(player, "cctlive.network.revoke_command", "[cct-live] 无法识别这台电脑，请输入 /cctlive network revoke <ID> 撤销。");
+                return;
+            }
+            setGrant(player, peer, computer, false);
+            return;
+        }
+        if (computer == null || !menu.stillValid(player) || !computer.checkUsable(player)) return;
+        if (!available(computer)) {
+            message(player, "cctlive.network.unsupported", "[cct-live] 平板电脑暂不支持网络授权，只能授权方块电脑和海龟。");
+            return;
+        }
+        setGrant(player, peer, computer, true);
     }
 
     private void setGrant(ServerPlayer player, Peer peer, ServerComputer computer, boolean allow) {

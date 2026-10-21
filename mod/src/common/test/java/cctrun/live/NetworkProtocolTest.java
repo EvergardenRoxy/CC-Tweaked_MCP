@@ -51,7 +51,7 @@ class NetworkProtocolTest {
 
     @Test void handshakeRequiresBothVersionAndTheReadOnlyCapabilities() {
         var data = JsonParser.parseString("""
-            {"protocol":2,"read_only":true,"capabilities":["computers","status","screen","session_open","session_heartbeat","session_close","control_acquire","control_status","control_release"]}
+            {"protocol":3,"read_only":true,"capabilities":["computers","status","screen","session_open","session_heartbeat","session_close","control_acquire","control_status","control_release","menu_grant"]}
             """).getAsJsonObject();
         assertEquals(200, NetworkProtocol.negotiate(new NetworkProtocol.Reply(200, data)).status());
         data.addProperty("protocol", 1);

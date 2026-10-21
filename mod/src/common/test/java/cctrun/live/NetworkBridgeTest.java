@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class NetworkBridgeTest {
     @TempDir Path home;
 
-    private static final String CAPABILITIES = "{\"protocol\":2,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\"]}";
+    private static final String CAPABILITIES = "{\"protocol\":3,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\",\"menu_grant\"]}";
 
     /** Answers hello from the given replies in order (the last one repeats), and every other request with 200. */
     private static NetworkClient scripted(AtomicReference<NetworkClient> holder, List<String> operations, NetworkProtocol.Reply... hellos) {
@@ -80,7 +80,7 @@ class NetworkBridgeTest {
             var operation = request.get("operation").getAsString();
             operations.add(operation);
             var data = operation.equals("hello")
-                ? JsonParser.parseString("{\"protocol\":2,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\"]}").getAsJsonObject()
+                ? JsonParser.parseString("{\"protocol\":3,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\",\"menu_grant\"]}").getAsJsonObject()
                 : JsonParser.parseString("{\"computers\":[]}").getAsJsonObject();
             for (var frame : NetworkProtocol.frames(UUID.fromString(request.get("request_id").getAsString()),
                 UUID.fromString(request.get("epoch").getAsString()), new NetworkProtocol.Reply(200, data))) holder.get().receive(frame);
@@ -116,7 +116,7 @@ class NetworkBridgeTest {
         var sent = Collections.synchronizedList(new ArrayList<JsonObject>());
         try (var client = new NetworkClient(json -> {
             var request = JsonParser.parseString(json).getAsJsonObject(); sent.add(request);
-            var data = JsonParser.parseString("{\"protocol\":2,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\"]}").getAsJsonObject();
+            var data = JsonParser.parseString("{\"protocol\":3,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\",\"menu_grant\"]}").getAsJsonObject();
             for (var frame : NetworkProtocol.frames(UUID.fromString(request.get("request_id").getAsString()),
                 UUID.fromString(request.get("epoch").getAsString()), new NetworkProtocol.Reply(200, data))) holder.get().receive(frame);
         })) {
@@ -155,7 +155,7 @@ class NetworkBridgeTest {
         client.start(home);
         assertEquals(503, client.call("computers", new JsonObject()).get().status());
         var hello = sent.get(0);
-        var data = JsonParser.parseString("{\"protocol\":2,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\"]}").getAsJsonObject();
+        var data = JsonParser.parseString("{\"protocol\":3,\"read_only\":true,\"capabilities\":[\"computers\",\"status\",\"screen\",\"session_open\",\"session_heartbeat\",\"session_close\",\"control_acquire\",\"control_status\",\"control_release\",\"menu_grant\"]}").getAsJsonObject();
         for (var frame : NetworkProtocol.frames(UUID.fromString(hello.get("request_id").getAsString()),
             UUID.fromString(hello.get("epoch").getAsString()), new NetworkProtocol.Reply(200, data))) client.receive(frame);
         var pending = client.call("computers", new JsonObject());

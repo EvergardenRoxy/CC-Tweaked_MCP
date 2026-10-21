@@ -11,7 +11,9 @@ import java.util.UUID;
 
 /** Loader-independent, bounded RPC framing. No Minecraft classes, paths or credentials on the wire. */
 final class NetworkProtocol {
-    static final int VERSION = 2;
+    static final int VERSION = 3;
+    static final List<String> CAPABILITIES = List.of("computers", "status", "screen", "session_open", "session_heartbeat",
+        "session_close", "control_acquire", "control_status", "control_release", "menu_grant");
     static final int MAX_REQUEST_CHARS = 4096;
     static final int CHUNK_BYTES = 16 * 1024;
     static final int MAX_RESPONSE_BYTES = 256 * 1024;
@@ -39,7 +41,7 @@ final class NetworkProtocol {
             var data = reply.data();
             if (data.get("protocol").getAsInt() == VERSION && data.get("read_only").getAsBoolean()
                 && data.getAsJsonArray("capabilities").asList().stream().map(value -> value.getAsString()).toList()
-                    .containsAll(List.of("computers", "status", "screen", "session_open", "session_heartbeat", "session_close", "control_acquire", "control_status", "control_release"))) return reply;
+                    .containsAll(CAPABILITIES)) return reply;
         } catch (RuntimeException ignored) { }
         return Reply.error(426, "incompatible cct-live server capabilities");
     }

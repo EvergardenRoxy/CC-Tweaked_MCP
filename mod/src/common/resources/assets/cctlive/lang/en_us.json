@@ -8,8 +8,6 @@
   "cctlive.list.entry": "[cct-live] Computer %s: controlled by an AI, lease ends in %s s",
   "cctlive.detach.none": "[cct-live] Computer %s is not controlled by an AI",
   "cctlive.unavailable": "[cct-live] Computer %s is no longer loaded or available; the AI control ended",
-  "cctlive.network.allow_button": "Authorize AI",
-  "cctlive.network.revoke_button": "Revoke AI access",
   "cctlive.network.not_ready": "[cct-live] Network bridge is not ready. Reconnect to the server.",
   "cctlive.network.denied": "[cct-live] Effective FTB block interaction AND block edit permission are required.",
   "cctlive.network.limit": "[cct-live] Too many grants. Revoke unused grants first.",
@@ -17,5 +15,11 @@
   "cctlive.network.revoked": "[cct-live] Revoked your local AI access to computer %s.",
   "cctlive.network.none": "[cct-live] No network grants. Authorize AI from its computer screen, or use /cctlive network authorize <ID> beside the computer.",
   "cctlive.network.entry": "[cct-live] Computer %s: authorized, %s seconds remaining.",
-  "cctlive.network.nearby": "[cct-live] A unique, loaded, usable block computer must be nearby."
+  "cctlive.network.nearby": "[cct-live] A unique, loaded, usable block computer must be nearby.",
+  "cctlive.network.icon.allow": "Authorize the local AI for this computer (30 minutes)",
+  "cctlive.network.icon.authorized": "Local AI authorized, about %s min left. Click to revoke",
+  "cctlive.network.icon.unsupported": "Pocket computers cannot be authorized over the network yet",
+  "cctlive.network.icon.unknown": "Checking AI authorization…",
+  "cctlive.network.unsupported": "[cct-live] Pocket computers cannot be authorized over the network yet; only block computers and turtles can.",
+  "cctlive.network.revoke_command": "[cct-live] Cannot identify this computer; use /cctlive network revoke <ID>."
 }
