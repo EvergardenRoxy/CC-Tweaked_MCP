@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Forge 1.20.1 variant. Shared sources live in mod/src/common; this project only holds the loader shell
-// (CctLive, LiveConfig) and the Forge mod metadata.
+// (entry, config, network transport and client events) and the Forge mod metadata.
 plugins {
     id("net.neoforged.moddev.legacyforge") version "2.0.148"
 }
@@ -33,6 +33,8 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 repositories {
+    maven("https://maven.architectury.dev") { content { includeGroup("dev.architectury") } }
+    maven("https://maven.ftb.dev/releases") { content { includeGroup("dev.ftb.mods") } }
     exclusiveContent {
         forRepository { maven("https://maven.squiddev.cc") }
         filter { includeGroup("cc.tweaked") }
@@ -62,6 +64,19 @@ legacyForge {
 }
 
 dependencies {
+    // Reproducible optional-integration development run; production jars never bundle these mods.
+    if (providers.gradleProperty("ftbIntegration").isPresent) {
+        modRuntimeOnly("dev.ftb.mods:ftb-chunks-forge:2001.3.8")
+        // LegacyForge mod configurations do not bring these mod dependencies in transitively.
+        modRuntimeOnly("dev.ftb.mods:ftb-library-forge:2001.2.9")
+        modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:2001.3.1")
+        modRuntimeOnly("dev.architectury:architectury-forge:9.1.12")
+    }
+
+    // Optional, never bundled or required at runtime. Isolated behind NetworkPlatform.ftbLoaded().
+    modCompileOnly("dev.ftb.mods:ftb-chunks-forge:2001.3.8") { isTransitive = false }
+    modCompileOnly("dev.ftb.mods:ftb-library-forge:2001.2.9") { isTransitive = false }
+
     // The Forge jar contains CC: Tweaked's core as well (Cobalt is nested via jar-in-jar).
     modImplementation("cc.tweaked:cc-tweaked-$mcVersion-forge:$ccTweakedVersion")
 

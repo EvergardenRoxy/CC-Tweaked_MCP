@@ -17,9 +17,11 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 > 这是**原型**，HTTP 接口的格式还可能改变。
 
+> **1021 分支预览**：通过玩家 Minecraft 连接转发的客户端桥，支持 Forge 1.20.1 和 NeoForge 1.21.1。新增 FTB 有效交互与编辑授权、独立 MCP 会话和独占租约；先用 `cct_live_control` 获取锁，再读取状态与屏幕。服务器不用开放额外端口，配置及限制见 [网络桥使用说明](../docs/development/network-preview.md)。网络文件/执行仍未开放；下文的控制、文件和 trace 接口属于原有管理员本机 HTTP 模式。
+
 ## 版本
 
-当前源码版本 **0.2.4**，建议与 cct-run 一起升级；变更与兼容性见 [0.2.4 发行说明](../docs/releases/0.2.4.md)。已发布下载以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。
+当前源码版本 **0.3.0**，建议与 cct-run 一起升级；变更与兼容性见 [0.3.0 发行说明](../docs/releases/0.3.0.md)。已发布下载以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。
 
 支持两个组合，逻辑代码是同一份，只有加载器入口和元数据不同：
 
@@ -30,7 +32,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 这个 mod 用到了 CC: Tweaked 的内部类，所以两个版本的元数据都把 CC: Tweaked 锁定在 1.120.2，版本不对时加载器会拒绝加载。CC: Tweaked 在 1.21.1 没有单独的 `-neoforge` 产物：官方的 `cc-tweaked-1.21.1-forge` 就是一个 NeoForge mod（jar 里是 `META-INF/neoforge.mods.toml`，要求 NeoForge `[21.1.9,21.2)`）。
 
-两个版本共用 `mod/src/common/` 里的 Java 类和资源，只有加载器相关的两个类（`CctLive.java`、`LiveConfig.java`）和元数据分别放在 `mod/forge/`、`mod/neoforge/`。
+两个版本共用 `mod/src/common/` 里的 Java 类和资源；加载器入口、配置、网络适配和客户端事件（`CctLive.java`、`LiveConfig.java`、`LiveNetwork.java`、`LiveClient.java`）及元数据分别放在 `mod/forge/`、`mod/neoforge/`。
 
 ## 构建
 
@@ -48,7 +50,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 ## 安装
 
-1. 把 jar 放进游戏的 `mods/` 目录，和 CC: Tweaked 1.120.2 放在一起。单人游戏装在客户端即可；多人服务器装在服务端。
+1. 把 jar 放进游戏的 `mods/` 目录，和 CC: Tweaked 1.120.2 放在一起。原有管理员本机 HTTP 模式：单人游戏装在客户端，多人服务器装在服务端。使用本分支网络桥时，客户端与服务端都要安装对应版本，详见 [网络桥第一版](../docs/development/network-preview.md)。
 2. 进入世界。日志里应该出现：
    ```
    cct-live: on demand; recording mode off; attachments are written to <游戏目录>/cct-live/sessions/<时间>

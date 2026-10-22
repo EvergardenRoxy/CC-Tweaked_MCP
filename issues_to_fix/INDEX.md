@@ -2,6 +2,8 @@
 
 字段：`id | severity | confidence | status | module | title | origin`。正文见对应模块文件。原核对基线 `bf68ac4`（v0.2.3）保留；本轮复核基线为 main `25a3921`（v0.2.4）。
 
+2026-10-21，`network-test` 专项另见 [network-interaction-security.md](network-interaction-security.md)（源码基线 `2705dad`，NET-01～NET-18）及 [授权与 MCP 互斥方案](network-authorization-lock-design.md)。已确认二元权限、已认领区 FTB 双许可、未安装领地组件或未认领（含 `no_wilderness`）全员可授权、仅多个 MCP 会话互斥。上游源码已核对，运行时适配未实现；跨维度及锁参数待讨论。引用 CLI-01 / MOD-13 / MOD-14 / MOD-18 / MOD-20 等已有问题，不并入本表的 97 项统计。
+
 2026-10-20：[上传报告的 main 核对](verification/review-2026-10-19-main.md)。保留原 95 个 ID；新增 ENG-RT-18 / CLI-18；同步 DOC-03 原已完成修复，PROJ-02 仅保留入口验证；登记时 97 项（fixed 64 / open 33）。未覆盖的旧项不视为本轮重审。
 
 2026-10-20 六项范围交付：CLI-18、ENG-FX-07 完成；MOD-03、CLI-11、ENG-RT-13、ENG-FX-05 完成约定子项、保留 open。当前 **97 项：fixed 66 / open 31**。证据见 [six-scoped](evidence/dynamic/results-2026-10-20-six-scoped/README.md)。

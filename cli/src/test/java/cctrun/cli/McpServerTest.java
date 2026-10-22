@@ -97,7 +97,7 @@ class McpServerTest {
         assertEquals(McpServer.PROTOCOL_VERSIONS.get(0), r.get("\"s\"").getAsJsonObject("result").get("protocolVersion").getAsString());
 
         var tools = r.get("2").getAsJsonObject("result").getAsJsonArray("tools");
-        assertEquals(20, tools.size());
+        assertEquals(21, tools.size());
         var description = tools.get(0).getAsJsonObject().get("description").getAsString();
         assertTrue(description.contains("CC: Tweaked " + cctrun.engine.Versions.CC_TWEAKED + " computer"));
         assertTrue(description.contains("Minecraft " + cctrun.engine.Versions.MINECRAFT));

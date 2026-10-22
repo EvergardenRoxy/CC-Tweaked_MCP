@@ -38,7 +38,7 @@
 
 ## 发行说明 · `releases/`
 
-[0.2.4](releases/0.2.4.md) · [0.2.3](releases/0.2.3.md) · [0.2.2](releases/0.2.2.md) · [0.2.0](releases/0.2.0.md) · [0.1.0](releases/0.1.0.md)
+[0.3.0](releases/0.3.0.md) · [0.2.4](releases/0.2.4.md) · [0.2.3](releases/0.2.3.md) · [0.2.2](releases/0.2.2.md) · [0.2.0](releases/0.2.0.md) · [0.1.0](releases/0.1.0.md)
 
 ## 图片资源 · `assets/images/`
 

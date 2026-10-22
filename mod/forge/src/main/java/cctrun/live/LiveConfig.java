@@ -8,6 +8,9 @@ import net.minecraftforge.common.ForgeConfigSpec;
 final class LiveConfig {
     static final ForgeConfigSpec SPEC;
     static final ForgeConfigSpec.BooleanValue HTTP_ENABLED;
+    static final ForgeConfigSpec.BooleanValue NETWORK_ENABLED;
+    static final ForgeConfigSpec.IntValue NETWORK_LEASE_SECONDS;
+    static final ForgeConfigSpec.IntValue NETWORK_IDLE_SECONDS;
     static final ForgeConfigSpec.IntValue HTTP_PORT;
     static final ForgeConfigSpec.BooleanValue TRACE_SCREENS;
     static final ForgeConfigSpec.IntValue TRACE_MAX_MB;
@@ -20,6 +23,15 @@ final class LiveConfig {
 
     static {
         var b = new ForgeConfigSpec.Builder();
+        b.push("network");
+        NETWORK_ENABLED = b.comment("Allow the read-only Minecraft player connection bridge. No additional server port is opened.")
+            .define("enabled", true);
+        NETWORK_LEASE_SECONDS = b.comment("MCP session and exclusive lease timeout. Each MCP process must heartbeat; native CC interfaces are unaffected.")
+            .defineInRange("lease_seconds", 60, 30, 300);
+        NETWORK_IDLE_SECONDS = b.comment("Release MCP control after this many seconds without target requests. Heartbeats do not count as activity.")
+            .defineInRange("idle_seconds", 300, 300, 86400);
+        b.pop();
+
         b.push("http");
         HTTP_ENABLED = b.comment("Serve the local HTTP endpoint (always bound to 127.0.0.1; requests need the token in cct-live/token.txt).")
             .define("enabled", true);

@@ -37,7 +37,7 @@ public final class CctLive {
     public static final String MOD_ID = "cctlive";
     static final Logger LOG = LoggerFactory.getLogger("cct-live");
 
-    public CctLive(ModContainer container) {
+    public CctLive(ModContainer container, net.neoforged.bus.api.IEventBus modBus) {
         container.registerConfig(ModConfig.Type.COMMON, LiveConfig.SPEC);
 
         // Read by ServerContext's constructor, i.e. on every server start (each world in single player).
@@ -45,6 +45,12 @@ public final class CctLive {
         // Every computer gets the __cctlive bridge used by rom/autorun/cctlive.lua (shipped in this jar's data pack).
         ComputerCraftAPI.registerAPIFactory(computer -> new BridgeApi());
 
+        modBus.addListener(LiveNetwork::register);
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) -> {
+            var session = LiveSession.current();
+            if (session != null && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player)
+                session.network().disconnected(player);
+        });
         NeoForge.EVENT_BUS.addListener(this::onServerStarted);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
@@ -81,6 +87,7 @@ public final class CctLive {
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
+        NetworkServer.registerCommands(event.getDispatcher());
         // Permission level 0: listing and ending AI attachments only takes control away from the AI.
         event.getDispatcher().register(Commands.literal("cctlive")
             .then(Commands.literal("list").executes(context -> {
