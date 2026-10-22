@@ -19,9 +19,9 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 配套的 AI Skill [CC-Tweaked_LLM_skill](https://github.com/EvergardenRoxy/CC-Tweaked_LLM_skill)（建议用 1.2.2）会告诉 AI 怎么写 CC 程序、什么时候该测试、怎么测试：有模拟器时交付前先运行，有实机工具时在你同意后到游戏里验证。
 
-> 当前源码版本是 **0.2.4**（2026-10），更新内容见 [`docs/releases/0.2.4.md`](docs/releases/0.2.4.md)；已发布版本以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。历史版本：[0.2.3](docs/releases/0.2.3.md)、[0.2.2](docs/releases/0.2.2.md)、[0.2.0](docs/releases/0.2.0.md)、[0.1.0](docs/releases/0.1.0.md)。cct-live 还是原型。
+> 当前源码版本是 **0.3.0**（2026-10），更新内容见 [`docs/releases/0.3.0.md`](docs/releases/0.3.0.md)；已发布版本以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。历史版本：[0.2.4](docs/releases/0.2.4.md)、[0.2.3](docs/releases/0.2.3.md)、[0.2.2](docs/releases/0.2.2.md)、[0.2.0](docs/releases/0.2.0.md)、[0.1.0](docs/releases/0.1.0.md)。cct-live 还是原型。
 >
-> 0.2.4 完成审查清单中的 63 项 A/T 修复：补齐模拟磁盘配额和输入边界，修正运行结果与 MCP 取消，改进 cct-live 的 trace 轮换、快照恢复和 HTTP 超时，并让发行流程校验版本、复用已测产物。建议 cct-run 与对应 mod 一起升级。
+> 0.3.0 新增 cct-live 的 Minecraft 网络桥预览：多人服务器上的玩家可通过已有游戏连接，让本机 AI 只读查看自己授权的电脑，服务器无需开放端口；支持 FTB Chunks 领地权限和多个 MCP 会话互斥。客户端、服务端 mod 与 cct-run 需一起升级。
 
 完整文档见[文档索引](docs/README.md)，按使用指南、开发维护、测试和发行说明分类。
 

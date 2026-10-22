@@ -1,22 +1,22 @@
 # 发行流程（维护者）
 
-当前准备版本为 **0.2.4**，发行说明为 [0.2.4](../releases/0.2.4.md)。`1019fix` 包含已完成的 A/T 修复与发行准备，先验证并合并到 main，再从 main 的确切提交推送 `v0.2.4`。**推送 `v*` 标签会自动正式发布，不是演练。**
+当前准备版本为 **0.3.0**，发行说明为 [0.3.0](../releases/0.3.0.md)。`1021`（PR #26）包含网络桥预览与发行准备，先验证并合并到 main，再从 main 的确切提交推送 `v0.3.0`。**推送 `v*` 标签会自动正式发布，不是演练。**
 
 ## 合并前
 
-1. 确认工作区干净、main/1019fix 与远端同步；检查 PR 完整差异与剩余问题范围，不重开已关闭的旧 PR #16。
+1. 确认工作区干净、main/1021 与远端同步；检查 PR 完整差异与剩余问题范围，不重开已关闭的旧 PR #16。
 2. 按 [构建说明](build.md)执行四模块构建与测试、发布脚本测试、实际解压 zip 的 Linux 冒烟；Java 8 启动器切换须有真实 Java 8 环境。
-3. `RELEASE_TAG=v0.2.4 ./gradlew verifyReleaseVersion` 必须通过；用错误标签验证拒绝，不推送测试标签。
-4. 在干净源码提交上生成 `verification.json`，再打包。核对运行时 `version`、MCP initialize 版本、zip 内部目录/lib 名称及两个 mod 元数据均为 0.2.4；launcher/engine/Forge/NeoForge class major 为 52/61/61/65。
+3. `RELEASE_TAG=v0.3.0 ./gradlew verifyReleaseVersion` 必须通过；用错误标签验证拒绝，不推送测试标签。
+4. 在干净源码提交上生成 `verification.json`，再打包。核对运行时 `version`、MCP initialize 版本、zip 内部目录/lib 名称及两个 mod 元数据均为 0.3.0；launcher/engine/Forge/NeoForge class major 为 52/61/61/65。
 5. 检查该提交的 GitHub build、安全工作流（含适用的 dependency-review），下载核对最终四模块 verification 和 CodeQL SARIF。CI 不替代尚未执行的 Windows/macOS/生产服务器测试。
 
 只准备本地产物和校验清单，不创建标签或发布：
 
 ```bash
-python3 scripts/release_assets.py v0.2.4 \
-  build/release/cct-run-0.2.4.zip \
-  build/release/cct-live-1.20.1-0.2.4.jar \
-  build/release/cct-live-1.21.1-0.2.4.jar \
+python3 scripts/release_assets.py v0.3.0 \
+  build/release/cct-run-0.3.0.zip \
+  build/release/cct-live-1.20.1-0.3.0.jar \
+  build/release/cct-live-1.21.1-0.3.0.jar \
   --verification build/release/verification.json \
   --prepare-only
 ```
@@ -27,7 +27,7 @@ python3 scripts/release_assets.py v0.2.4 \
 
 经维护者授权后，合并 PR 到 main 并推送；保留可追踪的修复提交。不强推 main，不改写既有标签。若本地创建合并提交，显式设置批准的 author/committer，再检查提交字段后推送。
 
-确认 main 包含已验证内容、版本门禁通过，再在该确切提交创建 `v0.2.4` 注释标签。显式设置批准的 tagger 并核验标签对象身份，确认远端不存在同名标签后仅推送这个标签。
+确认 main 包含已验证内容、版本门禁通过，再在该确切提交创建 `v0.3.0` 注释标签。显式设置批准的 tagger 并核验标签对象身份，确认远端不存在同名标签后仅推送这个标签。
 
 ## 正式发行
 
