@@ -58,6 +58,8 @@ final class LiveTools implements AutoCloseable {
     /** ... but never less than this, so the last poll before the deadline is not aborted by its own tiny budget. */
     static final int MIN_POLL_REQUEST_TIMEOUT_MS = 1000;
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+    /** The client bridge splits a big file write into several game requests, a few per second at worst. */
+    private static final Duration NETWORK_WRITE_TIMEOUT = Duration.ofSeconds(90);
 
     private static final String GAME_DIR = """
         "game_dir": { "type": "string", "description": "Game directory (folder with mods/ and cct-live/). Default: --live / CCT_LIVE_DIR, else the last one that worked." }""";
@@ -259,7 +261,7 @@ final class LiveTools implements AutoCloseable {
         var definitions = JsonParser.parseString(DEFINITIONS).getAsJsonArray();
         definitions.add(JsonParser.parseString("""
             {"name":"cct_live_control","title":"MCP exclusive control session",
-             "description":"For the Minecraft network bridge: acquire an exclusive computer lease before status/screen reads, query it, or release it. Different MCP connections, including those of the same player, cannot share a lease. This does not block native CC interfaces or start recording. Writes remain unavailable in this preview. Heartbeat is automatic while this MCP connection lives.",
+             "description":"For the Minecraft network bridge: acquire an exclusive computer lease before status/screen reads, query it, or release it. Different MCP connections, including those of the same player, cannot share a lease. Acquiring also attaches the computer (recording starts), so after it every cct_live_* tool works as on a local game: files (writing needs files.allow_write on the server), Lua, input, power, snapshots, peripherals and trace. Release ends it. This does not block native CC interfaces. Heartbeat is automatic while this MCP connection lives.",
              "inputSchema":{"type":"object","properties":{%s,%s,"op":{"type":"string","enum":["acquire","status","release"]}},"required":["computer","op"],"additionalProperties":false}}
             """.formatted(GAME_DIR, COMPUTER)));
         return definitions;
@@ -348,7 +350,8 @@ final class LiveTools implements AutoCloseable {
                     body.addProperty("append", bool(a, "append", false));
                     var encoding = string(a, "encoding");
                     if (encoding != null) body.addProperty("encoding", encoding);
-                    yield result(post(endpoint(a), "computers/" + computer(a) + "/files", body));
+                    var target = endpoint(a);
+                    yield result(post(target, "computers/" + computer(a) + "/files", body, target.network() ? NETWORK_WRITE_TIMEOUT : REQUEST_TIMEOUT));
                 }
                 var query = new ArrayList<String>();
                 query.add("op=" + encode(op == null ? "list" : op));
@@ -360,6 +363,9 @@ final class LiveTools implements AutoCloseable {
             }
             case ATTACH -> {
                 allowOnly(a, "game_dir", "computer", "lease_seconds");
+                var networkEndpoint = endpoint(a);
+                // On the network bridge the exclusive lease is the attachment: lease_seconds is the server's setting.
+                if (networkEndpoint.network()) yield result(network.control(networkEndpoint, computer(a), "acquire"));
                 var body = new JsonObject();
                 var lease = integer(a, "lease_seconds");
                 if (lease != null) {
@@ -375,7 +381,9 @@ final class LiveTools implements AutoCloseable {
                 // cct_live_lua's leftovers go before control does (deleting needs the attachment).
                 var cleaned = cleanTemp(endpoint, id, Set.of());
                 pendingLua.removeIf(k -> k.startsWith(id + "/"));
-                var out = JsonParser.parseString(post(endpoint, "computers/" + id + "/detach", new JsonObject())).getAsJsonObject();
+                var out = endpoint.network()
+                    ? JsonParser.parseString(network.control(endpoint, id, "release")).getAsJsonObject()
+                    : JsonParser.parseString(post(endpoint, "computers/" + id + "/detach", new JsonObject())).getAsJsonObject();
                 if (cleaned > 0) out.addProperty("temp_files_removed", cleaned);
                 yield McpServer.toolResult(Main.ascii(out.toString()), false);
             }

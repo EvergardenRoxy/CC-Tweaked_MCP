@@ -11,10 +11,12 @@ import java.util.UUID;
 
 /** Loader-independent, bounded RPC framing. No Minecraft classes, paths or credentials on the wire. */
 final class NetworkProtocol {
-    static final int VERSION = 3;
+    static final int VERSION = 4;
     static final List<String> CAPABILITIES = List.of("computers", "status", "screen", "session_open", "session_heartbeat",
-        "session_close", "control_acquire", "control_status", "control_release", "menu_grant");
-    static final int MAX_REQUEST_CHARS = 4096;
+        "session_close", "control_acquire", "control_status", "control_release", "menu_grant",
+        "files", "files_write", "event", "power", "peripheral", "snapshot", "trace", "body");
+    /** Characters per request; at most 3 bytes each, so below the 32 KiB custom payload limit. Larger writes are split by the client bridge. */
+    static final int MAX_REQUEST_CHARS = 10_000;
     static final int CHUNK_BYTES = 16 * 1024;
     static final int MAX_RESPONSE_BYTES = 256 * 1024;
     static final int MAX_CHUNKS = MAX_RESPONSE_BYTES / CHUNK_BYTES;
@@ -39,7 +41,7 @@ final class NetworkProtocol {
         if (reply.status() != 200) return reply;
         try {
             var data = reply.data();
-            if (data.get("protocol").getAsInt() == VERSION && data.get("read_only").getAsBoolean()
+            if (data.get("protocol").getAsInt() == VERSION && data.get("control").getAsBoolean()
                 && data.getAsJsonArray("capabilities").asList().stream().map(value -> value.getAsString()).toList()
                     .containsAll(CAPABILITIES)) return reply;
         } catch (RuntimeException ignored) { }

@@ -31,6 +31,7 @@
 | 03 | [Create 工厂](testing/plans/03-factory.md) | 包含在方案中 | [工厂测试报告](testing/reports/03-factory.md) |
 | 04 | [订单产线](testing/plans/04-orders.md) | 包含在方案中 | [订单测试报告](testing/reports/04-orders.md) |
 | 05 | [精密构件自动化](testing/plans/05-precision-mechanism.md) | [精密构件提示词](testing/prompts/05-precision-mechanism.md) | [按用户修改后的条件核验](testing/reports/05-precision-mechanism.md) |
+| 06 | [在线服务器连通性](testing/plans/06-online-server-connectivity.md) | 脚本 [`scripts/online-connectivity-test.py`](../scripts/online-connectivity-test.py) | 待执行 |
 
 测试编号沿用仓库原有联合测试轮次；上传附件的文件名不作为轮次编号。第五轮的原设计和用户实际修改后的测试条件分别保留，实际结果以报告中的证据边界为准。
 

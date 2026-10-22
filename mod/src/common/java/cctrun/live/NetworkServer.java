@@ -21,6 +21,11 @@ import java.util.function.Consumer;
 final class NetworkServer {
     private final LiveSession session;
     private final Map<UUID, Peer> peers = new HashMap<>();
+    /** The local endpoint's request handlers, reused without an HTTP server: authorization and leases are checked here first. */
+    private final LiveHttp ops;
+    /** Computers this service attached itself (and so detaches when the lease goes), not ones an administrator attached. */
+    private final Set<ServerComputer> networkAttached = new HashSet<>();
+    private static final Set<String> CONTROL_OPERATIONS = Set.of("files", "files_write", "event", "power", "peripheral", "snapshot", "trace", "body");
     private final NetworkControl control = new NetworkControl(LiveConfig.NETWORK_LEASE_SECONDS.get(), LiveConfig.NETWORK_IDLE_SECONDS.get());
 
     private NetworkControl.Owner owner(ServerPlayer player, Peer peer) { return new NetworkControl.Owner(player.getUUID(), peer.epoch); }
@@ -37,6 +42,7 @@ final class NetworkServer {
 
     NetworkServer(LiveSession session) {
         this.session = session;
+        this.ops = new LiveHttp(session, 0, "");
         CctLive.LOG.info("cct-live network authorization: {}; MCP lease {}s / idle {}s",
             NetworkPlatform.ftbLoaded() ? "FTB Chunks effective interact AND edit" : "no claims integration; all players may authorize",
             LiveConfig.NETWORK_LEASE_SECONDS.get(), LiveConfig.NETWORK_IDLE_SECONDS.get());
@@ -95,8 +101,9 @@ final class NetworkServer {
         var out = new JsonObject();
         out.addProperty("protocol", NetworkProtocol.VERSION);
         out.addProperty("transport", "minecraft-network");
-        out.addProperty("read_only", true);
-        out.addProperty("trace_available", false);
+        out.addProperty("control", true);
+        out.addProperty("read_only", false);
+        out.addProperty("files_write", LiveConfig.FILES_WRITE.get());
         out.addProperty("exclusive_control", true);
         var operations = new JsonArray();
         for (var name : NetworkProtocol.CAPABILITIES) operations.add(name);
@@ -129,7 +136,8 @@ final class NetworkServer {
             out.addProperty("recording_mode", false);
             return new NetworkProtocol.Reply(200, out);
         }
-        if (!Set.of("status", "screen", "control_acquire", "control_status", "control_release").contains(operation))
+        if (!CONTROL_OPERATIONS.contains(operation)
+            && !Set.of("status", "screen", "control_acquire", "control_status", "control_release").contains(operation))
             return NetworkProtocol.Reply.error(403, "operation unavailable in network preview");
         if (operation.equals("control_acquire")) prune();
         var idValue = arguments.get("computer");
@@ -142,7 +150,14 @@ final class NetworkServer {
         try { NetworkAuthorization.check(player, computer); }
         catch (NetworkControl.Failure e) { revoke(player, peer, id); throw e; }
         if (operation.equals("control_acquire")) {
-            return new NetworkProtocol.Reply(200, leaseData(control.acquire(owner, agent, id, grant.instance()), agent));
+            var lease = control.acquire(owner, agent, id, grant.instance());
+            var out = leaseData(lease, agent);
+            try { attach(player, computer, out); }
+            catch (NetworkControl.Failure e) {
+                if (lease.agent().equals(agent)) control.release(owner, agent, id, grant.instance(), lease.id(), lease.epoch());
+                throw e;
+            }
+            return new NetworkProtocol.Reply(200, out);
         }
         if (operation.equals("control_status")) return new NetworkProtocol.Reply(200, leaseData(control.state(owner, agent, id), agent));
         var leaseId = uuid(arguments, "lease_id");
@@ -151,15 +166,30 @@ final class NetworkServer {
         if (leaseEpoch < 1 || !Long.toString(leaseEpoch).equals(epochValue.getAsString())) throw new IllegalArgumentException("invalid lease epoch");
         if (operation.equals("control_release")) {
             control.release(owner, agent, id, grant.instance(), leaseId, leaseEpoch);
+            if (networkAttached.remove(computer)) session.detach(computer, "detach");
             return ok();
         }
         control.validate(owner, agent, id, grant.instance(), leaseId, leaseEpoch, true);
+        // Polling status keeps the lock busy; it must keep the recording attachment alive too.
+        var attached = session.attachmentOf(computer);
+        if (attached != null) attached.renew();
+        if (CONTROL_OPERATIONS.contains(operation)) return controlOperation(player, computer, operation, arguments);
         var source = arguments.has("source") ? arguments.get("source").getAsString() : "term";
         if (!source.equals("term")) {
             var blocks = Terminals.monitorBlocks(computer, source);
             if (blocks.isEmpty()) return NetworkProtocol.Reply.error(404, "no authorized screen on side " + source);
             // A monitor denial is about that monitor only; it does not revoke the computer's grant.
             NetworkAuthorization.checkBlocks(player, computer.getLevel(), blocks);
+        }
+        if (operation.equals("screen") && arguments.has("tick")) {
+            var past = new HashMap<String, String>();
+            past.put("tick", arguments.get("tick").getAsString());
+            past.put("source", source);
+            if (arguments.has("colors") && arguments.get("colors").getAsBoolean()) past.put("colors", "1");
+            if (arguments.has("regions") && arguments.get("regions").getAsBoolean()) past.put("regions", "1");
+            try { return new NetworkProtocol.Reply(200, ops.pastScreen(id, past)); }
+            catch (LiveHttp.BadRequest e) { return NetworkProtocol.Reply.error(e.status, e.getMessage()); }
+            catch (java.io.IOException e) { return failed(e); }
         }
         var terminal = Terminals.source(computer, source);
         if (terminal == null) return NetworkProtocol.Reply.error(404, "no authorized screen on side " + source);
@@ -169,10 +199,15 @@ final class NetworkServer {
         out.addProperty("source", source);
         out.add("lines", Screens.compactLines(snapshot.text()));
         out.addProperty("screen_hash", ScreenHash.of(snapshot.width(), snapshot.height(), snapshot.text(), snapshot.fg(), snapshot.bg()));
-        out.addProperty("trace_available", false);
+        var attachment = session.attachmentOf(computer);
+        out.addProperty("trace_available", attachment != null);
         if (operation.equals("status")) {
-            out.addProperty("last_seq", 0);
-            out.add("new_since_after", new JsonObject());
+            if (attachment != null) {
+                var wanted = new HashSet<String>();
+                if (arguments.has("kinds")) for (var kind : arguments.get("kinds").getAsString().split(",")) if (!kind.isBlank()) wanted.add(kind.trim());
+                try { LiveHttp.addTrace(out, attachment.trace(), arguments.has("after") ? arguments.get("after").getAsLong() : 0, wanted); }
+                catch (java.io.IOException e) { return failed(e); }
+            }
             out.add("monitors", strings(Terminals.monitors(computer).keySet().stream()
                 .filter(side -> monitorReadable(player, computer, side)).toArray(String[]::new)));
         } else {
@@ -188,6 +223,78 @@ final class NetworkServer {
         return new NetworkProtocol.Reply(200, out);
     }
 
+    /** Attach (record) the computer for the lease holder; the same trace the local endpoint offers. */
+    private void attach(ServerPlayer player, ServerComputer computer, JsonObject out) {
+        boolean fresh = session.attachmentOf(computer) == null;
+        try { session.attach(computer, Math.max(30L, Math.min(86400L, (long) LiveConfig.NETWORK_IDLE_SECONDS.get()))); }
+        catch (java.io.IOException e) {
+            CctLive.LOG.warn("cct-live: cannot start recording computer {}", computer.getID(), e);
+            throw new NetworkControl.Failure(500, "cannot start recording; see server log");
+        }
+        if (fresh) networkAttached.add(computer);
+        out.addProperty("attached", true);
+        out.addProperty("files_write", LiveConfig.FILES_WRITE.get());
+        out.addProperty("recording_mode", session.recording());
+        out.add("monitors", strings(Terminals.monitors(computer).keySet().stream()
+            .filter(side -> monitorReadable(player, computer, side)).toArray(String[]::new)));
+    }
+
+    /** Files, events, power, peripherals, snapshots, trace and bodies: the lease holder gets what the local endpoint offers. */
+    private NetworkProtocol.Reply controlOperation(ServerPlayer player, ServerComputer computer, String operation, JsonObject arguments) {
+        int id = computer.getID();
+        if (session.find(id) != computer)
+            return NetworkProtocol.Reply.error(409, "another loaded computer has this ID; operations are refused until only one remains");
+        if (session.attachmentOf(computer) == null)
+            return NetworkProtocol.Reply.error(409, "AI control of computer " + id + " has ended (a player used /cctlive detach, or it expired): "
+                + "cct_live_control release, then acquire again");
+        var query = new HashMap<String, String>();
+        if (arguments.has("query")) for (var entry : arguments.getAsJsonObject("query").entrySet()) query.put(entry.getKey(), entry.getValue().getAsString());
+        var body = arguments.has("body") ? arguments.getAsJsonObject("body") : new JsonObject();
+        try {
+            JsonObject out;
+            switch (operation) {
+                case "files" -> out = ops.files(id, query);
+                case "files_write" -> out = ops.writeFile(id, body);
+                case "event" -> { checkTouch(player, computer, body); out = ops.queueEvent(id, body); }
+                case "power" -> out = ops.power(id, body);
+                case "peripheral" -> out = ops.peripheral(id, body);
+                case "snapshot" -> out = ops.snapshot(id, body);
+                case "trace" -> out = ops.trace(id, query);
+                default -> out = ops.body(id, query);
+            }
+            return new NetworkProtocol.Reply(200, out);
+        } catch (LiveHttp.BadRequest e) {
+            return NetworkProtocol.Reply.error(e.status, e.getMessage());
+        } catch (java.io.IOException e) {
+            return failed(e);
+        }
+    }
+
+    /** Touching a monitor needs the same claim permission as reading it. */
+    private static void checkTouch(ServerPlayer player, ServerComputer computer, JsonObject event) {
+        if (!event.has("name") || !event.get("name").isJsonPrimitive() || !event.get("name").getAsString().equals("monitor_touch")) return;
+        if (!event.has("args") || !event.get("args").isJsonArray() || event.getAsJsonArray("args").isEmpty()) return;
+        var side = event.getAsJsonArray("args").get(0);
+        if (!side.isJsonPrimitive()) return;
+        var blocks = Terminals.monitorBlocks(computer, side.getAsString());
+        if (!blocks.isEmpty()) NetworkAuthorization.checkBlocks(player, computer.getLevel(), blocks);
+    }
+
+    private static NetworkProtocol.Reply failed(java.io.IOException e) {
+        CctLive.LOG.warn("cct-live: network request failed", e);
+        return NetworkProtocol.Reply.error(500, "network request failed; see server log");
+    }
+
+    /** Detach what this service attached once nobody holds its lease (released, expired, revoked, disconnected). */
+    private void releaseUnheld() {
+        networkAttached.removeIf(computer -> {
+            if (session.attachmentOf(computer) == null) return true; // a player ended it
+            if (control.held(computer.getID())) return false;
+            session.detach(computer, "detach");
+            return true;
+        });
+    }
+
     private static boolean monitorReadable(ServerPlayer player, ServerComputer computer, String side) {
         try { NetworkAuthorization.checkBlocks(player, computer.getLevel(), Terminals.monitorBlocks(computer, side)); return true; }
         catch (NetworkControl.Failure e) { return false; }
@@ -196,7 +303,7 @@ final class NetworkServer {
     private JsonObject describe(Peer peer, NetworkGrants.Grant<ServerComputer> grant) {
         var out = Attachment.describe(grant.target());
         out.addProperty("authorized", true);
-        out.addProperty("attached", false); // Observation grants do not attach or expose another user's trace.
+        out.addProperty("attached", session.attachmentOf(grant.target()) != null);
         out.addProperty("grant_seconds_left", peer.grants.secondsLeft(grant));
         out.addProperty("permission", "allowed");
         return out;
@@ -320,6 +427,7 @@ final class NetworkServer {
         if (!LiveConfig.NETWORK_ENABLED.get()) {
             control.clear();
             for (var peer : peers.values()) peer.grants.clear();
+            releaseUnheld();
             return;
         }
         for (var entry : peers.entrySet()) {
@@ -333,6 +441,7 @@ final class NetworkServer {
             if (peer == null || !agent.owner().connection().equals(peer.epoch)) return false;
             return peer.grants.live(this::available).stream().anyMatch(g -> g.id() == lease.computer() && g.instance().equals(lease.instance()));
         });
+        releaseUnheld();
     }
 
     private void refresh(ServerPlayer player, Peer peer) {
