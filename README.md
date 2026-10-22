@@ -21,7 +21,7 @@ cct-run 让 AI 编程助手（Claude Code、Codex、DeepSeek Harness 等）**不
 
 > 当前源码版本是 **0.3.0**（2026-10），更新内容见 [`docs/releases/0.3.0.md`](docs/releases/0.3.0.md)；已发布版本以 [Releases](https://github.com/EvergardenRoxy/CC-Tweaked_MCP/releases) 为准。历史版本：[0.2.4](docs/releases/0.2.4.md)、[0.2.3](docs/releases/0.2.3.md)、[0.2.2](docs/releases/0.2.2.md)、[0.2.0](docs/releases/0.2.0.md)、[0.1.0](docs/releases/0.1.0.md)。cct-live 还是原型。
 >
-> 0.3.0 新增 cct-live 的 Minecraft 网络桥预览：多人服务器上的玩家可通过已有游戏连接，让本机 AI 只读查看自己授权的电脑，服务器无需开放端口；支持 FTB Chunks 领地权限和多个 MCP 会话互斥。客户端、服务端 mod 与 cct-run 需一起升级。
+> 0.3.0 新增 cct-live 的 Minecraft 网络桥预览：多人服务器上的玩家可通过已有游戏连接，让本机 AI 在授权后像本地一样操作自己授权的电脑（读屏幕、读写文件、运行 Lua、输入、电源、trace；写文件需服务端 `files.allow_write`），服务器无需开放端口；支持 FTB Chunks 领地权限和多个 MCP 会话互斥。客户端、服务端 mod 与 cct-run 需一起升级。
 
 完整文档见[文档索引](docs/README.md)，按使用指南、开发维护、测试和发行说明分类。
 

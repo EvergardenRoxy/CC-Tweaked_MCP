@@ -74,6 +74,9 @@ final class NetworkControl {
         return lease;
     }
 
+    /** True while some session holds a live lease on this computer ID. */
+    boolean held(int computer) { prune(); return leases.containsKey(computer); }
+
     Lease state(Owner owner, UUID id, int computer) { require(owner, id); return leases.get(computer); }
 
     Lease validate(Owner owner, UUID id, int computer, UUID instance, UUID leaseId, long epoch, boolean activity) {

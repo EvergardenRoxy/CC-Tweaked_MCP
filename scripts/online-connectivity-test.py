@@ -15,10 +15,15 @@ SKIP, not FAIL). With --computer, authorize that computer in game first (AI icon
 """
 import argparse, json, os, statistics, sys, time, urllib.error, urllib.request, uuid
 
-PROTOCOL = 3
+PROTOCOL = 4
 CAPS = {"computers", "status", "screen", "session_open", "session_heartbeat", "session_close",
-        "control_acquire", "control_status", "control_release", "menu_grant"}
+        "control_acquire", "control_status", "control_release", "menu_grant",
+        "files", "files_write", "event", "power", "peripheral", "snapshot", "trace", "body"}
 results = []
+
+
+def mark(cid, name, ok, detail=""):
+    record(cid, name, "PASS" if ok else "FAIL", detail)
 
 
 def record(cid, name, status, detail=""):
@@ -31,6 +36,9 @@ class Bridge:
         self.base, self.token = base.rstrip("/"), token
 
     def call(self, method, path, headers=None, token="default", body=None, timeout=15):
+        if isinstance(body, dict):
+            body = json.dumps(body).encode("utf-8")
+            headers = {"Content-Type": "application/json", **(headers or {})}
         h = {"Accept": "application/json"}
         t = self.token if token == "default" else token
         if t is not None:
@@ -128,8 +136,10 @@ def main():
     record("L2.2", f"protocol == {PROTOCOL}", "PASS" if d.get("protocol") == PROTOCOL else "FAIL", f"got {d.get('protocol')}")
     missing = CAPS - set(d.get("capabilities", []))
     record("L2.3", "server advertises all expected operations", "PASS" if not missing else "FAIL", f"missing {sorted(missing)}")
-    record("L2.4", "bridge is read-only", "PASS" if d.get("read_only") is True and d.get("exclusive_control") is True else "FAIL",
-           f"read_only={d.get('read_only')} exclusive_control={d.get('exclusive_control')}")
+    mark("L2.4", "server offers control (not read-only) with exclusive locks",
+         d.get("control") is True and d.get("exclusive_control") is True,
+         f"control={d.get('control')} exclusive_control={d.get('exclusive_control')} files_write={d.get('files_write')}")
+    files_write = bool(d.get("files_write"))
 
     rtts = []
     fails = 0
@@ -171,10 +181,17 @@ def main():
     record("L4.1", "acquire of a non-authorized computer refused", "PASS" if 400 <= s < 500 else "FAIL", f"HTTP {s}")
     s, _, _ = br.call("GET", "/computers/999999/status", A.hdr(False))
     record("L4.2", "status without lease refused", "PASS" if 400 <= s < 500 else "FAIL", f"HTTP {s}")
-    for path, verb in (("/computers/1/files", "GET"), ("/computers/1/type", "POST"), ("/computers/1/lua", "POST"),
-                       ("/computers/1/trace", "GET")):
-        s, _, _ = br.call(verb, path, A.hdr(False), body=b"" if verb == "POST" else None)
-        record("L4.3", f"write/exec route {verb} {path} unavailable (403)", "PASS" if s == 403 else "FAIL", f"HTTP {s}")
+    fake = {"X-CCT-Lease": str(uuid.uuid4()), "X-CCT-Lease-Epoch": "1"}
+    for path, verb, body in (("/computers/999999/files?op=list", "GET", None), ("/computers/999999/trace", "GET", None),
+                             ("/computers/999999/files", "POST", {"path": "/x", "text": "x"}),
+                             ("/computers/999999/event", "POST", {"name": "key", "args": [28, False]}),
+                             ("/computers/999999/power", "POST", {"action": "reboot"}),
+                             ("/computers/999999/snapshot", "POST", {"op": "list"})):
+        s, _, _ = br.call(verb, path, {**A.hdr(False), **fake}, body=body)
+        mark("L4.3", f"{verb} {path.split('?')[0]} on a non-authorized computer refused", 400 <= s < 500, f"HTTP {s}")
+    for path in ("/computers/1/lua", "/computers/1/attach", "/computers/1/detach"):
+        s, _, _ = br.call("POST", path, A.hdr(False), body={})
+        mark("L4.3b", f"unknown route POST {path} (403)", s == 403, f"HTTP {s}")
     s, _, _ = br.call("POST", "/network/sessions/heartbeat", A.hdr(False), body=b"payload")
     record("L4.4", "non-empty request body rejected (413)", "PASS" if s == 413 else "FAIL", f"HTTP {s}")
     s, _, _ = br.call("GET", "/computers?bogus=1", A.hdr(False))
@@ -212,6 +229,7 @@ def main():
                 s, _, _ = br.call("GET", f"/computers/{cid}/status", {**B.hdr(False), "X-CCT-Lease": A.lease["lease_id"],
                                                                      "X-CCT-Lease-Epoch": str(A.lease["lease_epoch"])})
                 record("L5.6", "other session cannot reuse my lease credentials", "PASS" if 400 <= s < 500 else "FAIL", f"HTTP {s}")
+            control_checks(br, A, cid, files_write)
             old = dict(A.lease)
             s, _, _ = br.call("POST", f"/computers/{cid}/control/release", A.hdr(), body=b"")
             record("L5.7", "release", "PASS" if s == 200 else "FAIL", f"HTTP {s}")
@@ -238,6 +256,33 @@ def main():
     s, _, _ = br.call("POST", "/network/sessions/heartbeat", A.hdr(False), body=b"")
     record("L7.1", "closed session rejected on heartbeat (403)", "PASS" if s == 403 else "FAIL", f"HTTP {s}")
     return finish(a, None)
+
+
+def control_checks(br, sess, cid, files_write):
+    """Operations that need the lease. Only touches /.cctlive/probe.txt (the one place the server lets a delete reach)."""
+    s, d, _ = br.call("GET", f"/computers/{cid}/files?op=list&path=%2F", sess.hdr())
+    mark("L5.10", "list the computer's files", s == 200 and "entries" in d or s == 200, f"HTTP {s}")
+    s, d, _ = br.call("GET", f"/computers/{cid}/files?op=read&path=%2From%2Fprograms%2Fedit.lua&length=64", sess.hdr())
+    mark("L5.11", "read a file (/rom/programs/edit.lua)", s == 200, f"HTTP {s}")
+    s, d, _ = br.call("GET", f"/computers/{cid}/trace?summary=1", sess.hdr())
+    mark("L5.12", "trace is available (acquire attaches)", s == 200, f"HTTP {s} {d if s != 200 else ''}")
+    s, d, _ = br.call("GET", f"/computers/{cid}/status?after=0", sess.hdr())
+    mark("L5.13", "status carries trace counters", s == 200 and "last_seq" in d, f"HTTP {s}")
+    s, d, _ = br.call("POST", f"/computers/{cid}/peripheral", sess.hdr(), body={"name": "top"})
+    mark("L5.14", "peripheral query reaches the game (200, or 400 for no such side)", s in (200, 400), f"HTTP {s}")
+    text = "cct-live probe " + str(uuid.uuid4()) + "\n" + ("x" * 12000)  # > one game request, so it is sent in parts
+    s, d, _ = br.call("POST", f"/computers/{cid}/files", sess.hdr(), body={"path": "/.cctlive/probe.txt", "text": text}, timeout=60)
+    if s == 403 and not files_write:
+        record("L5.15", "write a file", "SKIP", "server has files.allow_write = false (expected default)")
+        return
+    mark("L5.15", "write a 12 KB file in parts", s == 200 and d.get("parts", 1) >= 2, f"HTTP {s} {d}")
+    if s != 200:
+        return
+    s, d, _ = br.call("GET", f"/computers/{cid}/files?op=read&path=%2F.cctlive%2Fprobe.txt&length=20000", sess.hdr())
+    back = d.get("text", "")
+    mark("L5.16", "read it back identical", s == 200 and back == text, f"HTTP {s}, {len(back)} of {len(text)} chars")
+    s, d, _ = br.call("POST", f"/computers/{cid}/files", sess.hdr(), body={"op": "delete", "path": "/.cctlive/probe.txt"})
+    mark("L5.17", "delete the probe file", s == 200, f"HTTP {s}")
 
 
 def soak(br, sess, cid, seconds):

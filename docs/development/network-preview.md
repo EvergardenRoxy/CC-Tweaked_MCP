@@ -1,6 +1,6 @@
 # 1021：Minecraft 网络桥、FTB 授权与 MCP 独占会话
 
-`1021` 从 `network-test` 的 `649b33b` 创建，在原有连接与只读数据通道上加入 FTB 授权和多个 MCP 会话之间的互斥。支持 Forge 47.4.10 / Minecraft 1.20.1、NeoForge 21.1.262 / Minecraft 1.21.1，均使用 CC:T 1.120.2。
+`1021` 从 `network-test` 的 `649b33b` 创建，在原有连接上加入 FTB 授权、多个 MCP 会话之间的互斥，以及授权后的完整控制（文件、Lua、输入、电源、快照、外设、trace）。支持 Forge 47.4.10 / Minecraft 1.20.1、NeoForge 21.1.262 / Minecraft 1.21.1，均使用 CC:T 1.120.2。
 
 ```text
 AI / MCP 客户端
@@ -12,7 +12,7 @@ AI / MCP 客户端
 Minecraft 服务端 cct-live → CC:T
 ```
 
-远程服务器不增加 HTTP/MCP 监听端口。客户端与服务端安装对应游戏版本的 mod；两种加载器不支持跨 Minecraft 版本互连。协议升级为 **3**，需同时更新 cct-run、客户端及服务端 mod。
+远程服务器不增加 HTTP/MCP 监听端口。客户端与服务端安装对应游戏版本的 mod；两种加载器不支持跨 Minecraft 版本互连。协议升级为 **4**，需同时更新 cct-run、客户端及服务端 mod。
 
 ## 授权规则
 
@@ -62,9 +62,18 @@ Minecraft 服务端 cct-live → CC:T
 
 ## 当前功能边界
 
-数据接口仅开放列表、当前状态与屏幕，权限标记为 `allowed`，全局 `read_only: true`。`attached: false` 表示没有 trace attachment，`trace_available: false`；MCP 锁不代表已开始录制。屏幕支持直接连接显示器的 `source`、`colors`、`regions`；不支持历史屏幕和 trace 事件等待。
+授权并持有锁的会话，可使用与本机管理员端点相同的功能：状态与屏幕（含历史屏幕 `tick`）、文件（list/stat/read/write/delete）、事件与输入（`cct_live_type`/`click`/`event`）、开关机、快照、外设查询、trace 和 HTTP body。`cct_live_lua` 与“运行 Lua 文件”不需要专门接口：它们由文件写入加输入事件组成，因此同样可用，结果通过屏幕和文件读取返回。
 
-文件、Lua、输入、开关机、快照、trace、HTTP body、外设查询和原有 HTTP attach/detach 仍被网络桥拒绝。后续开放写入所需的数据保护列在 [网络待办](../../issues_to_fix/network-interaction-security.md)，不能直接复用管理员本机 HTTP 绕过游戏授权和会话锁。
+- **取得锁即开始记录**：`control_acquire` 会让服务端 attach 该电脑（等同本机 `attach`），所以 trace、`file_write` 等记录都带 `by: ai`；聊天栏会按 `chat` 配置提示“AI 已接管”。`control_release`、租约过期、撤销授权或断线后，由服务端自动 detach。CLI 的 `cct_live_attach`/`cct_live_detach` 在网络桥上等同 acquire/release。
+- **服务器开关**：写文件、恢复快照仍由服务端 `files.allow_write` 控制（默认关闭），与本机一致；`network.enabled = false` 整体关闭网络桥。玩家无权限、被其他会话占用、玩家用 `/cctlive detach` 收回时分别返回 403 / 409 / 409，三者不混用。
+- **FTB 与显示器**：每次请求前仍重新检查电脑的 FTB 双许可；读取直接连接显示器、对显示器发送 `monitor_touch` 事件时另检查显示器覆盖的每个区块。
+- **大文件写入**：游戏请求上限 10000 字符（应用协议 4）。客户端桥把超出的 `files` 写入按约 8000 字符拆成连续追加，逐段由服务端校验租约，遇到 429 自动等待；中途失败时响应带 `partial` 与 `written_so_far`，文件可能已写入一部分。单次写入上限与本机一致（1 MiB）。
+- **同 ID 电脑**：两台已加载电脑使用同一数字 ID 时，操作返回 409，直到只剩一台。
+- 同一把锁内的所有操作都在服务端线程同步完成；仍没有后台写任务。锁释放后不会有迟到的写入。
+
+仍需实机验证的边界：运行中编辑与玩家同时手动编辑的覆盖（后写者胜，与本机一致）；`partial` 写入的恢复；高延迟线路下的拆分写入耗时。数据保护项见 [网络待办](../../issues_to_fix/network-interaction-security.md)。
+
+注意：授权等于允许该玩家的 AI 在该电脑上运行任意 Lua，与玩家坐在电脑前能做的事一致，但 AI 可以更快、更大范围地操作；授权前请确认玩家理解这一点，必要时服务器管理员可关闭 `network.enabled` 或保持 `files.allow_write = false` 限制写入。
 
 ## 本机发现与协议
 
@@ -75,7 +84,7 @@ Minecraft 服务端 cct-live → CC:T
 <客户端游戏目录>/cct-live/client/token.txt
 ```
 
-本机令牌不通过游戏连接传输。桥验证 Host、Bearer 和空请求体；仅允许数据 GET 及会话/锁的限定 POST 路由，没有 HTTP 授权入口。CLI 发现 URL 必须是本机 HTTP 根地址，不允许远程地址、用户信息、查询或 fragment。存在 `client/endpoint.json` 时优先使用客户端桥；某个 MCP 连接一旦用过客户端桥，断线后对该游戏目录不回退到管理员本机接口（需重启 MCP 服务才能改用），断线删除 endpoint；仅残留 `client/` 目录（无 endpoint）不会遮蔽单人世界的端点。新桥标识变化时重新登记 MCP 会话。
+本机令牌不通过游戏连接传输。桥验证 Host、Bearer；只有下表的路由，没有 HTTP 授权入口；除文件写入和下表标注 JSON 的 POST 外，请求体必须为空，查询参数按路由白名单校验。CLI 发现 URL 必须是本机 HTTP 根地址，不允许远程地址、用户信息、查询或 fragment。存在 `client/endpoint.json` 时优先使用客户端桥；某个 MCP 连接一旦用过客户端桥，断线后对该游戏目录不回退到管理员本机接口（需重启 MCP 服务才能改用），断线删除 endpoint；仅残留 `client/` 目录（无 endpoint）不会遮蔽单人世界的端点。新桥标识变化时重新登记 MCP 会话。
 
 | HTTP | 游戏 RPC |
 | --- | --- |
@@ -85,13 +94,16 @@ Minecraft 服务端 cct-live → CC:T
 | `GET /computers` | computers |
 | `POST /computers/{id}/control/acquire`、`release` | control_acquire、control_release |
 | `GET /computers/{id}/control` | control_status |
-| `GET /computers/{id}/status`、`screen` | status、screen |
+| `GET /computers/{id}/status`、`screen` | status、screen（`after`、`kinds`、`tick`、`source`、`colors`、`regions`） |
+| `GET /computers/{id}/files`、`trace`、`body` | files、trace、body（查询参数同本机端点） |
+| `POST /computers/{id}/files`（JSON） | files_write（写入/追加/`op:"delete"`） |
+| `POST /computers/{id}/event`、`power`、`peripheral`、`snapshot`（JSON） | event、power、peripheral、snapshot |
 
-除 capabilities/open 外需 `X-CCT-Session`；status/screen/release 还需 `X-CCT-Lease`、`X-CCT-Lease-Epoch`。CLI 自动保管与附带这些凭据。它们用于 MCP 协作隔离，不提供同一操作系统用户下恶意进程隔离。
+除 capabilities/open 外需 `X-CCT-Session`；除 acquire/control 查询外，对电脑的操作还需 `X-CCT-Lease`、`X-CCT-Lease-Epoch`。CLI 自动保管与附带这些凭据。它们用于 MCP 协作隔离，不提供同一操作系统用户下恶意进程隔离。
 
 握手（hello）在同一连接内遇到超时、丢包或暂时不可用时按 1、2、4…30 秒退避重试，工具调用也会触发一次重试；只有协议不兼容（426）不再重试。握手完成前游戏内不显示授权按钮。
 
-Forge 可选 SimpleChannel、NeoForge 可选 play payload 的封装编码维持 1，应用协议为 3（新增仅供游戏内图标查询本人当前界面授权状态的 `menu_grant`，本机 HTTP 桥没有对应路由）；旧协议握手失败，不绕过会话锁。RPC 请求上限 4096 字符，响应 16 KiB 分块、总计 256 KiB，客户端最多 8 个待处理请求、10 秒超时，服务端每连接每秒 20 次请求/授权操作，本秒第一次超限回复 429，其余丢弃。主线程入队前限流和全服预算仍是待办。
+Forge 可选 SimpleChannel、NeoForge 可选 play payload 的封装编码维持 1，应用协议为 4（3 起有仅供游戏内图标查询本人当前界面授权状态的 `menu_grant`，本机 HTTP 桥没有对应路由；4 起开放控制操作，握手以 `control: true` 判定，`read_only` 恒为 false）；旧协议握手失败，不绕过会话锁。RPC 请求上限 10000 字符，响应 16 KiB 分块、总计 256 KiB，客户端最多 8 个待处理请求、10 秒超时，服务端每连接每秒 20 次请求/授权操作，本秒第一次超限回复 429，其余丢弃。主线程入队前限流和全服预算仍是待办。
 
 ## 构建与验收
 

@@ -65,7 +65,7 @@ final class LiveHttp {
     private final int port;
     private final byte[] token;
     private HttpServer server;
-    private final java.util.concurrent.ScheduledExecutorService readDeadlines = Executors.newSingleThreadScheduledExecutor(r -> { var t = new Thread(r, "cct-live-body-deadline"); t.setDaemon(true); return t; });
+    private java.util.concurrent.ScheduledExecutorService readDeadlines;
     private ExecutorService executor;
 
     LiveHttp(LiveSession session, int port, String token) {
@@ -83,6 +83,7 @@ final class LiveHttp {
             t.setDaemon(true);
             return t;
         });
+        readDeadlines = Executors.newSingleThreadScheduledExecutor(r -> { var t = new Thread(r, "cct-live-body-deadline"); t.setDaemon(true); return t; });
         server.setExecutor(executor);
         server.createContext("/", this::handle);
         server.start();
@@ -97,7 +98,7 @@ final class LiveHttp {
     void stop() {
         if (server != null) server.stop(0);
         if (executor != null) executor.shutdownNow();
-        readDeadlines.shutdownNow();
+        if (readDeadlines != null) readDeadlines.shutdownNow();
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -234,7 +235,7 @@ final class LiveHttp {
     }
 
     /** Save, compare with or restore a snapshot of the computer's files (D46). */
-    private JsonObject snapshot(int id, JsonObject body) {
+    JsonObject snapshot(int id, JsonObject body) {
         var computer = controlled(id);
         var op = body.has("op") ? body.get("op").getAsString() : "";
         var name = body.has("name") ? body.get("name").getAsString() : null;
@@ -271,7 +272,7 @@ final class LiveHttp {
     }
 
     /** A getter of one of the computer's peripherals, called from Java while the computer does anything (PeripheralQuery). */
-    private JsonObject peripheral(int id, JsonObject body) {
+    JsonObject peripheral(int id, JsonObject body) {
         var computer = controlled(id);
         if (!body.has("name")) throw new BadRequest(400, "\"name\" (a side or a wired network name) is required");
         var name = body.get("name").getAsString();
@@ -358,29 +359,32 @@ final class LiveHttp {
             o.addProperty("screen_hash", ScreenHash.of(s.width(), s.height(), s.text(), s.fg(), s.bg()));
             return o;
         });
-        var trace = session.traceOf(id);
-        if (trace != null) {
-            out.addProperty("last_seq", trace.lastSeq());
-            out.add("trace_health", trace.health());
-            // Records before first_seq were dropped to keep the trace within its size (trace.max_megabytes_per_computer).
-            if (trace.rotations() > 0) out.addProperty("first_seq", trace.firstSeq());
-            var counts = new JsonObject();
-            for (var e : trace.countsAfter(after).entrySet()) counts.addProperty(e.getKey(), e.getValue());
-            out.add("new_since_after", counts);
-            var printed = trace.latest("printed_error");
-            if (printed != null) out.add("last_printed_error", printed);
-            if (!wanted.isEmpty()) {
-                var seq = trace.firstAfter(after, wanted);
-                if (seq > 0) out.add("match", recordAt(trace, seq));
-            }
-        }
+        addTrace(out, session.traceOf(id), after, wanted);
         return out;
+    }
+
+    /** What happened since seq {@code after} in this computer's trace; shared with the network service. */
+    static void addTrace(JsonObject out, ComputerTrace trace, long after, Set<String> wanted) throws IOException {
+        if (trace == null) return;
+        out.addProperty("last_seq", trace.lastSeq());
+        out.add("trace_health", trace.health());
+        // Records before first_seq were dropped to keep the trace within its size (trace.max_megabytes_per_computer).
+        if (trace.rotations() > 0) out.addProperty("first_seq", trace.firstSeq());
+        var counts = new JsonObject();
+        for (var e : trace.countsAfter(after).entrySet()) counts.addProperty(e.getKey(), e.getValue());
+        out.add("new_since_after", counts);
+        var printed = trace.latest("printed_error");
+        if (printed != null) out.add("last_printed_error", printed);
+        if (!wanted.isEmpty()) {
+            var seq = trace.firstAfter(after, wanted);
+            if (seq > 0) out.add("match", recordAt(trace, seq));
+        }
     }
 
     private static JsonObject recordAt(ComputerTrace trace, long seq) throws IOException { return trace.recordAt(seq); }
 
     /** The screen at a past tick, rebuilt from the computer's trace (only ticks while it was attached). */
-    private JsonObject pastScreen(int id, Map<String, String> query) throws IOException {
+    JsonObject pastScreen(int id, Map<String, String> query) throws IOException {
         var tick = longParam(query, "tick", 0);
         var trace = onServer(() -> {
             var computer = session.find(id);
@@ -419,7 +423,7 @@ final class LiveHttp {
         if (regions) out.add("regions", Screens.regions(s));
     }
 
-    private JsonObject files(int id, Map<String, String> query) {
+    JsonObject files(int id, Map<String, String> query) {
         var computer = controlled(id);
         var op = query.getOrDefault("op", "list");
         var path = query.getOrDefault("path", "/");
@@ -440,7 +444,7 @@ final class LiveHttp {
         }
     }
 
-    private JsonObject writeFile(int id, JsonObject body) {
+    JsonObject writeFile(int id, JsonObject body) {
         if (!LiveConfig.FILES_WRITE.get()) {
             throw new BadRequest(403, "writing files is off: the player can turn it on with files.allow_write = true in config/cctlive-common.toml");
         }
@@ -485,7 +489,7 @@ final class LiveHttp {
     }
 
     /** A saved HTTP response body, read like a file. */
-    private JsonObject body(int id, Map<String, String> query) throws IOException {
+    JsonObject body(int id, Map<String, String> query) throws IOException {
         var n = intParam(query, "n", 0, 1, Integer.MAX_VALUE);
         if (n == 0) throw new BadRequest(400, "n (the 'body' number of a handle record) is required");
         var offset = intParam(query, "offset", 0, 0, Integer.MAX_VALUE);
@@ -527,7 +531,7 @@ final class LiveHttp {
         return value != null && (value.equals("1") || value.equalsIgnoreCase("true"));
     }
 
-    private JsonObject queueEvent(int id, JsonObject body) {
+    JsonObject queueEvent(int id, JsonObject body) {
         var computer = controlled(id);
         if (!body.has("name") || !body.get("name").isJsonPrimitive()) throw new BadRequest(400, "body needs \"name\" (string)");
         var name = body.get("name").getAsString();
@@ -546,7 +550,7 @@ final class LiveHttp {
         return out;
     }
 
-    private JsonObject power(int id, JsonObject body) {
+    JsonObject power(int id, JsonObject body) {
         var computer = controlled(id);
         var action = body.has("action") ? body.get("action").getAsString() : "";
         if (!POWER.contains(action)) throw new BadRequest(400, "\"action\" must be one of " + POWER);
@@ -561,7 +565,7 @@ final class LiveHttp {
         return out;
     }
 
-    private JsonObject trace(int id, Map<String, String> query) throws IOException {
+    JsonObject trace(int id, Map<String, String> query) throws IOException {
         // The last attachment's trace stays readable after the computer is unloaded.
         var attachment = onServer(() -> {
             var computer = session.find(id);
@@ -707,6 +711,7 @@ final class LiveHttp {
 
     private <T> T onServer(Supplier<T> task) {
         var server = session.server();
+        if (server.isSameThread()) return task.get();
         var future = server.submit(task::get);
         try {
             return future.get(5, TimeUnit.SECONDS);
@@ -819,7 +824,7 @@ final class LiveHttp {
         exchange.getResponseBody().write(bytes);
     }
 
-    private static final class BadRequest extends RuntimeException {
+    static final class BadRequest extends RuntimeException {
         final int status;
 
         BadRequest(int status, String message) {

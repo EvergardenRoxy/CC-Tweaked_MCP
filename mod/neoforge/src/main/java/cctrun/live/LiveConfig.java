@@ -24,7 +24,7 @@ final class LiveConfig {
     static {
         var b = new ModConfigSpec.Builder();
         b.push("network");
-        NETWORK_ENABLED = b.comment("Allow the read-only Minecraft player connection bridge. No additional server port is opened.")
+        NETWORK_ENABLED = b.comment("Allow authorized players to control computers from their own AI through the Minecraft connection (files, Lua, input, power, trace). Writing files also needs files.allow_write. No additional server port is opened.")
             .define("enabled", true);
         NETWORK_LEASE_SECONDS = b.comment("MCP session and exclusive lease timeout. Each MCP process must heartbeat; native CC interfaces are unaffected.")
             .defineInRange("lease_seconds", 60, 30, 300);

@@ -47,6 +47,20 @@ final class NetworkBridge implements AutoCloseable {
         LOG.log(System.Logger.Level.INFO, "cct-live: client bridge at 127.0.0.1:" + port + " (local discovery in " + home + ")");
     }
 
+    /** Query parameters each read operation accepts; anything else is a 400. */
+    private static final java.util.Map<String, Set<String>> QUERY = java.util.Map.of(
+        "status", Set.of("source", "after", "kinds"),
+        "screen", Set.of("source", "colors", "regions", "tick"),
+        "files", Set.of("op", "path", "offset", "length"),
+        "trace", Set.of("kind", "exclude", "after", "ticks", "contains", "peripheral", "method", "summary", "offset", "limit"),
+        "body", Set.of("n", "offset", "length"));
+    /** POST paths that carry a JSON object (the local endpoint's request bodies); a POST to files is a write. */
+    private static final Set<String> JSON_POSTS = Set.of("files", "event", "power", "peripheral", "snapshot");
+    private static final Set<String> BODY_OPERATIONS = Set.of("files_write", "event", "power", "peripheral", "snapshot");
+    /** Largest accepted request body: a 1 MiB file write, JSON-escaped. */
+    private static final int MAX_BODY = 3 * 1024 * 1024;
+    private static final int CHUNK_CHARS = 8000;
+
     private void handle(HttpExchange exchange) throws IOException {
         try {
             if (!HttpPolicy.hostAllowed(exchange.getRequestHeaders().getFirst("Host"), port)) {
@@ -59,10 +73,16 @@ final class NetworkBridge implements AutoCloseable {
                 send(exchange, NetworkProtocol.Reply.error(401, "missing or wrong client bridge token"));
                 return;
             }
-            HttpPolicy.read(exchange, 0, 2000, deadlines);
+            var bodyBytes = HttpPolicy.read(exchange, MAX_BODY, 5000, deadlines);
             var args = new JsonObject();
             var path = exchange.getRequestURI().getPath();
             var method = exchange.getRequestMethod();
+            var segments = path.split("/");
+            boolean takesBody = method.equals("POST") && segments.length == 4 && segments[1].equals("computers") && JSON_POSTS.contains(segments[3]);
+            if (bodyBytes.length > 0 && !takesBody) {
+                send(exchange, NetworkProtocol.Reply.error(413, "this network bridge request must have an empty body"));
+                return;
+            }
             String operation;
             if (path.equals("/network") && method.equals("GET")) operation = "capabilities";
             else if (path.equals("/network/sessions/open") && method.equals("POST")) {
@@ -74,49 +94,132 @@ final class NetworkBridge implements AutoCloseable {
             else {
                 var parts = path.split("/");
                 if (parts.length == 4 && parts[1].equals("computers") && method.equals("GET")
-                    && Set.of("status", "screen", "control").contains(parts[3])) {
+                    && Set.of("status", "screen", "control", "files", "trace", "body").contains(parts[3])) {
                     operation = parts[3].equals("control") ? "control_status" : parts[3];
+                } else if (parts.length == 4 && parts[1].equals("computers") && method.equals("POST")
+                    && JSON_POSTS.contains(parts[3])) {
+                    operation = parts[3].equals("files") ? "files_write" : parts[3];
                 } else if (parts.length == 5 && parts[1].equals("computers") && parts[3].equals("control")
                     && method.equals("POST") && Set.of("acquire", "release").contains(parts[4])) operation = "control_" + parts[4];
                 else {
-                    send(exchange, NetworkProtocol.Reply.error(403, "operation unavailable in network preview"));
+                    send(exchange, NetworkProtocol.Reply.error(403, "operation unavailable on the network bridge"));
                     return;
                 }
                 int id = Integer.parseInt(parts[2]);
                 if (id < 0) throw new IllegalArgumentException("computer id must be non-negative");
                 args.addProperty("computer", id);
-                if (Set.of("status", "screen", "control_release").contains(operation)) {
+                if (!Set.of("control_status", "control_acquire").contains(operation)) {
                     args.addProperty("lease_id", headerUuid(exchange, "X-CCT-Lease"));
                     args.addProperty("lease_epoch", Long.parseLong(exchange.getRequestHeaders().getFirst("X-CCT-Lease-Epoch")));
                 }
             }
             if (!Set.of("capabilities", "session_open").contains(operation))
                 args.addProperty("agent_session_id", headerUuid(exchange, "X-CCT-Session"));
-            var query = exchange.getRequestURI().getRawQuery();
-            if (query != null) {
-                if (query.length() > 1024) throw new IllegalArgumentException("query too large");
-                for (var part : query.split("&")) {
-                    var pair = part.split("=", 2);
-                    var key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
-                    var value = pair.length == 2 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "";
-                    if (key.equals("source")) args.addProperty(key, value);
-                    else if (key.equals("colors") || key.equals("regions")) args.addProperty(key, value.equals("1") || value.equals("true"));
-                    // Existing status polling supplies these; network preview has no trace access.
-                    else if (!Set.of("after", "kinds").contains(key)) throw new IllegalArgumentException("unsupported query: " + key);
-                }
+            queryArguments(exchange, operation, args);
+            if (!BODY_OPERATIONS.contains(operation)) {
+                send(exchange, client.call(operation, args).get(11, TimeUnit.SECONDS));
+                return;
             }
-            send(exchange, client.call(operation, args).get(11, TimeUnit.SECONDS));
+            var body = jsonBody(bodyBytes);
+            if (operation.equals("files_write")) send(exchange, writeFile(args, body));
+            else {
+                args.add("body", body);
+                send(exchange, client.call(operation, args).get(11, TimeUnit.SECONDS));
+            }
         } catch (HttpPolicy.ReadTimeout ignored) {
             // The body deadline has closed the socket.
         } catch (HttpPolicy.TooLarge e) {
-            send(exchange, NetworkProtocol.Reply.error(413, "network bridge requests must have an empty body"));
-        } catch (IllegalArgumentException | NullPointerException e) {
+            send(exchange, NetworkProtocol.Reply.error(413, "request body larger than " + MAX_BODY + " bytes"));
+        } catch (IllegalArgumentException | NullPointerException | com.google.gson.JsonParseException e) {
             send(exchange, NetworkProtocol.Reply.error(400, e.getMessage()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException | TimeoutException e) {
             send(exchange, NetworkProtocol.Reply.error(504, "Minecraft request timed out"));
         } finally { exchange.close(); }
+    }
+
+    /** Validates the query against the operation's whitelist and puts it into the RPC arguments. */
+    private static void queryArguments(HttpExchange exchange, String operation, JsonObject args) {
+        var raw = exchange.getRequestURI().getRawQuery();
+        if (raw == null) return;
+        if (raw.length() > 1024) throw new IllegalArgumentException("query too large");
+        var allowed = QUERY.getOrDefault(operation, Set.of());
+        var query = new JsonObject();
+        for (var part : raw.split("&")) {
+            var pair = part.split("=", 2);
+            var key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
+            var value = pair.length == 2 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "";
+            if (!allowed.contains(key)) throw new IllegalArgumentException("unsupported query: " + key);
+            if (operation.equals("status") || operation.equals("screen")) {
+                if (key.equals("colors") || key.equals("regions")) args.addProperty(key, value.equals("1") || value.equals("true"));
+                else if (key.equals("after") || key.equals("tick")) args.addProperty(key, Long.parseLong(value));
+                else args.addProperty(key, value);
+            } else query.addProperty(key, value);
+        }
+        if (query.size() > 0) args.add("query", query);
+    }
+
+    private static JsonObject jsonBody(byte[] bytes) {
+        var text = new String(bytes, StandardCharsets.UTF_8);
+        var parsed = com.google.gson.JsonParser.parseString(text.isBlank() ? "{}" : text);
+        if (!parsed.isJsonObject()) throw new IllegalArgumentException("body must be a JSON object");
+        return parsed.getAsJsonObject();
+    }
+
+    /**
+     * A game request is limited to {@link NetworkProtocol#MAX_REQUEST_CHARS}, so a bigger write goes as consecutive
+     * appends. Every part is checked against the lease by the server; a failure reports how much was already written.
+     */
+    private NetworkProtocol.Reply writeFile(JsonObject args, JsonObject body) throws InterruptedException, ExecutionException, TimeoutException {
+        if (!body.has("text") || !body.get("text").isJsonPrimitive() || !body.has("path")) {
+            args.add("body", body); // delete, or an invalid body the server rejects
+            return client.call("files_write", args).get(11, TimeUnit.SECONDS);
+        }
+        var text = body.get("text").getAsString();
+        var path = body.get("path").getAsString();
+        var budget = NetworkProtocol.MAX_REQUEST_CHARS - 1500 - 2 * path.length();
+        if (budget < 1000) throw new IllegalArgumentException("path too long");
+        boolean append = body.has("append") && body.get("append").getAsBoolean();
+        long total = 0;
+        int parts = 0;
+        NetworkProtocol.Reply last = null;
+        int from = 0;
+        do {
+            int to = Math.min(text.length(), from + CHUNK_CHARS);
+            while (to > from + 1 && (new com.google.gson.JsonPrimitive(text.substring(from, to)).toString().length() > budget
+                || (to < text.length() && Character.isHighSurrogate(text.charAt(to - 1))))) to--;
+            var part = body.deepCopy();
+            part.addProperty("text", text.substring(from, to));
+            part.addProperty("append", append || parts > 0);
+            var call = args.deepCopy();
+            call.add("body", part);
+            last = callPaced(call);
+            if (last.status() != 200) {
+                if (parts > 0) {
+                    last.data().addProperty("partial", true);
+                    last.data().addProperty("written_so_far", total);
+                }
+                return last;
+            }
+            if (last.data().has("written")) total += last.data().get("written").getAsLong();
+            parts++;
+            from = to;
+        } while (from < text.length());
+        if (parts > 1) {
+            last.data().addProperty("written", total);
+            last.data().addProperty("parts", parts);
+        }
+        return last;
+    }
+
+    /** The server answers at most 20 requests per second per connection: wait out a 429 instead of failing the write. */
+    private NetworkProtocol.Reply callPaced(JsonObject call) throws InterruptedException, ExecutionException, TimeoutException {
+        for (int attempt = 0; ; attempt++) {
+            var reply = client.call("files_write", call).get(11, TimeUnit.SECONDS);
+            if (reply.status() != 429 || attempt >= 40) return reply;
+            Thread.sleep(150);
+        }
     }
 
     private static String headerUuid(HttpExchange exchange, String name) {

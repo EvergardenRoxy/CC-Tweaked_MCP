@@ -17,7 +17,7 @@ cct-live 是一个 Minecraft mod，同一个 Gradle 工程产出两个版本：F
 
 > 这是**原型**，HTTP 接口的格式还可能改变。
 
-> **1021 分支预览**：通过玩家 Minecraft 连接转发的客户端桥，支持 Forge 1.20.1 和 NeoForge 1.21.1。新增 FTB 有效交互与编辑授权、独立 MCP 会话和独占租约；先用 `cct_live_control` 获取锁，再读取状态与屏幕。服务器不用开放额外端口，配置及限制见 [网络桥使用说明](../docs/development/network-preview.md)。网络文件/执行仍未开放；下文的控制、文件和 trace 接口属于原有管理员本机 HTTP 模式。
+> **1021 分支预览**：通过玩家 Minecraft 连接转发的客户端桥，支持 Forge 1.20.1 和 NeoForge 1.21.1。新增 FTB 有效交互与编辑授权、独立 MCP 会话和独占租约；先用 `cct_live_attach`（等同 `cct_live_control acquire`）获取锁并开始记录，随后文件、Lua、输入、电源、快照、外设和 trace 与本机一样可用（写文件需要服务端 `files.allow_write = true`）。服务器不用开放额外端口，配置及限制见 [网络桥使用说明](../docs/development/network-preview.md)。下文的 HTTP 路由是原有管理员本机模式。
 
 ## 版本
 
