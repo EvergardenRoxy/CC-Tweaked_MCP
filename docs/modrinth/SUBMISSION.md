@@ -49,3 +49,17 @@
 4. **数据上传**（§1.11）：mod 不向第三方服务器上传数据，所以不违规；描述页的 “Network and data” 一节已经写清楚了网络行为。
 5. **描述**（§2）：有英文版本和纯文本版本，标题没有用作正文，摘要不带格式，都已经满足。
 6. **依赖**（§5.6）：每个版本都要在 Dependencies 里填 CC: Tweaked；cct-run 不在 Modrinth 上，所以只在描述里说明。
+
+## Content disclosure 勾选表
+
+| 项目 | 勾选 | 英文说明 |
+|---|---|---|
+| 包含 AI 所生成的内容 | ✅ | Most of the code, tests and documentation, including this project page, were written with generative AI (Claude Code) under the maintainer's direction. The maintainer reviews and tests everything and is responsible for maintaining it. |
+| 包含生成 AI 式功能 | ✅ | The mod contains no AI model and does not call any AI service. It is built so that external AI coding assistants (through MCP and the companion tool cct-run) can operate CC: Tweaked computers after a player allows it. |
+| 与外部系统的交互 | ✅ | The mod opens a token-protected HTTP endpoint on 127.0.0.1 so that local programs (cct-run) can talk to the game. It writes its token, endpoint info, traces and snapshots to the `cct-live/` folder in the game directory. It does not read or edit files outside the game directory. |
+| 包含广告推广内容 | ❌ | 只链接到自己的免费项目（cct-run、AI skill），不属于广告。 |
+| 包含付费功能 | ❌ | |
+| 包含遥测功能 | ❌ | 不向作者或任何第三方发送数据。 |
+| 包含衍生内容 | ❌ | 不是分支，jar 里也没有打包 CC: Tweaked 的代码，只是依赖它。 |
+| 光敏性癫痫警告 | ❌ | |
+| 归档项目 | ❌ | |
