@@ -30,6 +30,14 @@ It pairs with **[cct-run](https://github.com/EvergardenRoxy/CC-Tweaked_MCP)**, a
 - **Writing files is disabled by default** (`files.allow_write = false`).
 - In local mode, the mod listens only on `127.0.0.1`, requires a token for every request and rejects foreign Host headers.
 
+## Network and data
+
+- cct-live does **not** send data to any third-party server, and it has no telemetry.
+- **Local mode:** the mod opens an HTTP endpoint on `127.0.0.1` only (port 47823 by default). Only programs on your own machine that have the token can reach it. Turn it off with `http.enabled = false`.
+- **Network bridge:** computer data travels only between the Minecraft server and the client of the player who authorized that computer, over the existing game connection.
+- Traces and snapshots are saved to the `cct-live/` folder in your game directory.
+- What the AI reads (screens, files, traces) is handed to **your MCP client**, such as Claude Code. That client may send it to its AI provider under its own terms. cct-live doesn't control this.
+
 ## Multiplayer (network bridge, preview)
 
 On a multiplayer server, players can let **their own local AI** operate computers they have authorized. The connection goes through their existing game connection, so the server doesn't need to open any extra ports.
@@ -84,6 +92,7 @@ cct-live 让支持 MCP 的 AI 助手（Claude Code、Codex、Claude Desktop、De
 
 - 电脑里不用装任何脚本，不用放开 http 规则，也不用转发服务器；
 - 记录在 Java 层完成，被测程序无法隐藏或改写这些记录：事件、外设调用和返回值、HTTP、文件读写、`printError`、VM 错误、红石、带颜色的屏幕、海龟移动；
+- 不向任何第三方服务器发送数据，没有遥测：本机模式只监听 `127.0.0.1`，网络桥只在服务器和授权玩家的客户端之间传数据；AI 读到的内容会交给你的 MCP 客户端，由它按自己的条款发给 AI 服务商；
 - 接管时聊天栏公开提示，任何玩家都可以用 `/cctlive detach <id>` 收回；写文件默认关闭；
 - 多人服务器（预览）：玩家点击电脑界面旁的 **AI** 按钮授权，通过已有的游戏连接让自己本机的 AI 操作，服务器不用开放端口；支持 FTB Chunks 领地权限；
 - 要求 CC: Tweaked **1.120.2**（精确版本），Forge 1.20.1 或 NeoForge 1.21.1；
