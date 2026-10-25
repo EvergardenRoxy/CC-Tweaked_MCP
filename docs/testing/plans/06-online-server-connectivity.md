@@ -19,7 +19,7 @@ cct-run mcp / 探测脚本 ──127.0.0.1 HTTP+令牌──▶ 客户端 mod �
 | --- | --- |
 | 服务器 | 部署 cct-live 服务端 mod（与客户端同一版本、同一加载器与 Minecraft 版本）和 CC:T 1.120.2；`config/cctlive-common.toml` 中 `[network] enabled = true`；服务端 `[http] enabled = false` 也可。测写入时另设 `[files] allow_write = true`（默认关闭，关闭时写入应返回 403） |
 | 客户端 | 同版本 cct-live 客户端 mod；**不能是单人世界或自己开放的局域网**（那是本机管理员端点，不走网络桥） |
-| 本机 | cct-run 同版本（应用协议 3）；Python 3.8+（探测脚本） |
+| 本机 | cct-run 同版本（应用协议 4）；Python 3.8+（探测脚本） |
 | 测试电脑 | 服务器里至少两台电脑：A 电脑（授权用，开机，屏幕上有可辨认的文字）、B 电脑（**不授权**，用于负向测试）。有 FTB Chunks 时，另备一台在他人领地内的电脑 |
 | 账号 | 玩家 P1（非旁观）；做 T7 时再加一名玩家 P2 |
 | 记录 | 服务器地址与版本、是否经反向代理/隧道/跨国线路、客户端位置、`/cctlive network policy` 输出 |
