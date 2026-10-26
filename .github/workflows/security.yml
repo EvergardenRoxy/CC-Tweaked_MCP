@@ -36,7 +36,7 @@ jobs:
           languages: java-kotlin
           build-mode: manual
       - run: ./gradlew --no-daemon --console=plain build -x test
-      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           # GitHub Default setup owns Code Scanning uploads for this repository. Keep this explicit
           # build analysis as a reviewable artifact without submitting a conflicting advanced config.
